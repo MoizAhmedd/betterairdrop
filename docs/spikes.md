@@ -202,3 +202,100 @@ Check afterwards that System Settings → Privacy & Security → Files and Folde
 ### Results
 
 *(pending: paste `results` output here)*
+
+## (f) Signing: does a self-signed certificate keep permissions across updates? (M7)
+
+*Prepared 2026-09-24 on macOS 15.4.1 (Apple silicon), Swift 6.1. The static half has been run; the
+runtime half needs the maintainer, because it deliberately triggers permission prompts.*
+
+**Question.** macOS remembers a Downloads grant (TCC) and a Keychain item's access list by the app's
+*designated requirement* (DR). Ad-hoc code's DR is its `cdhash`, so every build looks like a new app.
+A self-signed certificate gives a DR of `identifier "…" and certificate leaf = H"…"`, which stays the
+same across versions. Does TCC honour that without an Apple-issued certificate? (UX-PROPOSAL.md §3.2)
+
+`scripts/spike-signing.sh` builds a toy menu-bar app (`LSUIElement`) as v1 and v2 (different code, so
+different cdhashes) in three flavours, installs v1, launches it, then swaps v2 into the **same path**
+the way an updater would and launches it again:
+
+| Flavour | Bundle ID | Signing | How v1 gets Downloads |
+|---|---|---|---|
+| `signed` | `dev.betterairdrop.spike.signed` | throwaway self-signed certificate | the TCC prompt |
+| `adhoc` | `dev.betterairdrop.spike.adhoc` | ad-hoc (`codesign -s -`) | the TCC prompt |
+| `macl` | `dev.betterairdrop.spike.macl` | ad-hoc | an Open panel preset to Downloads (user intent, `com.apple.macl`) |
+
+Each launch: counts `~/Downloads` entries (never names; a call blocking > 1 s means a prompt was
+shown), v1 writes and v2 reads a Keychain item, v1 calls `SMAppService.mainApp.register()` and v2
+reports its status, and both post a `UNUserNotificationCenter` banner with a thumbnail attachment and
+**Undo** / **Show in Finder** actions, then log which action was clicked.
+
+The identity is created with LibreSSL/OpenSSL (`extendedKeyUsage=codeSigning`) inside a **temporary
+keychain** in the spike's work folder, put on the keychain search list only while `codesign` runs,
+and deleted (key, p12 and keychain) before `prepare` exits. The certificate is never trusted, and
+it doesn't need to be: `codesign` signs with an untrusted identity, and the leaf-hash DR doesn't
+involve trust. `cleanup` unregisters the login items, deletes the probe Keychain items, runs
+`tccutil reset All` for the three bundle IDs and removes every file.
+
+### Static results (run here, no prompts)
+
+`scripts/spike-signing.sh prepare`:
+
+| | signed | adhoc | macl |
+|---|---|---|---|
+| v1 and v2 cdhash differ | yes | yes | yes |
+| DR | `identifier "dev.betterairdrop.spike.signed" and certificate leaf = H"<sha1>"` (both) | `cdhash H"<v1>"` vs `cdhash H"<v2>"` | same as adhoc |
+| DR identical v1 → v2 | **yes** | no | no |
+| v2 satisfies v1's DR (`codesign --verify -R=<v1 DR> v2`) | **yes** | no | no |
+| Signing needed a trusted cert or a password prompt | no | — | — |
+
+So, statically, the self-signed v2 *is* the same app as v1 to anything that checks the DR, and the
+ad-hoc v2 is not. Whether TCC and the Keychain actually check it that way is the runtime half.
+
+### Runtime procedure (the maintainer, about 10 minutes)
+
+```sh
+cd <repo>
+scripts/spike-signing.sh walk       # guided: prepare, then v1 → v2 for each flavour, pausing before each step
+scripts/spike-signing.sh results    # the log plus a summary table
+scripts/spike-signing.sh cleanup    # removes everything, including the TCC entries
+```
+
+What to click:
+
+1. **signed v1**: "BetterAirdrop Spike Signed would like to access files in your Downloads folder" → **Allow**. Notifications prompt → **Allow**. Hover the banner → **Undo**.
+2. **signed v2**: expect **no** Downloads prompt and **no** Keychain prompt. If either appears, write it down, then Allow. Hover the banner → **Undo**.
+3. **adhoc v1**: Downloads → **Allow**; notifications → **Allow**.
+4. **adhoc v2**: expected to fail. If a Downloads prompt appears → **Don't Allow**. If a Keychain prompt appears → **Deny**. Note what appeared.
+5. **panel v1**: an Open panel preset to Downloads → **Grant Access**. Note whether a TCC prompt appears as well.
+6. **panel v2**: note any prompt → **Don't Allow**.
+
+### Runtime results
+
+*(pending: paste `scripts/spike-signing.sh results` here)*
+
+| Check (v2 after the swap) | signed | adhoc | macl |
+|---|---|---|---|
+| Downloads readable, no prompt | | | |
+| Keychain item from v1 readable, no prompt | | | |
+| `SMAppService.mainApp` status (registered by v1) | | | |
+| Notification posted with attachment; action received | | | |
+
+**Pass:** `signed` keeps Downloads and the Keychain item with no prompt, and `adhoc` loses at least
+one of them. **Fail:** `signed` behaves like `adhoc`.
+
+### What M8 does under either outcome
+
+The app is built so that the answer changes the release pipeline (M12), not the app:
+
+- **Pass (expected).** Releases are signed with one certificate held as a CI secret. `make-app.sh`
+  already takes `--sign <identity>`; locally it signs ad-hoc.
+- **Fail.** Switch to the stable-launcher layout from UX-PROPOSAL.md §3.2 (about 4 h): a
+  byte-identical host app that loads the versioned payload from Application Support. That changes
+  packaging (`make-app.sh` and the updater), not app logic: nothing in the app depends on its
+  signing identity, and the permission code never assumes a grant survives an update.
+- **Either way**, the app re-checks folder access at launch, on every folder event and whenever the
+  panel opens. A lost grant shows the orange dot, one banner, and a **Fix…** bar that reopens the
+  onboarding access step (with the Open-panel fallback), so an update that drops the grant costs
+  the user one click, never silent failure.
+
+(e) above (the `airname install` LaunchAgent shim) is superseded: the headless agent was cut in
+favour of the menu-bar app, so its result no longer decides anything.
