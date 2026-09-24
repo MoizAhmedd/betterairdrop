@@ -1,0 +1,7 @@
+{
+  "name": "airname-site",
+  "private": true,
+  "description": "Landing page for airname",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node server.js" }
+}
