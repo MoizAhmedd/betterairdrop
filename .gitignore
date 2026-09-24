@@ -1,0 +1,9 @@
+.DS_Store
+.build/
+.swiftpm/
+*.xcodeproj
+/fixtures-local/
+/spike-out/
+Resources/cities15000.txt
+/e2e-report.html
+/e2e-results.json
