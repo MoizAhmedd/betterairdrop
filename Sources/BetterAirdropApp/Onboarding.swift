@@ -179,10 +179,10 @@ struct OnboardingView: View {
                 }
                 .padding(.horizontal, 10).padding(.vertical, 7)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.blue.opacity(0.08)))
-            } else if model.credential.keychainKey && !s.replacingKey {
+            } else if model.credential.storedKey && !s.replacingKey {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    Text("An API key is already in your Keychain.").font(.system(size: 12))
+                    Text("An API key is already saved.").font(.system(size: 12))
                     Spacer()
                     Button("Use a different key") { s.replacingKey = true }.buttonStyle(.link).font(.system(size: 12))
                 }
@@ -198,10 +198,10 @@ struct OnboardingView: View {
                 }
                 Group {
                     switch s.verify {
-                    case .ok: Label("Key verified and stored in your Keychain.", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    case .ok: Label("Key verified and saved.", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                     case .failed(let why): Label(why, systemImage: "xmark.circle.fill").foregroundStyle(.red)
                     default:
-                        Text("No key yet? [Get a key from the Claude Console ↗](https://platform.claude.com/settings/keys). It takes a few minutes; Anthropic bills your account directly. The key is stored in your Keychain.")
+                        Text("No key yet? [Get a key from the Claude Console ↗](https://platform.claude.com/settings/keys). It takes a few minutes; Anthropic bills your account directly. The key is saved on this Mac, readable only by you.")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -309,7 +309,7 @@ struct OnboardingView: View {
         switch s.step {
         case 1: return s.access == .granted
         case 2:
-            if s.engine == .claude { return antFound || s.verify == .ok || (model.credential.keychainKey && !s.replacingKey) }
+            if s.engine == .claude { return antFound || s.verify == .ok || (model.credential.storedKey && !s.replacingKey) }
             return true
         default: return true
         }
@@ -358,13 +358,13 @@ struct OnboardingView: View {
                 switch result {
                 case .valid:
                     do {
-                        try Keychain.storeAPIKey(key)
+                        try CredentialStore().storeAPIKey(key)
                         UserDefaults.standard.set(String(key.suffix(4)), forKey: "apiKeySuffix")
                         UserDefaults.standard.set(Date(), forKey: "apiKeyVerified")
                         s.verify = .ok
                         model.credentialsChanged()
                     } catch {
-                        s.verify = .failed("Couldn't save the key in your Keychain: \(error.localizedDescription)")
+                        s.verify = .failed("Couldn't save the key: \(error.localizedDescription)")
                     }
                 case .rejected(let why), .unreachable(let why):
                     s.verify = .failed(why)

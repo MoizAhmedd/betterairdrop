@@ -16,7 +16,12 @@ public struct Uninstaller {
     public var configDirectory = Config.defaultPath.deletingLastPathComponent()
     /// SMAppService.mainApp.unregister() (the app only).
     public var unregisterLoginItem: (() -> Bool)?
-    public var deleteKeychainKey: () -> Bool = { Keychain.deleteAPIKey() }
+    /// The key file, and a pre-0.3 Keychain item if one is left.
+    public var deleteStoredKey: () -> Bool = {
+        let file = CredentialStore(legacy: .none).deleteAPIKey()
+        let keychain = Keychain.deleteAPIKey()
+        return file || keychain
+    }
     public var run: ([String]) -> Bool = { args in
         let p = Process()
         p.executableURL = URL(fileURLWithPath: args[0])
@@ -35,7 +40,7 @@ public struct Uninstaller {
     public func uninstall(purge: Bool) -> [Step] {
         var steps: [Step] = []
         if let unregisterLoginItem { steps.append(Step(name: "Login item", ok: unregisterLoginItem())) }
-        steps.append(Step(name: "Keychain key", ok: true, detail: deleteKeychainKey() ? "removed" : "none stored"))
+        steps.append(Step(name: "API key", ok: true, detail: deleteStoredKey() ? "removed" : "none stored"))
         if let cliLink { steps.append(Step(name: "CLI link", ok: true, detail: cliLink.remove() ? "removed \(cliLink.link.path)" : "not installed")) }
         // tccutil finds the app through Launch Services, so this must run before the app is trashed.
         steps.append(Step(name: "Permissions", ok: run(["/usr/bin/tccutil", "reset", "All", bundleID])))

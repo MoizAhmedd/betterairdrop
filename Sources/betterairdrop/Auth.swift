@@ -8,22 +8,23 @@ struct Auth: ParsableCommand {
         discussion: """
         betterairdrop looks for a credential in this order:
           1. ANTHROPIC_API_KEY in the environment
-          2. an API key stored in the Keychain by `betterairdrop auth claude`
+          2. an API key stored by `betterairdrop auth claude` (or the app) in
+             ~/Library/Application Support/betterairdrop/credentials, readable only by you
           3. the Anthropic CLI's login (`ant auth login`), used as an OAuth bearer token
-        Secrets are never printed, logged or written to disk by betterairdrop.
+        Secrets are never printed or logged.
         """,
         subcommands: [Claude.self, Status.self, Login.self, Logout.self]
     )
 
     struct Claude: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Store an Anthropic API key in the Keychain (hidden prompt, or piped on stdin).")
+        static let configuration = CommandConfiguration(abstract: "Store an Anthropic API key for BetterAirdrop (hidden prompt, or piped on stdin).")
 
         @Flag(help: "Remove the stored key instead.")
         var remove = false
 
         func run() throws {
             if remove {
-                print(Keychain.deleteAPIKey() ? "Removed the API key from the Keychain." : "No API key was stored.")
+                print(Self.remove() ? "Removed the stored API key." : "No API key was stored.")
                 return
             }
             let key: String
@@ -42,8 +43,16 @@ struct Auth: ParsableCommand {
             guard k.hasPrefix("sk-ant-"), !k.contains(" ") else {
                 throw ValidationError("that doesn't look like an Anthropic API key (they start with sk-ant-)")
             }
-            try Keychain.storeAPIKey(k)
-            print("Stored in the Keychain (service \(Keychain.service)). `betterairdrop auth status` shows which credential is used.")
+            let store = CredentialStore()
+            try store.storeAPIKey(k)
+            print("Stored in \(store.file.path) (readable only by you). `betterairdrop auth status` shows which credential is used.")
+        }
+
+        /// The key file, plus a pre-0.3 Keychain item if one is left.
+        static func remove() -> Bool {
+            let file = CredentialStore(legacy: .none).deleteAPIKey()
+            let keychain = Keychain.deleteAPIKey()
+            return file || keychain
         }
     }
 
@@ -93,7 +102,7 @@ struct Auth: ParsableCommand {
     struct Logout: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Remove the API key stored by `betterairdrop auth claude` (the ant login is left alone).")
         func run() throws {
-            print(Keychain.deleteAPIKey() ? "Removed the API key from the Keychain." : "No API key was stored.")
+            print(Claude.remove() ? "Removed the stored API key." : "No API key was stored.")
         }
     }
 }

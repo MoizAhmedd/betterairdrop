@@ -205,8 +205,8 @@ Check afterwards that System Settings → Privacy & Security → Files and Folde
 
 ## (f) Signing: does a self-signed certificate keep permissions across updates? (M7)
 
-*Prepared 2026-09-24 on macOS 15.4.1 (Apple silicon), Swift 6.1. The static half has been run; the
-runtime half needs the maintainer, because it deliberately triggers permission prompts.*
+*Prepared and run 2026-09-24 on macOS 15.4.1 (Apple silicon), Swift 6.1. Result: **pass for TCC,
+fail for the Keychain** (see Runtime results).*
 
 **Question.** macOS remembers a Downloads grant (TCC) and a Keychain item's access list by the app's
 *designated requirement* (DR). Ad-hoc code's DR is its `cdhash`, so every build looks like a new app.
@@ -270,17 +270,36 @@ What to click:
 
 ### Runtime results
 
-*(pending: paste `scripts/spike-signing.sh results` here)*
+*Run by the maintainer on 2026-09-24, macOS 15.4.1 (Apple silicon). v2 after swapping out v1:*
+
+```
+flavour  downloads   keychain                 login-item
+signed   OK          OK(prompt)               enabled
+adhoc    OK(prompt)  OK(prompt)               enabled
+macl     OK          FAIL(-128, user denied)  enabled
+```
 
 | Check (v2 after the swap) | signed | adhoc | macl |
 |---|---|---|---|
-| Downloads readable, no prompt | | | |
-| Keychain item from v1 readable, no prompt | | | |
-| `SMAppService.mainApp` status (registered by v1) | | | |
-| Notification posted with attachment; action received | | | |
+| Downloads readable, no prompt | **yes** (15 ms) | no, prompted again | **yes** (6 ms) |
+| Keychain item from v1 readable, no prompt | **no**: prompted (4.2 s) | no, prompted | no (denied at the prompt) |
+| `SMAppService.mainApp` status (registered by v1) | enabled | enabled | enabled |
+| Notification posted with attachment; action received | yes (the signed run's first "denied" was a missed prompt) | yes | yes |
 
-**Pass:** `signed` keeps Downloads and the Keychain item with no prompt, and `adhoc` loses at least
-one of them. **Fail:** `signed` behaves like `adhoc`.
+- **Static check confirmed.** Signed v1 and v2 have different cdhashes but the same DR,
+  `identifier "dev.betterairdrop.spike.signed" and certificate leaf = H"ba4d81679b40f6e453d828ccadab9225b35afedb"`,
+  and v2 satisfies v1's DR. Ad-hoc DRs are cdhash-only and differ.
+- **TCC honours the self-signed DR: PASS.** The Downloads grant survives an update signed with the
+  same certificate. The stable-launcher fallback isn't needed.
+- **The Keychain doesn't.** A self-signed update still gets a Keychain prompt. So since v0.3 the
+  API key lives in `~/Library/Application Support/betterairdrop/credentials` (0600, 0700 folder;
+  `CredentialStore`), and a key left in the Keychain by an older build is moved there once.
+- **New: the Open-panel grant (`com.apple.macl`) survived an ad-hoc v1 → v2 swap** with no prompt.
+  "Choose Folder…" / **Grant Access** is therefore a recovery path that works across updates
+  whatever the signing, and stays as the fallback for a denied Downloads prompt.
+
+**Decision:** releases are signed in CI with one self-signed certificate; the key is a file, not a
+Keychain item; the Open-panel fallback stays. M12 is unblocked.
 
 ### What M8 does under either outcome
 

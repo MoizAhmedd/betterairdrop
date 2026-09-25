@@ -2,7 +2,7 @@ import Foundation
 
 /// A credential for the Anthropic API. Exactly one kind of auth header is ever sent.
 public enum ClaudeCredential: Sendable, Equatable {
-    /// `x-api-key`, from `ANTHROPIC_API_KEY` or the Keychain.
+    /// `x-api-key`, from `ANTHROPIC_API_KEY` or the stored key file.
     case apiKey(String, source: ClaudeAuth.Source)
     /// `Authorization: Bearer` + `anthropic-beta: oauth-2025-04-20`, from the Anthropic CLI (`ant`).
     case oauth(String)
@@ -25,21 +25,21 @@ public enum ClaudeCredential: Sendable, Equatable {
 
 /// Finds a credential, in this order (documented in the README):
 ///   1. `ANTHROPIC_API_KEY` in the environment
-///   2. the Keychain item stored by `betterairdrop auth claude`
+///   2. the key stored by `betterairdrop auth claude` or the app (`CredentialStore`, a 0600 file)
 ///   3. the Anthropic CLI's OAuth login: `ant auth print-credentials --access-token`
 ///
 /// The result is cached in memory for this process only. Secrets are never logged or written.
 public final class ClaudeAuth: @unchecked Sendable {
     public enum Source: String, Sendable, CaseIterable {
         case environment = "ANTHROPIC_API_KEY"
-        case keychain = "Keychain (betterairdrop auth claude)"
+        case stored = "Stored key (betterairdrop auth claude)"
         case antCLI = "Anthropic CLI login (ant)"
     }
 
     public static let shared = ClaudeAuth()
 
     let environment: [String: String]
-    let keychain: @Sendable () -> String?
+    let storedKey: @Sendable () -> String?
     let antPath: @Sendable () -> String?
     let runAnt: @Sendable (String, [String]) -> String?
 
@@ -47,18 +47,18 @@ public final class ClaudeAuth: @unchecked Sendable {
     private var cached: ClaudeCredential??
 
     public init(environment: [String: String] = ProcessInfo.processInfo.environment,
-                keychain: @escaping @Sendable () -> String? = { Keychain.readAPIKey() },
+                storedKey: @escaping @Sendable () -> String? = { CredentialStore().readAPIKey() },
                 antPath: (@Sendable () -> String?)? = nil,
                 runAnt: @escaping @Sendable (String, [String]) -> String? = { ClaudeAuth.run($0, $1) }) {
         self.environment = environment
-        self.keychain = keychain
+        self.storedKey = storedKey
         let env = environment
         self.antPath = antPath ?? { ClaudeAuth.findExecutable("ant", environment: env) }
         self.runAnt = runAnt
     }
 
     /// A resolver that never finds anything (tests, and `backend = "vision"`).
-    public static let none = ClaudeAuth(environment: [:], keychain: { nil }, antPath: { nil }, runAnt: { _, _ in nil })
+    public static let none = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { nil }, runAnt: { _, _ in nil })
 
     public func resolve() -> ClaudeCredential? {
         lock.lock(); defer { lock.unlock() }
@@ -77,7 +77,7 @@ public final class ClaudeAuth: @unchecked Sendable {
         if let k = environment["ANTHROPIC_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines), !k.isEmpty {
             return .apiKey(k, source: .environment)
         }
-        if let k = keychain() { return .apiKey(k, source: .keychain) }
+        if let k = storedKey() { return .apiKey(k, source: .stored) }
         if let token = antToken() { return .oauth(token) }
         return nil
     }
@@ -100,7 +100,7 @@ public final class ClaudeAuth: @unchecked Sendable {
         var rows: [(Source, String)] = []
         let env = environment["ANTHROPIC_API_KEY"].map { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? false
         rows.append((.environment, env ? "set" : "not set"))
-        rows.append((.keychain, keychain() != nil ? "stored" : "none (run `betterairdrop auth claude`)"))
+        rows.append((.stored, storedKey() != nil ? "stored" : "none (run `betterairdrop auth claude`)"))
         if let ant = antPath() {
             rows.append((.antCLI, antToken() != nil ? "logged in (\(ant))" : "installed, not logged in (run `betterairdrop auth login`)"))
         } else {

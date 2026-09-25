@@ -57,7 +57,7 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
 @Suite(.serialized) struct ClaudeNamerTests {
     let dir = TestImages.TempDir()
 
-    func namer(_ auth: ClaudeAuth = ClaudeAuth(environment: ["ANTHROPIC_API_KEY": "sk-ant-test-key"], keychain: { nil }, antPath: { nil }),
+    func namer(_ auth: ClaudeAuth = ClaudeAuth(environment: ["ANTHROPIC_API_KEY": "sk-ant-test-key"], storedKey: { nil }, antPath: { nil }),
                sleeps: SleepLog = SleepLog()) -> ClaudeNamer {
         ClaudeNamer.structuredOutput.value = true
         var n = ClaudeNamer(auth: auth, transport: StubURLProtocol.transport)
@@ -141,7 +141,7 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
 
     @Test func oauthSendsBearerAndBetaHeaderOnly() throws {
         StubURLProtocol.reset([.init(status: 200, body: message(goodAnswer))])
-        let auth = ClaudeAuth(environment: [:], keychain: { nil }, antPath: { "/fake/ant" }, runAnt: { _, _ in "tok-123\n" })
+        let auth = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { "/fake/ant" }, runAnt: { _, _ in "tok-123\n" })
         let (url, ctx) = photo()
         _ = try namer(auth).suggest(for: url, context: ctx)
         let req = StubURLProtocol.captured[0].0
@@ -155,7 +155,7 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
                                .init(status: 200, body: message(goodAnswer))])
         final class Counter: @unchecked Sendable { var n = 0 }
         let c = Counter()
-        let auth = ClaudeAuth(environment: [:], keychain: { nil }, antPath: { "/fake/ant" }, runAnt: { _, _ in c.n += 1; return "tok-\(c.n)" })
+        let auth = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { "/fake/ant" }, runAnt: { _, _ in c.n += 1; return "tok-\(c.n)" })
         let (url, ctx) = photo()
         _ = try namer(auth).suggest(for: url, context: ctx)
         #expect(StubURLProtocol.captured.map { $0.0.value(forHTTPHeaderField: "authorization") } == ["Bearer tok-1", "Bearer tok-2"])
@@ -242,7 +242,7 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
     /// No credential: `auto` is Vision and nothing is ever sent; a direct Claude call throws before any request.
     @Test func noCredentialNeverSendsARequest() throws {
         StubURLProtocol.reset([.init(status: 200, body: message(goodAnswer))])
-        let none = ClaudeAuth(environment: ["ANTHROPIC_API_KEY": "  "], keychain: { nil }, antPath: { nil })
+        let none = ClaudeAuth(environment: ["ANTHROPIC_API_KEY": "  "], storedKey: { nil }, antPath: { nil })
         #expect(none.resolve() == nil, "a blank env key is not a credential")
         let auto = try Backends.resolve("auto", auth: none)
         #expect(auto is VisionNamer)
@@ -268,38 +268,38 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
         let calls = Calls()
         let ant: @Sendable (String, [String]) -> String? = { _, a in calls.args.append(a); return "oauth-tok\n" }
 
-        let env = ClaudeAuth(environment: ["ANTHROPIC_API_KEY": " sk-ant-env "], keychain: { "sk-ant-kc" }, antPath: { "/x/ant" }, runAnt: ant)
+        let env = ClaudeAuth(environment: ["ANTHROPIC_API_KEY": " sk-ant-env "], storedKey: { "sk-ant-kc" }, antPath: { "/x/ant" }, runAnt: ant)
         #expect(env.resolve() == .apiKey("sk-ant-env", source: .environment))
         #expect(calls.args.isEmpty)
 
-        let kc = ClaudeAuth(environment: [:], keychain: { "sk-ant-kc" }, antPath: { "/x/ant" }, runAnt: ant)
-        #expect(kc.resolve() == .apiKey("sk-ant-kc", source: .keychain))
+        let kc = ClaudeAuth(environment: [:], storedKey: { "sk-ant-kc" }, antPath: { "/x/ant" }, runAnt: ant)
+        #expect(kc.resolve() == .apiKey("sk-ant-kc", source: .stored))
 
-        let cli = ClaudeAuth(environment: [:], keychain: { nil }, antPath: { "/x/ant" }, runAnt: ant)
+        let cli = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { "/x/ant" }, runAnt: ant)
         #expect(cli.resolve() == .oauth("oauth-tok"))
         #expect(calls.args == [["auth", "print-credentials", "--access-token"]])
         _ = cli.resolve()
         #expect(calls.args.count == 1, "cached for the process")
 
-        #expect(ClaudeAuth(environment: [:], keychain: { nil }, antPath: { nil }).resolve() == nil)
+        #expect(ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { nil }).resolve() == nil)
         // JSON output (i.e. the flag was ignored) is never mistaken for a token.
-        #expect(ClaudeAuth(environment: [:], keychain: { nil }, antPath: { "/x/ant" }, runAnt: { _, _ in #"{"access_token":"x"}"# }).resolve() == nil)
+        #expect(ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { "/x/ant" }, runAnt: { _, _ in #"{"access_token":"x"}"# }).resolve() == nil)
     }
 
     @Test func headersAreExclusive() {
-        #expect(ClaudeCredential.apiKey("k", source: .keychain).headers == ["x-api-key": "k"])
+        #expect(ClaudeCredential.apiKey("k", source: .stored).headers == ["x-api-key": "k"])
         #expect(ClaudeCredential.oauth("t").headers == ["authorization": "Bearer t", "anthropic-beta": "oauth-2025-04-20"])
     }
 
     @Test func statusNeverShowsSecrets() {
-        let a = ClaudeAuth(environment: ["ANTHROPIC_API_KEY": "sk-ant-SECRET"], keychain: { "sk-ant-KC-SECRET" }, antPath: { "/x/ant" }, runAnt: { _, _ in "TOKEN-SECRET" })
+        let a = ClaudeAuth(environment: ["ANTHROPIC_API_KEY": "sk-ant-SECRET"], storedKey: { "sk-ant-KC-SECRET" }, antPath: { "/x/ant" }, runAnt: { _, _ in "TOKEN-SECRET" })
         let text = a.report().map { "\($0.0.rawValue) \($0.1)" }.joined(separator: "\n")
         #expect(!text.contains("SECRET"))
         #expect(text.contains("set") && text.contains("stored") && text.contains("logged in"))
     }
 
     @Test func autoUsesClaudeOnlyWithACredential() throws {
-        let cred = ClaudeAuth(environment: ["ANTHROPIC_API_KEY": "sk-ant-x"], keychain: { nil }, antPath: { nil })
+        let cred = ClaudeAuth(environment: ["ANTHROPIC_API_KEY": "sk-ant-x"], storedKey: { nil }, antPath: { nil })
         #expect(try Backends.resolve("auto", auth: cred).id == "claude")
         #expect(try Backends.resolve("auto", auth: .none).id == "vision")
         var c = Config(); c.claudeInAuto = false

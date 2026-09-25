@@ -6,7 +6,7 @@ import SwiftUI
 
 /// Settings (UX mockup e): an AppKit window with toolbar tabs, each pane a SwiftUI grouped form.
 /// Every control writes ~/.config/betterairdrop/config.toml (through `AppModel.updateConfig`), so
-/// the CLI and the app never disagree. The API key is the exception: it lives in the Keychain.
+/// the CLI and the app never disagree. The API key is the exception: it lives in its own 0600 file (CredentialStore).
 @MainActor
 enum SettingsWindow {
     enum Pane: Int, CaseIterable {
@@ -180,9 +180,10 @@ struct NamingPane: View {
             Section("Claude") {
                 LabeledContent {
                     HStack {
-                        Button(model.credential.keychainKey ? "Replace…" : "Add…") { editingKey = true }
-                        if model.credential.keychainKey {
+                        Button(model.credential.storedKey ? "Replace…" : "Add…") { editingKey = true }
+                        if model.credential.storedKey {
                             Button("Remove", role: .destructive) {
+                                CredentialStore(legacy: .none).deleteAPIKey()
                                 Keychain.deleteAPIKey()
                                 UserDefaults.standard.removeObject(forKey: "apiKeySuffix")
                                 model.credentialsChanged()
@@ -263,8 +264,8 @@ struct NamingPane: View {
     }
 
     var keyState: String {
-        guard model.credential.keychainKey else { return "None stored" }
-        var s = "In your Keychain"
+        guard model.credential.storedKey else { return "None stored" }
+        var s = "Saved on this Mac"
         if let suffix = UserDefaults.standard.string(forKey: "apiKeySuffix") { s += " · sk-ant-…\(suffix)" }
         if let d = UserDefaults.standard.object(forKey: "apiKeyVerified") as? Date {
             s += " · verified " + (Calendar.current.isDateInToday(d) ? "today" : RelativeTime.string(d))
@@ -321,7 +322,7 @@ struct KeySheet: View {
                 switch r {
                 case .valid:
                     do {
-                        try Keychain.storeAPIKey(k)
+                        try CredentialStore().storeAPIKey(k)
                         UserDefaults.standard.set(String(k.suffix(4)), forKey: "apiKeySuffix")
                         UserDefaults.standard.set(Date(), forKey: "apiKeyVerified")
                         model.credentialsChanged()
@@ -457,7 +458,7 @@ struct AdvancedPane: View {
                     Button("Uninstall…", role: .destructive) { uninstalling = true }
                 } label: {
                     Text("Uninstall BetterAirdrop")
-                    Text("Removes the app, login item, CLI link and Keychain key. Your renamed photos stay as they are.")
+                    Text("Removes the app, login item, CLI link and stored API key. Your renamed photos stay as they are.")
                 }
             }
         }
@@ -499,7 +500,7 @@ struct UninstallSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Uninstall BetterAirdrop?").font(.headline)
-            Text("This turns off the login item, removes the CLI link and the API key from your Keychain, resets the Downloads permission and moves BetterAirdrop to the Trash. Renamed photos stay renamed.")
+            Text("This turns off the login item, removes the CLI link and the stored API key, resets the Downloads permission and moves BetterAirdrop to the Trash. Renamed photos stay renamed.")
                 .font(.system(size: 11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Toggle("Also delete settings and rename history", isOn: $purge).toggleStyle(.switch).controlSize(.small)
             HStack {
@@ -583,7 +584,7 @@ enum Diagnostics {
         macOS \(os), \(machine())
         watching: \(model.folderIsDownloads ? "Downloads" : "a custom folder"), state \(model.state), paused \(model.isPaused)
         engine: backend \(c.backend) → \(model.engine.name)\(model.engine.detail.map { " (\($0))" } ?? ""), model \(c.claudeModel), claude.auto \(c.claudeInAuto)
-        credential: keychain \(model.credential.keychainKey), env \(model.credential.environmentKey), ant \(model.credential.antPath == nil ? "not installed" : model.credential.antLoggedIn ? "logged in" : "not logged in")
+        credential: stored \(model.credential.storedKey), env \(model.credential.environmentKey), ant \(model.credential.antPath == nil ? "not installed" : model.credential.antLoggedIn ? "logged in" : "not logged in")
         settings: airdrop_only \(c.watchAirdropOnly), notify \(c.watchNotify), convert_heic \(c.convertHEIC), originals \(c.originals.rawValue), place \(c.placeProvider.rawValue)
         login item: \(LoginItem.isEnabled ? "on" : "off"), updater: \(Updater.isConfigured ? "configured" : "not configured")
         this month: \(model.stats.photos) photos, $\(String(format: "%.2f", model.stats.costUSD))

@@ -27,11 +27,11 @@ final class AppModel: ObservableObject {
     private var shellKey: String?
 
     struct CredentialInfo: Equatable {
-        var keychainKey = false
+        var storedKey = false
         var environmentKey = false
         var antPath: String?
         var antLoggedIn = false
-        var any: Bool { keychainKey || environmentKey || antLoggedIn }
+        var any: Bool { storedKey || environmentKey || antLoggedIn }
     }
 
     let journal = Journal()
@@ -82,7 +82,7 @@ final class AppModel: ObservableObject {
     var engineLine: String {
         var s = "Naming with \(engine.name)"
         if engine.name.hasPrefix("Claude") {
-            if credential.keychainKey || credential.environmentKey { s += " · your key" } else if credential.antLoggedIn { s += " · ant login" }
+            if credential.storedKey || credential.environmentKey { s += " · your key" } else if credential.antLoggedIn { s += " · ant login" }
         }
         return s
     }
@@ -98,7 +98,7 @@ final class AppModel: ObservableObject {
         scheduleResumeTimer()
     }
 
-    /// Builds the planner (which may run `ant` or read the Keychain, so off the main thread) and
+    /// Builds the planner (which may run `ant` or read the key file, so off the main thread) and
     /// restarts the watcher with the current config.
     func rebuildService() {
         service?.stop()
@@ -200,7 +200,7 @@ final class AppModel: ObservableObject {
     func refreshCredential(then: (() -> Void)? = nil) {
         DispatchQueue.global(qos: .utility).async {
             var c = CredentialInfo()
-            c.keychainKey = Keychain.hasAPIKey()
+            c.storedKey = CredentialStore().readAPIKey() != nil   // also moves a pre-0.3 Keychain key over, once
             c.environmentKey = !(ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] ?? "").isEmpty
             let auth = ClaudeAuth()
             c.antPath = auth.antExecutable
@@ -228,7 +228,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// "Use It": check the key with Anthropic, then keep it in the Keychain.
+    /// "Use It": check the key with Anthropic, then keep it (CredentialStore, readable only by this user).
     func acceptShellKey() {
         guard let key = shellKey, !shellKeyChecking else { return }
         shellKeyChecking = true
@@ -241,14 +241,14 @@ final class AppModel: ObservableObject {
                 switch result {
                 case .valid:
                     do {
-                        try Keychain.storeAPIKey(key)
+                        try CredentialStore().storeAPIKey(key)
                         self.defaults.set(String(key.suffix(4)), forKey: "apiKeySuffix")
                         self.defaults.set(Date(), forKey: "apiKeyVerified")
                         self.shellKey = nil
                         self.shellKeyOffer = false
                         self.credentialsChanged()
                     } catch {
-                        self.shellKeyError = "Couldn't save it in your Keychain."
+                        self.shellKeyError = "Couldn't save the key."
                     }
                 case .rejected(let why), .unreachable(let why):
                     self.shellKeyError = why

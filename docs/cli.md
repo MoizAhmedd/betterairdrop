@@ -35,8 +35,11 @@ API inputs. Vision's names are honest but flat (they read like tags); the spike 
 BetterAirdrop looks for a credential in this order and uses the first one it finds:
 
 1. **`ANTHROPIC_API_KEY`** in the environment (sent as `x-api-key`).
-2. **An API key in your Keychain**, stored by `betterairdrop auth claude` (hidden prompt; the key is
-   never written to a file or a log). Remove it with `betterairdrop auth logout`.
+2. **A stored API key**, saved by `betterairdrop auth claude` (hidden prompt) or the app, in
+   `~/Library/Application Support/betterairdrop/credentials` (mode 0600 in a 0700 folder, like the
+   `ant` CLI's tokens; never logged). Not the Keychain: its access list is tied to the code
+   signature, so every update would ask again (spikes.md §f). A key left in the Keychain by an
+   older build is moved to the file once. Remove it with `betterairdrop auth logout`.
 3. **The Anthropic CLI's login.** If the Anthropic CLI `ant` (`brew install anthropics/tap/ant`) is
    installed and logged in, BetterAirdrop runs `ant auth print-credentials --access-token` and uses
    that OAuth token (`Authorization: Bearer …`). `betterairdrop auth login` runs `ant auth login` for

@@ -130,7 +130,7 @@ extension PanelView {
                         .controlSize(.small).buttonStyle(.borderedProminent).disabled(model.shellKeyChecking)
                     Button("No Thanks") { model.declineShellKey() }.controlSize(.small)
                     Spacer()
-                    Text("saved to your Keychain").font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    Text("saved for BetterAirdrop only").font(.system(size: 10.5)).foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 8)

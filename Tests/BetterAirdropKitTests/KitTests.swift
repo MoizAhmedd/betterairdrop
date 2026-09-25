@@ -172,13 +172,13 @@ func batch(_ items: [(String, String?, Committer.Outcome.Status, String?)], fall
         u.configDirectory = config
         u.cliLink = link
         u.unregisterLoginItem = { calls.append("unregister"); return true }
-        u.deleteKeychainKey = { calls.append("keychain"); return true }
+        u.deleteStoredKey = { calls.append("key"); return true }
         u.run = { calls.append($0.joined(separator: " ")); return true }
         u.recycleApp = { calls.append("recycle"); return true }
 
         let steps = u.uninstall(purge: false)
         #expect(steps.allSatisfy { $0.ok })
-        #expect(calls == ["unregister", "keychain", "/usr/bin/tccutil reset All dev.betterairdrop.app", "recycle"])
+        #expect(calls == ["unregister", "key", "/usr/bin/tccutil reset All dev.betterairdrop.app", "recycle"])
         #expect(link.status == .notInstalled)
         #expect(FileManager.default.fileExists(atPath: support.path), "history is kept without purge")
 

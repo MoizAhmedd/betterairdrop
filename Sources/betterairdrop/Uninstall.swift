@@ -5,7 +5,7 @@ import Foundation
 
 struct Uninstall: ParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Remove BetterAirdrop: login item, Keychain key, CLI link, permissions and the app.",
+        abstract: "Remove BetterAirdrop: login item, stored API key, CLI link, permissions and the app.",
         discussion: "Renamed photos stay renamed. With --purge, settings and the rename history are deleted too. This runs the same steps as Settings → Advanced → Uninstall… in the app."
     )
 
@@ -19,7 +19,7 @@ struct Uninstall: ParsableCommand {
         let app = Self.findApp()
         if !yes {
             print("This removes \(app.map { tilde($0.path) } ?? "BetterAirdrop's settings")"
-                  + ", its login item, Keychain key, CLI link and Downloads permission\(purge ? ", plus your settings and rename history" : "").")
+                  + ", its login item, stored API key, CLI link and Downloads permission\(purge ? ", plus your settings and rename history" : "").")
             print("Renamed photos stay renamed. Continue? [y/N] ", terminator: "")
             guard readLine()?.lowercased().hasPrefix("y") == true else { print("Nothing changed."); return }
         }
