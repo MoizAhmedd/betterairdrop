@@ -1,10 +1,15 @@
 name: Deploy site to GitHub Pages
+# https://moizahmedd.github.io/betterairdrop/: site/public, plus /install (scripts/install.sh) and
+# /appcast.xml (Sparkle feed, rebuilt from every release's appcast-item.xml). release.yml
+# dispatches this after each release.
 
 on:
   push:
     branches: [main]
     paths:
       - 'site/public/**'
+      - 'scripts/install.sh'
+      - 'scripts/release/build-appcast.sh'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -25,9 +30,18 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
+      - name: Add the installer and the Sparkle feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p _site && cp -R site/public/. _site/
+          cp scripts/install.sh _site/install
+          cp scripts/install.sh _site/install.sh
+          scripts/release/build-appcast.sh > _site/appcast.xml
+          echo "appcast items: $(grep -c '<item>' _site/appcast.xml || true)"
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: site/public
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v5
