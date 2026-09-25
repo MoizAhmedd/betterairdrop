@@ -17,6 +17,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
+    timeout-minutes: 60
     outputs:
       version: ${{ steps.v.outputs.version }}
       sha256: ${{ steps.zip.outputs.sha256 }}
@@ -29,6 +30,11 @@ jobs:
           V="${GITHUB_REF_NAME#v}"
           echo "version=$V" >> "$GITHUB_OUTPUT"
           case "$V" in *-*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
+
+      # Before the keychain import, one suite at a time with a time limit (scripts/ci-test.sh).
+      - name: Test
+        timeout-minutes: 20
+        run: scripts/ci-test.sh
 
       - name: Import the signing certificate into a temporary keychain
         env:
@@ -50,9 +56,6 @@ jobs:
           test -n "$ID"
           echo "IDENTITY=$ID" >> "$GITHUB_ENV"
           echo "KEYCHAIN=$KC" >> "$GITHUB_ENV"
-
-      - name: Test
-        run: swift test
 
       - name: Build (universal) and sign inside-out
         run: |
