@@ -313,3 +313,22 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
         #expect(c.claudeModel == "claude-sonnet-4-6" && c.claudeInAuto == false)
     }
 }
+
+// Same suite as ClaudeNamerTests: StubURLProtocol is shared state, so these must not run in parallel with it.
+extension ClaudeNamerTests {
+    @Test func validateUsesModelsEndpoint() throws {
+        StubURLProtocol.reset([.init(status: 200, body: "{}")])
+        #expect(ClaudeAuth.validate(key: " sk-ant-good\n", transport: StubURLProtocol.transport) == .valid)
+        let req = try #require(StubURLProtocol.captured.first?.0)
+        #expect(req.httpMethod == "GET" && req.url?.path == "/v1/models")
+        #expect(req.value(forHTTPHeaderField: "x-api-key") == "sk-ant-good")
+    }
+
+    @Test func rejectedAndUnreachable() {
+        StubURLProtocol.reset([.init(status: 401, body: "{}"), .init(status: 529, body: "{}"), .init(status: 0, body: "", fail: .notConnectedToInternet)])
+        guard case .rejected = ClaudeAuth.validate(key: "sk-ant-bad", transport: StubURLProtocol.transport) else { Issue.record("401"); return }
+        guard case .unreachable = ClaudeAuth.validate(key: "sk-ant-x", transport: StubURLProtocol.transport) else { Issue.record("529"); return }
+        guard case .unreachable = ClaudeAuth.validate(key: "sk-ant-x", transport: StubURLProtocol.transport) else { Issue.record("offline"); return }
+        guard case .rejected = ClaudeAuth.validate(key: "not a key", transport: StubURLProtocol.transport) else { Issue.record("format"); return }
+    }
+}

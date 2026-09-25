@@ -109,6 +109,40 @@ public final class ClaudeAuth: @unchecked Sendable {
         return rows
     }
 
+    // MARK: - key validation
+
+    public enum Validation: Equatable, Sendable {
+        case valid
+        /// The key was rejected (typo, revoked, wrong workspace).
+        case rejected(String)
+        /// Couldn't tell (offline, Anthropic down). The key may be fine.
+        case unreachable(String)
+    }
+
+    /// Checks a key with `GET /v1/models`, which is free, so a typo shows up in onboarding rather
+    /// than as silent Vision fallbacks later. Synchronous: call it off the main thread.
+    public static func validate(key: String, transport: any HTTPTransport = URLSessionTransport()) -> Validation {
+        let k = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard k.hasPrefix("sk-ant-"), !k.contains(" ") else {
+            return .rejected("That doesn't look like an Anthropic API key. They start with sk-ant-.")
+        }
+        var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/models?limit=1")!)
+        req.timeoutInterval = 15
+        req.setValue(k, forHTTPHeaderField: "x-api-key")
+        req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        do {
+            let (resp, _) = try transport.send(req)
+            switch resp.statusCode {
+            case 200..<300: return .valid
+            case 401: return .rejected("Anthropic didn't accept this key. Check that you copied all of it.")
+            case 403: return .rejected("This key isn't allowed to use the API. Check its workspace in the Claude Console.")
+            default: return .unreachable("Anthropic answered with an error (\(resp.statusCode)). Try again in a minute.")
+            }
+        } catch {
+            return .unreachable("Couldn't reach Anthropic. Check your internet connection.")
+        }
+    }
+
     // MARK: - process helpers
 
     /// Looks on PATH, then in Homebrew's usual prefixes (launchd agents get a minimal PATH).

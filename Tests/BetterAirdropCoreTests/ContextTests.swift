@@ -205,3 +205,58 @@ import Testing
         #expect(Marker.read(f) == nil)
     }
 }
+
+@Suite struct ConfigWriterTests {
+    let original = """
+    # My airdrop naming setup
+    backend = "auto"   # try claude first
+
+    [watch]
+    folder = "~/Downloads"   # where AirDrop lands
+    # notify = false
+    unknown_thing = 3
+
+    [claude]
+    model = "claude-haiku-4-5"
+    """
+
+    @Test func editsInPlaceAndKeepsComments() throws {
+        var c = try Config.parse(original)
+        c.backend = "vision"
+        c.watchFolder = #"~/Desktop/in "box""#
+        c.claudeInAuto = false
+        c.convertHEIC = false
+        let text = c.rendered(updating: original)
+        #expect(text.contains("# My airdrop naming setup"))
+        #expect(text.contains(#"backend = "vision"   # try claude first"#))
+        #expect(text.contains(#"folder = "~/Desktop/in \"box\""   # where AirDrop lands"#))
+        #expect(text.contains("# notify = false"))
+        #expect(text.contains("unknown_thing = 3"), "unknown keys are left alone")
+        // New keys go under the right table; top-level keys go before the first table.
+        let lines = text.components(separatedBy: "\n")
+        let claudeHeader = try #require(lines.firstIndex(of: "[claude]"))
+        #expect(lines[(claudeHeader + 1)...].contains("auto = false"))
+        let heic = try #require(lines.firstIndex(of: "convert_heic = false"))
+        #expect(heic < lines.firstIndex(of: "[watch]")!)
+        #expect(try Config.parse(text) == { var d = c; d.unknownKeys = ["watch.unknown_thing"]; return d }())
+    }
+
+    @Test func everyControlRoundTrips() throws {
+        var c = Config()
+        c.backend = "claude"; c.template = "{date}_{subject}"; c.originals = .keep; c.convertHEIC = false
+        c.jpegQuality = 0.75; c.maxSubjectWords = 4; c.watchFolder = "/tmp/x"; c.watchAirdropOnly = false
+        c.watchNotify = false; c.placeProvider = .none; c.stripGPSFromOutput = true
+        c.claudeModel = "claude-sonnet-4-5"; c.claudeInAuto = false
+        c.kindTemplates["receipt"] = "{date}_receipt_{total}"
+        let t = TestImages.TempDir()
+        let url = t.path("sub/config.toml")
+        try c.save(to: url)
+        #expect(try Config.load(from: url) == c)
+        // Saving the defaults over an empty file writes nothing but a newline.
+        #expect(Config().rendered(updating: nil) == "\n")
+        // Saving again changes nothing.
+        let once = try String(contentsOf: url, encoding: .utf8)
+        try Config.load(from: url).save(to: url)
+        #expect(try String(contentsOf: url, encoding: .utf8) == once)
+    }
+}
