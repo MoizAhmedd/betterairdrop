@@ -6,7 +6,7 @@ let package = Package(
     platforms: [.macOS(.v13)],
     products: [
         .executable(name: "betterairdrop", targets: ["betterairdrop"]),
-        .executable(name: "BetterAirdrop", targets: ["BetterAirdropApp"]),
+        .executable(name: "BetterAirdropApp", targets: ["BetterAirdropApp"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),

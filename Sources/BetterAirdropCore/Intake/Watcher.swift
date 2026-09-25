@@ -33,6 +33,9 @@ public final class Watcher {
         public var photos: Int { outcomes.filter { $0.status == .done && !Watcher.isMovie($0.source) }.count }
         public var videos: Int { outcomes.filter { $0.status == .done && Watcher.isMovie($0.source) }.count }
         public var failed: Int { outcomes.filter { $0.status == .failed }.count }
+        public init(id: String, proposals: [Proposal], outcomes: [Committer.Outcome]) {
+            self.id = id; self.proposals = proposals; self.outcomes = outcomes
+        }
     }
 
     public let options: Options

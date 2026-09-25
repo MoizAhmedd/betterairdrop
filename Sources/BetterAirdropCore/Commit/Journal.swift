@@ -172,6 +172,7 @@ public final class Journal: @unchecked Sendable {
     public struct Stats: Sendable, Equatable {
         public var photos = 0
         public var costUSD = 0.0
+        public init() {}
     }
 
     public func stats(since: Date) -> Stats {

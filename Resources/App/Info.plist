@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template: scripts/make-app.sh fills in the __PLACEHOLDERS__. -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>dev.betterairdrop.app</string>
+  <key>CFBundleName</key><string>BetterAirdrop</string>
+  <key>CFBundleDisplayName</key><string>BetterAirdrop</string>
+  <key>CFBundleExecutable</key><string>BetterAirdrop</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+  <key>CFBundleVersion</key><string>__BUILD__</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>LSUIElement</key><true/>
+  <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
+  <key>NSHumanReadableCopyright</key><string>MIT License. City data © GeoNames, CC BY 4.0.</string>
+  <key>NSDownloadsFolderUsageDescription</key><string>BetterAirdrop renames photos that you AirDrop to this Mac.</string>
+  <key>NSServices</key>
+  <array>
+    <dict>
+      <key>NSMenuItem</key><dict><key>default</key><string>Rename with BetterAirdrop</string></dict>
+      <key>NSMessage</key><string>renameFiles</string>
+      <key>NSPortName</key><string>BetterAirdrop</string>
+      <key>NSRequiredContext</key><dict/>
+      <key>NSSendFileTypes</key>
+      <array>
+        <string>public.heic</string>
+        <string>public.heif</string>
+        <string>public.jpeg</string>
+        <string>public.png</string>
+        <string>com.adobe.raw-image</string>
+      </array>
+    </dict>
+  </array>
+  <!-- Sparkle. The feed URL and EdDSA public key stay empty until the release pipeline (M12);
+       while they're empty the app doesn't start the updater. -->
+  <key>SUFeedURL</key><string>__SU_FEED_URL__</string>
+  <key>SUPublicEDKey</key><string>__SU_PUBLIC_KEY__</string>
+  <key>SUEnableAutomaticChecks</key><true/>
+  <key>SUAutomaticallyUpdate</key><false/>
+</dict>
+</plist>

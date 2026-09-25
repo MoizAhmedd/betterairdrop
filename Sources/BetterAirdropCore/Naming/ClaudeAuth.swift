@@ -84,7 +84,7 @@ public final class ClaudeAuth: @unchecked Sendable {
 
     /// `ant auth print-credentials --access-token` prints just the token. Without the flag it
     /// prints JSON, so the flag is always passed.
-    func antToken() -> String? {
+    public func antToken() -> String? {
         guard let ant = antPath(),
               let out = runAnt(ant, ["auth", "print-credentials", "--access-token"]) else { return nil }
         let token = out.trimmingCharacters(in: .whitespacesAndNewlines)
