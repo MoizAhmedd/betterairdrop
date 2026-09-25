@@ -175,8 +175,10 @@ struct FakeNamer: Namer {
     }
 }
 
-/// Real Vision on synthetic rendered images (no personal photos).
-@Suite struct VisionIntegrationTests {
+/// Real Vision on synthetic rendered images (no personal photos). Skipped on CI: GitHub's macOS
+/// runners are VMs without a GPU or Neural Engine, and Vision requests hang there.
+@Suite(.disabled(if: ProcessInfo.processInfo.environment["CI"] != nil, "Vision hangs on GitHub's GPU-less macOS runners"))
+struct VisionIntegrationTests {
     /// Renders lines of black text on a white "page" inside a grey frame.
     static func render(_ lines: [(String, CGFloat)], width: Int = 900, height: Int = 1400, page: CGRect? = nil, to url: URL,
                        type: UTType = .jpeg, meta: TestImages.Meta = .init()) -> URL {
