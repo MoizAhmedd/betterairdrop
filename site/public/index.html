@@ -18,6 +18,7 @@
 :root{
   --paper:#f6f2ea; --card:#fffdf9; --ink:#1d1d1f; --ink-2:#3a3833; --muted:#6e6a63; --rule:#e2dbcf;
   --accent:#3f7fbf; --accent-soft:#e3eef8; --old:#a39d93; --code-bg:#1d1d1f; --code-ink:#f6f2ea;
+  --banner:rgba(246,246,246,.8); --banner-ink:#1d1d1f; --banner-sub:rgba(0,0,0,.6); --banner-edge:rgba(0,0,0,.1); --banner-btn:rgba(0,0,0,.07);
   --serif:"Instrument Serif",Georgia,serif;
   --sans:"Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
@@ -26,11 +27,13 @@
   :root:not([data-theme="light"]){
     --paper:#151412; --card:#1e1d1a; --ink:#f1ede5; --ink-2:#cfc9bf; --muted:#9a948a; --rule:#34312c;
     --accent:#7fb3e6; --accent-soft:#1f2d3a; --old:#77716a; --code-bg:#0d0c0b; --code-ink:#f1ede5;
+    --banner:rgba(44,44,46,.78); --banner-ink:#f5f5f7; --banner-sub:rgba(255,255,255,.62); --banner-edge:rgba(255,255,255,.12); --banner-btn:rgba(255,255,255,.12);
   }
 }
 :root[data-theme="dark"]{
   --paper:#151412; --card:#1e1d1a; --ink:#f1ede5; --ink-2:#cfc9bf; --muted:#9a948a; --rule:#34312c;
   --accent:#7fb3e6; --accent-soft:#1f2d3a; --old:#77716a; --code-bg:#0d0c0b; --code-ink:#f1ede5;
+  --banner:rgba(44,44,46,.78); --banner-ink:#f5f5f7; --banner-sub:rgba(255,255,255,.62); --banner-edge:rgba(255,255,255,.12); --banner-btn:rgba(255,255,255,.12);
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -55,13 +58,29 @@ h1 em{color:var(--accent)}
 .lede{max-width:620px;margin:0 auto;color:var(--ink-2);font-size:18px}
 
 /* demo: the video once site/public/demo.mp4 exists, this mock until then */
-.demo{margin:48px auto 0;max-width:760px;background:var(--card);border:1px solid var(--rule);border-radius:14px;box-shadow:0 1px 0 rgba(0,0,0,.02),0 18px 40px -24px rgba(40,30,10,.25);overflow:hidden;text-align:left}
+.stage{position:relative;max-width:760px;margin:48px auto 0}
+.demo{margin:0 auto;max-width:760px;background:var(--card);border:1px solid var(--rule);border-radius:14px;box-shadow:0 1px 0 rgba(0,0,0,.02),0 18px 40px -24px rgba(40,30,10,.25);overflow:hidden;text-align:left}
 .demo video{display:block;width:100%;height:auto}
 .demo-bar{display:flex;align-items:center;gap:7px;padding:11px 14px;border-bottom:1px solid var(--rule);font-size:12.5px;color:var(--muted)}
 .demo-bar span.d{width:11px;height:11px;border-radius:50%;background:var(--rule)}
 .demo-bar b{margin-left:10px;font-weight:500}
 .demo ul{list-style:none;margin:0;padding:8px 0}
-.demo li{display:grid;grid-template-columns:28px 1fr;align-items:center;gap:10px;padding:9px 18px;font-family:var(--mono);font-size:14px;min-height:42px}
+.demo li{display:grid;grid-template-columns:28px 1fr;align-items:center;gap:10px;padding:9px 18px;font-family:var(--mono);font-size:14px;min-height:42px;transition:opacity .4s ease,transform .4s ease}
+.demo li.away{opacity:0;transform:translateY(-4px)}
+
+/* macOS notification banners (system font for these only) */
+.banners{position:absolute;top:-26px;right:-34px;width:330px;height:66px;z-index:2;text-align:left}
+.banner{position:absolute;inset:0;display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;padding:10px 12px;border-radius:16px;
+  background:var(--banner);-webkit-backdrop-filter:blur(22px) saturate(1.8);backdrop-filter:blur(22px) saturate(1.8);
+  border:.5px solid var(--banner-edge);box-shadow:0 8px 26px -10px rgba(0,0,0,.32),0 1px 2px rgba(0,0,0,.06);
+  font:13px/1.3 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;color:var(--banner-ink);
+  opacity:0;transform:translateX(18px) scale(.98);transition:opacity .45s ease,transform .55s cubic-bezier(.2,.9,.25,1)}
+.banner.show{opacity:1;transform:none}
+.banner svg{width:34px;height:34px}
+.banner b{display:block;font-weight:600}
+.banner span{color:var(--banner-sub)}
+.banner time{align-self:start;font-size:11.5px;color:var(--banner-sub)}
+.banner button{font:500 12px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--banner-ink);background:var(--banner-btn);border:0;border-radius:7px;padding:5px 11px;cursor:pointer}
 .demo li .ic{width:22px;height:26px;border-radius:3px;background:var(--accent-soft);border:1px solid var(--rule)}
 .fname{position:relative;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .fname .from{color:var(--old)}
@@ -93,6 +112,7 @@ footer a{color:var(--muted)}
 
 @media (max-width:820px){
   .hero{padding-top:36px}
+  .banners{position:relative;top:auto;right:auto;margin:0 auto 12px;width:100%;max-width:360px}
   .demo li{font-size:12.5px;padding:8px 14px}
 }
 @media (max-width:520px){
@@ -102,7 +122,7 @@ footer a{color:var(--muted)}
   .facts{flex-direction:column}
   .facts li+li::before{content:none}
 }
-@media (prefers-reduced-motion:reduce){ .fname .caret{animation:none} }
+@media (prefers-reduced-motion:reduce){ .fname .caret{animation:none} .banner,.demo li{transition:none} }
 </style>
 </head>
 <body>
@@ -122,6 +142,11 @@ footer a{color:var(--muted)}
   <h1>Your AirDrops,<br><em>named for what they&nbsp;are.</em></h1>
   <p class="lede">AirDrop a photo from your iPhone and it lands as <code>IMG_4821.HEIC</code>. BetterAirdrop renames it from the photo's own date, city, kind and contents, converts it to JPEG, and lets you undo any of it.</p>
 
+  <div class="stage">
+  <div class="banners" id="banners" aria-live="polite">
+    <div class="banner" id="b-airdrop"><svg viewBox="0 0 34 34" aria-hidden="true"><defs><linearGradient id="adg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5ac8fa"/><stop offset="1" stop-color="#0a7aff"/></linearGradient></defs><rect width="34" height="34" rx="8" fill="url(#adg)"/><g fill="none" stroke="#fff" stroke-linecap="round" stroke-width="1.8"><path d="M10.3 23.2a9.5 9.5 0 1 1 13.4 0" opacity=".55"/><path d="M12.9 20.6a5.8 5.8 0 1 1 8.2 0" opacity=".8"/></g><path d="M17 15.2l3.6 9.3h-7.2z" fill="#fff"/></svg><div><b>AirDrop</b><span>Received 3 photos from iPhone</span></div><time>now</time></div>
+    <div class="banner" id="b-app"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#3f7fbf"/><path d="M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/><rect x="14" y="38" width="36" height="11" rx="3.5" fill="#fff"/></svg><div><b>BetterAirdrop</b><span>Renamed 3 photos</span></div><button type="button" id="undo">Undo</button></div>
+  </div>
   <div class="demo">
     <video id="video" src="demo.mp4" autoplay muted loop playsinline preload="auto" hidden aria-label="An AirDrop arriving, the notification, the new name in Finder, and Undo"></video>
     <div id="mock" aria-label="Example of files being renamed in Downloads">
@@ -129,6 +154,7 @@ footer a{color:var(--muted)}
       <ul id="demo"></ul>
       <div class="demo-foot"><span id="demo-status">Waiting for AirDrop…</span><span class="undo">Undo</span></div>
     </div>
+  </div>
   </div>
 
   <div id="install">
@@ -153,17 +179,23 @@ footer a{color:var(--muted)}
 <script>
 (function(){
   // The video replaces the mock only once it can actually play (until demo.mp4 exists, it 404s).
-  var video = document.getElementById('video'), mock = document.getElementById('mock');
-  video.addEventListener('canplay', function(){ video.hidden = false; mock.hidden = true; video.play && video.play().catch(function(){}); });
+  var video = document.getElementById('video'), mock = document.getElementById('mock'), banners = document.getElementById('banners');
+  var stopped = false;
+  video.addEventListener('canplay', function(){ stopped = true; video.hidden = false; mock.hidden = true; banners.hidden = true; video.play && video.play().catch(function(){}); });
 
+  // The story: an AirDrop banner, three IMG_ files arrive, they're renamed, BetterAirdrop's banner.
   var rows = [
     ["IMG_4821.HEIC","2026-09-21","toronto","walnut-lamp-on-oak-sideboard",".jpg"],
     ["IMG_5277.HEIC","2026-03-31","copenhagen","glass-rose-wine-wooden",".jpg"],
     ["IMG_4822.PNG","2026-09-21","screenshot","failed-payment-card-declined-error",".png"]
   ];
   var ul = document.getElementById('demo'), status = document.getElementById('demo-status');
+  var bAir = document.getElementById('b-airdrop'), bApp = document.getElementById('b-app');
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var timers = [];
+  function later(fn, ms){ timers.push(setTimeout(function(){ if (!stopped) fn(); }, ms)); }
   function esc(s){return s.replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+  // s.done: -2 not arrived yet, -1 IMG_ name, 0… characters of the new name typed so far.
   function render(state){
     ul.innerHTML = rows.map(function(r,i){
       var s = state[i], html;
@@ -171,27 +203,40 @@ footer a{color:var(--muted)}
         var full = r[1]+'_'+r[2]+'_'+r[3]+r[4], t = full.slice(0,s.done), a=r[1].length, b=a+1+r[2].length;
         html = '<span class="to"><span class="dt">'+esc(t.slice(0,a))+'</span>'+esc(t.slice(a,a+1))+'<span class="pl">'+esc(t.slice(a+1,b))+'</span>'+esc(t.slice(b))+'</span>'+(s.typing?'<span class="caret"></span>':'');
       } else html = '<span class="from">'+esc(r[0])+'</span>';
-      return '<li><span class="ic"></span><span class="fname">'+html+'</span></li>';
+      return '<li'+(s.done===-2?' class="away"':'')+'><span class="ic"></span><span class="fname">'+html+'</span></li>';
     }).join('');
   }
-  var done = 'Renamed 3 photos';
-  var state = rows.map(function(){return {done:-1}});
-  if (reduce) { state.forEach(function(s){s.done=999}); render(state); status.textContent=done; }
-  else {
-    (function run(){
-      state = rows.map(function(){return {done:-1}}); render(state); status.textContent='Waiting for AirDrop…';
-      var i=0;
-      setTimeout(function next(){
-        if (i>=rows.length){ status.textContent=done; setTimeout(run,4200); return; }
-        if (i===0) status.textContent='Naming 3 photos…';
-        var r=rows[i], full=(r[1]+'_'+r[2]+'_'+r[3]+r[4]).length, s=state[i]; s.done=0; s.typing=true;
-        (function type(){
-          s.done=Math.min(full,s.done+2); render(state);
-          if (s.done<full) setTimeout(type,22); else { s.typing=false; render(state); i++; setTimeout(next,380); }
-        })();
-      },1400);
-    })();
+  function finalState(){
+    render(rows.map(function(){return {done:999}}));
+    status.textContent = 'Renamed 3 photos';
+    bAir.classList.remove('show'); bApp.classList.add('show');
   }
+  function run(){
+    timers.forEach(clearTimeout); timers = [];
+    var state = rows.map(function(){return {done:-2}});
+    render(state); status.textContent = 'Waiting for AirDrop…';
+    bApp.classList.remove('show'); bAir.classList.remove('show');
+    later(function(){ bAir.classList.add('show'); status.textContent = 'Receiving from iPhone…'; }, 700);
+    rows.forEach(function(r,i){ later(function(){ state[i].done = -1; render(state); }, 1500 + i*220); });
+    var i = 0;
+    later(function next(){
+      if (i >= rows.length){
+        status.textContent = 'Renamed 3 photos';
+        bAir.classList.remove('show');
+        later(function(){ bApp.classList.add('show'); }, 380);
+        later(run, 5200);
+        return;
+      }
+      if (i === 0) status.textContent = 'Naming 3 photos…';
+      var r = rows[i], full = (r[1]+'_'+r[2]+'_'+r[3]+r[4]).length, s = state[i]; s.done = 0; s.typing = true;
+      (function type(){
+        s.done = Math.min(full, s.done+2); render(state);
+        if (s.done < full) later(type, 22); else { s.typing = false; render(state); i++; later(next, 380); }
+      })();
+    }, 2900);
+  }
+  if (reduce) finalState(); else run();
+  document.getElementById('undo').addEventListener('click', function(){ if (!reduce) run(); });
 
   var b = document.getElementById('copy');
   b.addEventListener('click', function(){
