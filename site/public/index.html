@@ -34,8 +34,9 @@ main{max-width:760px;margin:0 auto;padding:72px 24px 0}
 .app{display:inline-flex;flex-direction:column;align-items:center;gap:10px;font-size:15px;font-weight:600;letter-spacing:-.01em}
 .app svg{width:64px;height:64px;filter:drop-shadow(0 4px 10px rgba(10,80,200,.22))}
 h1{font-size:clamp(38px,7vw,60px);line-height:1.04;letter-spacing:-.035em;font-weight:700;margin:28px 0 14px;text-wrap:balance}
-h1 code{font:inherit;color:var(--faint)}
-.lede{font-size:clamp(17px,2.4vw,20px);color:var(--muted);margin:0 auto;max-width:30em;letter-spacing:-.01em;text-wrap:balance}
+h1 em{font-style:italic;color:var(--accent)}
+.lede{font-size:clamp(17px,2.4vw,20px);color:var(--muted);margin:0 auto;max-width:32em;letter-spacing:-.01em;text-wrap:pretty}
+.lede code{font:.86em var(--mono);color:var(--ink);background:var(--code);border:1px solid var(--line);border-radius:6px;padding:1px 5px;white-space:nowrap}
 
 /* Finder window */
 .stage{position:relative;margin:56px auto 0;max-width:680px;text-align:left}
@@ -107,8 +108,8 @@ footer a{color:var(--muted)}
     BetterAirdrop
   </div>
 
-  <h1><code>IMG_4821</code> is not a&nbsp;name.</h1>
-  <p class="lede">A menu-bar app that renames the photos you AirDrop to your Mac by what's in them.</p>
+  <h1>Your AirDrops,<br><em>named for what they&nbsp;are.</em></h1>
+  <p class="lede">AirDrop a photo from your iPhone and it lands as <code>IMG_4821.HEIC</code>. BetterAirdrop renames it from the photo's own date, city, kind and contents, converts it to JPEG, and lets you undo any of it.</p>
 
   <div class="stage" aria-label="Three AirDropped photos being renamed in Downloads">
     <div class="win">
