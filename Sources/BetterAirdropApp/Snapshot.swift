@@ -47,6 +47,12 @@ enum Snapshot {
         try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("menubar-glyphs.png"))
     }
 
+    /// Up to four images already in the folder (for the preview sheet snapshot).
+    static func sampleFiles(_ folder: URL) -> [URL] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        return names.sorted().filter { !$0.hasPrefix(".") }.prefix(4).map { folder.appendingPathComponent($0) }
+    }
+
     /// Runs `steps` one after another, `delay` seconds apart, then quits if asked to.
     static func run(_ steps: [(String, () -> Void)], delay: TimeInterval = 1.2) {
         var remaining = steps

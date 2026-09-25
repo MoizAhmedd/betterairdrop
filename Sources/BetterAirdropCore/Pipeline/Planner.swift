@@ -29,7 +29,7 @@ public struct Planner: Sendable {
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { return "no such file" }
         if isDir.boolValue { return "is a directory" }
         guard Self.imageExtensions.contains(url.pathExtension.lowercased()) else { return "not a supported image" }
-        if Marker.read(url) != nil { return "already named by betterairdrop" }
+        if Marker.read(url) != nil { return "already named by BetterAirdrop" }
         if !ImageIntegrity.isComplete(url) { return "incomplete image file" }
         if name.range(of: #"^\d{4}-\d{2}-\d{2}_"#, options: .regularExpression) != nil { return "already has a date-first name" }
         if airdropOnly && !(Quarantine.of(url)?.isAirDrop ?? false) { return "not from AirDrop" }

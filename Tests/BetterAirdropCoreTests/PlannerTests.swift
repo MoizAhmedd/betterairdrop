@@ -73,7 +73,7 @@ import Testing
         FileManager.default.createFile(atPath: text.path, contents: Data())
         let plan = planner().plan([done, marked, partial, text, dir.path("missing.heic")])
         #expect(plan.allSatisfy { $0.action == .skip })
-        #expect(plan.map(\.reason) == ["already has a date-first name", "already named by betterairdrop", "still downloading", "not a supported image", "no such file"])
+        #expect(plan.map(\.reason) == ["already has a date-first name", "already named by BetterAirdrop", "still downloading", "not a supported image", "no such file"])
     }
 
     @Test func airdropOnly() throws {
