@@ -49,13 +49,14 @@ public enum ShellKey {
         do { try p.run() } catch { return nil }
         let box = Box()
         let read = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async { box.data = out.fileHandleForReading.readDataToEndOfFile(); read.signal() }
+        // A dedicated thread, so a busy global queue can't delay the read past the grace period below.
+        Thread.detachNewThread { box.data = out.fileHandleForReading.readDataToEndOfFile(); read.signal() }
         if done.wait(timeout: .now() + timeout) == .timedOut {
             kill(p.processIdentifier, SIGKILL)
             return nil
         }
         // A background job the rc file started can hold the pipe open; don't wait on it forever.
-        guard read.wait(timeout: .now() + 0.5) == .success, p.terminationStatus == 0 else { return nil }
+        guard read.wait(timeout: .now() + 2) == .success, p.terminationStatus == 0 else { return nil }
         return String(decoding: box.data, as: UTF8.self)
     }
 
