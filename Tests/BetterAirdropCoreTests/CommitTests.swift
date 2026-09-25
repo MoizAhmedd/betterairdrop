@@ -161,7 +161,9 @@ final class Sandbox {
         try s.run()
         let out = s.file("2026-09-21_toronto_img-1.jpg")
         try Data("edited".utf8).write(to: out)
-        #expect(try s.undoer().undo(.last).map(\.status) == [.refused])
+        let refused = try s.undoer().undo(.last)
+        #expect(refused.map(\.status) == [.refused])
+        #expect(refused.first?.reason == .editedSince)
         #expect(s.listing() == ["2026-09-21_toronto_img-1.jpg"])
         var u = s.undoer(); u.force = true
         #expect(try u.undo(.last).map(\.status) == [.restored])

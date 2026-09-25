@@ -38,11 +38,17 @@ public final class Watcher {
     public let options: Options
     public var planner: Planner
     public let committer: Committer
-    /// Called once per processed batch (the notification).
+    /// Called once per processed batch.
     public var onBatch: (Batch) -> Void = { _ in }
+    /// Posts the one notification per batch (the CLI uses `OSAScriptNotifier`; the app its own).
+    public var notifier: (any BatchNotifier)?
+    /// While paused, arrivals are ignored, not queued: `resume()` moves `startedAt` forward so
+    /// nothing that landed during the pause is renamed afterwards.
+    public var isPaused: Bool { paused.value }
+    private let paused = LockedFlag()
     public var log: (String) -> Void = { _ in }
 
-    public let startedAt: Date
+    public private(set) var startedAt: Date
     /// Files we decided not to touch, keyed by path, with the fingerprint at the time. A change to the
     /// file (new size/mtime) makes it a candidate again.
     var ignored: [String: Fingerprint] = [:]
@@ -57,6 +63,18 @@ public final class Watcher {
         // Quarantine timestamps have 1 s resolution; allow a little slack.
         self.startedAt = startedAt.addingTimeInterval(-2)
     }
+
+    /// Safe to call from any thread; a batch in progress stops waiting for new files.
+    public func pause() { paused.value = true }
+
+    /// Resumes watching. Only files arriving from now on are candidates (unless `backlog` is on).
+    public func resume(at date: Date = Date()) {
+        paused.value = false
+        startedAt = date.addingTimeInterval(-2)
+    }
+
+    /// Forgets files that were skipped or failed, so they can be tried again ("Rename Again").
+    public func resetIgnored() { ignored = [:] }
 
     static func isMovie(_ path: String) -> Bool { movieExtensions.contains((path as NSString).pathExtension.lowercased()) }
 
@@ -80,6 +98,7 @@ public final class Watcher {
 
     /// Current candidates, cheapest checks first. Doesn't wait or read pixels.
     public func scan() -> [URL] {
+        if isPaused { return [] }
         let fm = FileManager.default
         guard let names = try? fm.contentsOfDirectory(atPath: options.folder.path) else { return [] }
         var out: [URL] = []
@@ -182,7 +201,10 @@ public final class Watcher {
             ignore(URL(fileURLWithPath: o.source), o.message ?? o.status.rawValue)
         }
         let batch = Batch(id: id, proposals: proposals, outcomes: outcomes)
-        if batch.photos + batch.videos + batch.failed > 0 { onBatch(batch) }
+        if batch.photos + batch.videos + batch.failed > 0 {
+            onBatch(batch)
+            notifier?.notify(batch)
+        }
         return batch
     }
 
@@ -207,7 +229,21 @@ public final class Watcher {
     }
 }
 
-/// One macOS notification per batch, via `osascript` (works from Terminal without an app bundle).
+/// Posts one notification per batch.
+public protocol BatchNotifier {
+    func notify(_ batch: Watcher.Batch)
+}
+
+/// The CLI's notifier: `osascript`, which works from Terminal without an app bundle (macOS shows it
+/// as coming from Script Editor). The menu-bar app posts its own, with Undo and Show in Finder.
+public struct OSAScriptNotifier: BatchNotifier {
+    public init() {}
+    public func notify(_ batch: Watcher.Batch) {
+        Notifier.post(title: "BetterAirdrop", message: "\(Watcher.summary(batch)) · undo: betterairdrop undo")
+    }
+}
+
+/// One macOS notification via `osascript`.
 public enum Notifier {
     public static func post(title: String, message: String) {
         func esc(_ s: String) -> String { s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") }
@@ -222,14 +258,63 @@ public enum Notifier {
 }
 
 /// `flock` on a file in the state directory so only one watcher processes a folder at a time.
+/// The holder describes itself in `lock.owner` (JSON), so the CLI can say "the app is already
+/// watching" instead of a bare "already running", and `status` can report the app's state.
 public final class ProcessLock {
+    public struct Owner: Codable, Sendable, Equatable {
+        public enum Kind: String, Codable, Sendable { case app, cli }
+        public var kind: Kind
+        public var pid: Int32
+        public var folder: String
+        public var paused: Bool
+        public init(kind: Kind, pid: Int32 = getpid(), folder: String, paused: Bool = false) {
+            self.kind = kind; self.pid = pid; self.folder = folder; self.paused = paused
+        }
+    }
+
     let fd: Int32
-    public init?(_ url: URL = Paths.supportDirectory.appendingPathComponent("lock")) {
+    public let url: URL
+    public static var defaultURL: URL { Paths.supportDirectory.appendingPathComponent("lock") }
+    static func ownerURL(_ lock: URL) -> URL { lock.appendingPathExtension("owner") }
+
+    public init?(_ url: URL = ProcessLock.defaultURL, owner: Owner? = nil) {
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let fd = open(url.path, O_RDWR | O_CREAT, 0o600)
         guard fd >= 0 else { return nil }
         guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { close(fd); return nil }
         self.fd = fd
+        self.url = url
+        if let owner { update(owner) }
     }
-    deinit { flock(fd, LOCK_UN); close(fd) }
+
+    /// Rewrites the owner record (e.g. when the app pauses).
+    public func update(_ owner: Owner) {
+        guard let d = try? JSONEncoder().encode(owner) else { return }
+        try? d.write(to: Self.ownerURL(url), options: .atomic)
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: Self.ownerURL(url))
+        flock(fd, LOCK_UN); close(fd)
+    }
+
+    /// Who holds the lock right now, or nil if nobody does (a stale owner file is ignored).
+    public static func holder(_ url: URL = ProcessLock.defaultURL) -> Owner? {
+        let fd = open(url.path, O_RDWR)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        if flock(fd, LOCK_EX | LOCK_NB) == 0 { flock(fd, LOCK_UN); return nil }   // free
+        guard let d = try? Data(contentsOf: ownerURL(url)), let o = try? JSONDecoder().decode(Owner.self, from: d),
+              kill(o.pid, 0) == 0 || errno == EPERM else { return Owner(kind: .cli, pid: 0, folder: "") }
+        return o
+    }
+}
+
+final class LockedFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value = false
+    var value: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return _value }
+        set { lock.lock(); _value = newValue; lock.unlock() }
+    }
 }

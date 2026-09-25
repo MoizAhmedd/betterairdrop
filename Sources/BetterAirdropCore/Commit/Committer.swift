@@ -87,7 +87,8 @@ public final class Committer {
             let rec = JournalRecord(op: .begin, batch: batch, action: p.action, source: source.path, target: dest.path,
                                     sourceSHA1: sourceSHA1, outputSHA1: outputSHA1,
                                     originals: p.action == .convert ? config.originals.rawValue : nil,
-                                    backend: p.suggestion?.backend ?? backend, summary: summary)
+                                    backend: p.suggestion?.backend ?? backend, summary: summary,
+                                    costUSD: p.suggestion?.usage?.cost())
             try journal.append(rec)
             begun = rec
             try fault?(.journaledBegin, source)

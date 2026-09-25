@@ -40,14 +40,17 @@ public struct JournalRecord: Codable, Sendable, Equatable {
     public var backend: String?
     public var summary: String?
     public var message: String?
+    /// What naming this file cost at list price, in US dollars (cloud backends only).
+    public var costUSD: Double?
 
     public init(op: Op, batch: String, action: Proposal.Action, source: String, target: String,
                 sourceSHA1: String, outputSHA1: String, originals: String? = nil, trashed: String? = nil,
-                backend: String? = nil, summary: String? = nil, message: String? = nil) {
+                backend: String? = nil, summary: String? = nil, message: String? = nil, costUSD: Double? = nil) {
         self.op = op; self.batch = batch; self.time = Journal.timestamp()
         self.action = action; self.source = source; self.target = target
         self.sourceSHA1 = sourceSHA1; self.outputSHA1 = outputSHA1; self.originals = originals
         self.trashed = trashed; self.backend = backend; self.summary = summary; self.message = message
+        self.costUSD = costUSD
     }
 
     func with(_ op: Op, trashed: String? = nil, message: String? = nil) -> JournalRecord {
@@ -131,5 +134,59 @@ public final class Journal: @unchecked Sendable {
             }
         }
         return order.compactMap { map[$0] }
+    }
+
+    /// One batch as the app shows it: newest-first lists of these drive the menu's Recent rows,
+    /// the History window and "Undo last batch".
+    public struct BatchSummary: Sendable {
+        public var id: String
+        /// When the batch started (its first record).
+        public var time: Date
+        public var entries: [Entry]
+        /// Entries that can still be undone.
+        public var undoable: [Entry] { entries.filter { $0.state == .done || $0.state == .begin } }
+        public var backend: String? { entries.compactMap(\.begin.backend).first }
+        public var costUSD: Double { entries.compactMap(\.begin.costUSD).reduce(0, +) }
+    }
+
+    /// The most recent batches, newest first.
+    public func recentBatches(limit: Int = 20) -> [BatchSummary] {
+        Self.batches(entries(), limit: limit)
+    }
+
+    static func batches(_ entries: [Entry], limit: Int) -> [BatchSummary] {
+        var order: [String] = []
+        var groups: [String: [Entry]] = [:]
+        for e in entries {
+            if groups[e.begin.batch] == nil { order.append(e.begin.batch) }
+            groups[e.begin.batch, default: []].append(e)
+        }
+        return order.reversed().prefix(limit).map { id in
+            let es = groups[id]!
+            return BatchSummary(id: id, time: Journal.date(es[0].begin.time) ?? .distantPast, entries: es)
+        }
+    }
+
+    /// Renames and Claude spend since `since` (e.g. the start of this month). Undone renames still
+    /// count toward spend, because the API call was made.
+    public struct Stats: Sendable, Equatable {
+        public var photos = 0
+        public var costUSD = 0.0
+    }
+
+    public func stats(since: Date) -> Stats {
+        var s = Stats()
+        for e in entries() {
+            guard let t = Journal.date(e.begin.time), t >= since else { continue }
+            s.costUSD += e.begin.costUSD ?? 0
+            if e.state == .done, (e.begin.source as NSString).pathExtension.lowercased() != "mov" { s.photos += 1 }
+        }
+        return s
+    }
+
+    public static func date(_ timestamp: String) -> Date? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f.date(from: timestamp)
     }
 }

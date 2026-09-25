@@ -9,8 +9,8 @@ struct Watch: ParsableCommand {
         Only files AirDrop delivered (quarantine agent sharingd) that arrive after the watcher starts are
         touched; pass --backlog to also name earlier AirDrops. Each batch gets one notification and one
         undo: `betterairdrop undo` (last batch) or `betterairdrop undo --batch ID`.
-        --foreground runs in this Terminal window, which already has access to Downloads. The background
-        LaunchAgent (`betterairdrop install`) comes later.
+        --foreground runs in this Terminal window, which already has access to Downloads. To name AirDrops in
+        the background, use the BetterAirdrop menu-bar app instead; this command steps aside while it runs.
         """
     )
 
@@ -38,7 +38,7 @@ struct Watch: ParsableCommand {
 
     func run() throws {
         guard foreground || once else {
-            throw ValidationError("The background agent isn't available yet. Run `betterairdrop watch --foreground` in Terminal.")
+            throw ValidationError("Pass --foreground to watch in this Terminal window. For background watching, use the BetterAirdrop menu-bar app.")
         }
         setvbuf(stdout, nil, _IOLBF, 0)   // line-buffered, so `| tee log.txt` shows batches as they happen
         let config = try global.loadConfig()
@@ -50,7 +50,12 @@ struct Watch: ParsableCommand {
         guard (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) != nil else {
             throw ValidationError("can't read \(tilde(folder.path)): give your terminal access in System Settings → Privacy & Security → Files and Folders")
         }
-        guard let lock = ProcessLock() else {
+        guard let lock = ProcessLock(owner: .init(kind: .cli, folder: folder.path)) else {
+            if ProcessLock.holder()?.kind == .app {
+                stderr("The BetterAirdrop app is already watching \(tilde(ProcessLock.holder()?.folder ?? folder.path)).")
+                stderr("Pause it from the menu bar (or quit it) to watch here instead.")
+                throw ExitCode(1)
+            }
             throw ValidationError("another betterairdrop watcher is already running")
         }
         defer { withExtendedLifetime(lock) {} }   // hold the lock until the watcher exits
@@ -64,7 +69,7 @@ struct Watch: ParsableCommand {
         options.backlog = backlog
         if let q = quietSeconds { options.quietWindow = q }
         let watcher = Watcher(options: options, planner: planner, committer: committer)
-        let notify = config.watchNotify && !noNotify
+        if config.watchNotify && !noNotify { watcher.notifier = OSAScriptNotifier() }
         watcher.log = { print("  · \($0)") }
         watcher.onBatch = { b in
             print("[\(Self.clock())] batch \(b.id)")
@@ -81,7 +86,6 @@ struct Watch: ParsableCommand {
             let tokens = b.proposals.filter { ($0.source as NSString).pathExtension.lowercased() != "mov" }.compactMap { $0.suggestion?.usage }
             let cost = tokens.reduce(0) { $0 + $1.cost() }
             print("\(summary). Undo: betterairdrop undo --batch \(b.id)\(tokens.isEmpty ? "" : String(format: "  (Claude: %d photo%@, about $%.4f)", tokens.count, tokens.count == 1 ? "" : "s", cost))")
-            if notify { Notifier.post(title: "betterairdrop", message: "\(summary) · undo: betterairdrop undo") }
         }
 
         let backendDesc = namer.map { Backends.isCloud($0) ? "claude (Apple Vision if it fails)" : $0.id } ?? "none"

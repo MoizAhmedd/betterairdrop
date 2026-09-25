@@ -11,10 +11,13 @@ public struct Undoer {
 
     public struct Outcome: Codable, Sendable {
         public enum Status: String, Codable, Sendable { case restored, alreadyClean, refused, failed }
+        /// Why a change was refused, so the app can offer "Undo Anyway" for the right case.
+        public enum Reason: String, Codable, Sendable { case editedSince }
         public var source: String
         public var target: String
         public var status: Status
         public var message: String?
+        public var reason: Reason?
     }
 
     public enum Error: Swift.Error, CustomStringConvertible {
@@ -60,14 +63,14 @@ public struct Undoer {
     func undoEntry(_ e: Journal.Entry) -> Outcome {
         let r = e.latest
         let source = URL(fileURLWithPath: r.source), target = URL(fileURLWithPath: r.target)
-        func outcome(_ st: Outcome.Status, _ msg: String? = nil) -> Outcome {
+        func outcome(_ st: Outcome.Status, _ msg: String? = nil, reason: Outcome.Reason? = nil) -> Outcome {
             if st == .restored || st == .alreadyClean { try? journal.append(r.with(.undo, message: msg)) }
-            return Outcome(source: r.source, target: r.target, status: st, message: msg)
+            return Outcome(source: r.source, target: r.target, status: st, message: msg, reason: reason)
         }
         let targetExists = FileOps.exists(target)
         if targetExists && !force {
             guard let h = try? FileOps.sha1(target), h == r.outputSHA1 else {
-                return outcome(.refused, "\(target.lastPathComponent) was changed after betterairdrop wrote it; use --force to undo anyway")
+                return outcome(.refused, "\(target.lastPathComponent) was changed after BetterAirdrop wrote it; use --force to undo anyway", reason: .editedSince)
             }
         }
         do {

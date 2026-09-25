@@ -61,6 +61,9 @@ public final class Places: @unchecked Sendable {
         if let env = ProcessInfo.processInfo.environment["BETTERAIRDROP_CITIES"] { candidates.append(URL(fileURLWithPath: env)) }
         let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
         candidates.append(exe.appendingPathComponent("../share/betterairdrop/cities.bin").standardized)
+        // Inside BetterAirdrop.app: Contents/MacOS/BetterAirdrop and Contents/Helpers/betterairdrop
+        // both find Contents/Resources/cities.bin.
+        candidates.append(exe.appendingPathComponent("../Resources/cities.bin").standardized)
         for url in candidates where FileManager.default.fileExists(atPath: url.path) {
             return try Places(packed: Data(contentsOf: url))
         }
