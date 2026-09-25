@@ -1,6 +1,7 @@
 import AppKit
 import BetterAirdropCore
 import BetterAirdropKit
+import ServiceManagement
 import SwiftUI
 
 @MainActor
@@ -68,6 +69,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
 
     func showSettings() {
         status.close()
+        if settingsWindow == nil { settingsWindow = SettingsWindow.make(model: model, app: self) }
+        Windows.show(settingsWindow!)
+    }
+
+    /// Settings → Advanced → Uninstall… (the same sequence as `betterairdrop uninstall`).
+    func uninstall(purge: Bool) {
+        let steps = AppUninstall.uninstaller().uninstall(purge: purge)
+        for s in steps { NSLog("uninstall: \(s.name) \(s.ok ? "ok" : "FAILED") \(s.detail ?? "")") }
+        NSApp.terminate(nil)
     }
 
     // MARK: - Renaming files by hand
@@ -190,6 +200,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
 
 final class WindowRef { weak var window: NSWindow? }
 
+/// The uninstall sequence with the app-only steps filled in.
+enum AppUninstall {
+    static func uninstaller() -> Uninstaller {
+        var u = Uninstaller()
+        u.cliLink = CLILink(target: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/betterairdrop"))
+        u.unregisterLoginItem = {
+            do { try SMAppService.mainApp.unregister(); return true } catch {
+                let s = SMAppService.mainApp.status; return s == .notRegistered || s == .notFound   // nothing to remove is fine
+            }
+        }
+        let bundle = Bundle.main.bundleURL
+        if bundle.pathExtension == "app" {
+            u.recycleApp = { (try? FileManager.default.trashItem(at: bundle, resultingItemURL: nil)) != nil }
+        }
+        return u
+    }
+}
+
+/// `BetterAirdrop --uninstall [--purge]`: what `betterairdrop uninstall` runs, inside the app's own
+/// identity so SMAppService can remove its login item.
 enum Headless {
-    static func uninstall(purge: Bool) -> Int32 { 1 }
+    static func uninstall(purge: Bool) -> Int32 {
+        let me = ProcessInfo.processInfo.processIdentifier
+        for app in NSRunningApplication.runningApplications(withBundleIdentifier: "dev.betterairdrop.app") where app.processIdentifier != me {
+            app.terminate()
+        }
+        Thread.sleep(forTimeInterval: 1)
+        let steps = AppUninstall.uninstaller().uninstall(purge: purge)
+        for s in steps { print("\(s.ok ? "✓" : "✗") \(s.name)\(s.detail.map { ": \($0)" } ?? "")") }
+        return steps.allSatisfy(\.ok) ? 0 : 1
+    }
 }

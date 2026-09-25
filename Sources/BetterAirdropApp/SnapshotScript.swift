@@ -39,6 +39,16 @@ extension AppDelegate {
             ("pause", { self.model.pause(.oneHour) }),
             ("panel-2", { self.status.open() }),
             ("panel-2-capture", { Snapshot.capture(self.status.panelWindow, "panel-undone-paused"); self.status.close(); self.model.resume() }),
+            ("settings", { self.showSettings() }),
+        ]
+        for (i, name) in ["general", "naming", "advanced", "about"].enumerated() {
+            steps += [
+                ("tab-\(name)", { (self.settingsWindow?.contentViewController as? NSTabViewController)?.selectedTabViewItemIndex = i }),
+                ("tab-\(name)-capture", { Snapshot.capture(self.settingsWindow, "settings-\(name)") }),
+            ]
+        }
+        steps += [
+            ("settings-close", { self.settingsWindow?.close() }),
             // Lost access: make the (test) folder unreadable for a moment.
             ("lock", { guard !self.model.folderIsDownloads else { return }; try? FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: self.model.folder.path); self.model.recheck() }),
             ("panel-3", { self.status.open() }),
