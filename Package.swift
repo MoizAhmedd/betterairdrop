@@ -2,28 +2,28 @@
 import PackageDescription
 
 let package = Package(
-    name: "airname",
+    name: "betterairdrop",
     platforms: [.macOS(.v13)],
     products: [
-        .executable(name: "airname", targets: ["airname"]),
+        .executable(name: "betterairdrop", targets: ["betterairdrop"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
     ],
     targets: [
         .target(
-            name: "AirnameCore",
+            name: "BetterAirdropCore",
             resources: [.copy("Resources/cities.bin")]
         ),
         .executableTarget(
-            name: "airname",
+            name: "betterairdrop",
             dependencies: [
-                "AirnameCore",
+                "BetterAirdropCore",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
         // Packs GeoNames cities15000.txt into Resources/cities.bin. See scripts/update-cities.sh.
-        .executableTarget(name: "airname-pack-cities", dependencies: ["AirnameCore"]),
-        .testTarget(name: "AirnameCoreTests", dependencies: ["AirnameCore"]),
+        .executableTarget(name: "betterairdrop-pack-cities", dependencies: ["BetterAirdropCore"]),
+        .testTarget(name: "BetterAirdropCoreTests", dependencies: ["BetterAirdropCore"]),
     ]
 )

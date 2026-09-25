@@ -7,23 +7,23 @@ it starts, and every rename can be undone.
 ## 1. Build and check the backend
 
 ```sh
-cd airname                  # your clone of the repo
+cd betterairdrop                  # your clone of the repo
 swift build -c release
-.build/release/airname auth status
+.build/release/betterairdrop auth status
 ```
 
 `auth status` should end with `Claude would use: Anthropic CLI login (ant)` (or your API key).
-If it says `No credential found`, run `.build/release/airname auth login`, or carry on anyway:
+If it says `No credential found`, run `.build/release/betterairdrop auth login`, or carry on anyway:
 Apple Vision will name the photos instead (flatter names, but the rest of the test still works).
 
 ## 2. Start the watcher
 
 ```sh
-.build/release/airname watch --foreground 2>&1 | tee /tmp/airname-watch.txt
+.build/release/betterairdrop watch --foreground 2>&1 | tee /tmp/betterairdrop-watch.txt
 ```
 
 You should see one line like
-`airname: watching ~/Downloads for AirDrop arrivals · backend claude (Apple Vision if it fails) · Ctrl-C to stop`.
+`betterairdrop: watching ~/Downloads for AirDrop arrivals · backend claude (Apple Vision if it fails) · Ctrl-C to stop`.
 The first time Claude is used, a short notice about what gets sent is printed too. Leave this
 window open for the whole test.
 
@@ -44,10 +44,10 @@ For each batch, the terminal prints something like:
 ```
 [14:03:12] batch 20260924-140312-ab12
   ✓ IMG_5301.HEIC  →  2026-09-24_toronto_walnut-lamp-on-oak-sideboard.jpg
-Renamed 1 photo. Undo: airname undo --batch 20260924-140312-ab12  (Claude: 1 photos, about $0.0017)
+Renamed 1 photo. Undo: betterairdrop undo --batch 20260924-140312-ab12  (Claude: 1 photos, about $0.0017)
 ```
 
-and macOS shows one notification titled **airname**. The notification comes from `osascript`,
+and macOS shows one notification titled **BetterAirdrop**. The notification comes from `osascript`,
 so macOS may first ask whether "Script Editor" may send notifications; allow it. If no
 notification appears, check System Settings → Notifications → Script Editor. The terminal output
 is what counts.
@@ -59,12 +59,12 @@ Also check in Finder that the new names look right and the originals are in the 
 Try undo on at least one batch:
 
 ```sh
-.build/release/airname log -n 30          # every batch with old → new names
-.build/release/airname undo               # puts the most recent batch back (HEICs return from the Trash)
-.build/release/airname undo --batch ID    # a specific batch, ID from the log
+.build/release/betterairdrop log -n 30          # every batch with old → new names
+.build/release/betterairdrop undo               # puts the most recent batch back (HEICs return from the Trash)
+.build/release/betterairdrop undo --batch ID    # a specific batch, ID from the log
 ```
 
-Undo refuses to touch a file you've edited since airname wrote it (use `--force` if you mean it).
+Undo refuses to touch a file you've edited since BetterAirdrop wrote it (use `--force` if you mean it).
 Keep the renamed files if you like the names; undo is optional.
 
 ## 5. Stop
@@ -74,7 +74,7 @@ quits at once).
 
 ## 6. What to paste back
 
-1. The terminal output: `cat /tmp/airname-watch.txt`. It holds file names and the generated
+1. The terminal output: `cat /tmp/betterairdrop-watch.txt`. It holds file names and the generated
    descriptions; remove any you'd rather not share.
 2. For each group (A–E): roughly how many seconds from "AirDrop finished" on the phone to the
    notification, and whether exactly one notification appeared.
@@ -83,5 +83,5 @@ quits at once).
 5. Any line starting with `note:` (e.g. Claude failing and Vision taking over), `skip` or `✗`.
 6. Did undo put everything back?
 
-If anything looks wrong, `.build/release/airname explain <file>` shows the context and the
+If anything looks wrong, `.build/release/betterairdrop explain <file>` shows the context and the
 reasoning behind a name; paste that too.

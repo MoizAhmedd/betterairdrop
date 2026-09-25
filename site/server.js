@@ -1,4 +1,4 @@
-// Static server for the airname landing page. No dependencies.
+// Static server for the betterairdrop landing page. No dependencies.
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");

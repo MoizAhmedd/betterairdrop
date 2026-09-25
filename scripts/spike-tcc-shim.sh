@@ -1,6 +1,6 @@
 #!/bin/bash
 # M0(e) spike: does a stable, ad-hoc-signed launcher .app hold the ~/Downloads (TCC) grant
-# for a child binary that gets replaced, the way `brew upgrade` would replace airname?
+# for a child binary that gets replaced, the way `brew upgrade` would replace betterairdrop?
 #
 #   scripts/spike-tcc-shim.sh install            build, install the LaunchAgent, run phase 1 (expect a prompt: click Allow)
 #   scripts/spike-tcc-shim.sh run [label]        run the agent again (default label: 2-after-grant)
@@ -14,11 +14,11 @@
 # The agent only LISTS ~/Downloads (names are counted, never printed or modified).
 set -eu
 
-LABEL=dev.airname.spike
-SPIKE_DIR="${SPIKE_DIR:-$HOME/Library/Application Support/airname-spike}"
-APP="$SPIKE_DIR/Airname Spike.app"
-LAUNCHER="$APP/Contents/MacOS/airname-spike"
-CHILD="$SPIKE_DIR/child/airname-child"     # outside the bundle, like a Homebrew Cellar binary
+LABEL=dev.betterairdrop.spike
+SPIKE_DIR="${SPIKE_DIR:-$HOME/Library/Application Support/betterairdrop-spike}"
+APP="$SPIKE_DIR/BetterAirdrop Spike.app"
+LAUNCHER="$APP/Contents/MacOS/betterairdrop-spike"
+CHILD="$SPIKE_DIR/child/betterairdrop-child"     # outside the bundle, like a Homebrew Cellar binary
 LOG="$SPIKE_DIR/results.log"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 DOMAIN="gui/$(id -u)"
@@ -87,8 +87,8 @@ EOF
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>CFBundleIdentifier</key><string>$LABEL</string>
-  <key>CFBundleName</key><string>Airname Spike</string>
-  <key>CFBundleExecutable</key><string>airname-spike</string>
+  <key>CFBundleName</key><string>BetterAirdrop Spike</string>
+  <key>CFBundleExecutable</key><string>betterairdrop-spike</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>LSUIElement</key><true/>
@@ -155,7 +155,7 @@ case "$cmd" in
   cleanup)
     run launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
     run rm -f "$PLIST"
-    [ -f "$LOG" ] && { run mkdir -p /tmp/airname-spike; run cp "$LOG" /tmp/airname-spike/results.log; say "log saved to /tmp/airname-spike/results.log"; }
+    [ -f "$LOG" ] && { run mkdir -p /tmp/betterairdrop-spike; run cp "$LOG" /tmp/betterairdrop-spike/results.log; say "log saved to /tmp/betterairdrop-spike/results.log"; }
     run rm -rf "$SPIKE_DIR"
     run tccutil reset SystemPolicyDownloadsFolder "$LABEL" || true
     say "removed $PLIST, $SPIKE_DIR and the Downloads permission entry for $LABEL"

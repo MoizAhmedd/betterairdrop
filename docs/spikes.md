@@ -52,7 +52,7 @@ Neutral examples of v2 output: a window onto brick buildings → `window-brick` 
 
 ### After M3: the shipped `VisionNamer`
 
-`airname rename --dry-run` on the same 26 files, with the v2 rules plus two changes: photos only fall back to OCR text with confidence ≥ 0.8, and screenshot text in the top 5% (the status bar) is ignored. The result matches v2 except that one screenshot is now named by a button label (still a 1), and one photo that was named by an OCR misread now gets a correctly read line of text from the image (0 → 0–1). That's about 22–23/52 (≈ 44%).
+`betterairdrop rename --dry-run` on the same 26 files, with the v2 rules plus two changes: photos only fall back to OCR text with confidence ≥ 0.8, and screenshot text in the top 5% (the status bar) is ignored. The result matches v2 except that one screenshot is now named by a button label (still a 1), and one photo that was named by an OCR misread now gets a correctly read line of text from the image (0 → 0–1). That's about 22–23/52 (≈ 44%).
 
 Place names now resolve too (all camera shots got a city). Total 26 images in 30 s, about 1.1 s each including decoding a 24 MP HEIC.
 
@@ -101,7 +101,7 @@ chunked slow write, a Live Photo MOV) there was one batch, the MOV got the still
 
 **output_config:** accepted by `claude-haiku-4-5`; the prompted-JSON fallback was not needed (it stays in place and is unit-tested).
 
-**What the backend does** (`Sources/AirnameCore/Naming/ClaudeNamer.swift`):
+**What the backend does** (`Sources/BetterAirdropCore/Naming/ClaudeNamer.swift`):
 
 - Model `claude-haiku-4-5` (config `claude.model`), `POST /v1/messages`, `anthropic-version: 2023-06-01`,
   `max_tokens` 256, no `thinking`, 20 s timeout.
@@ -113,7 +113,7 @@ chunked slow write, a Live Photo MOV) there was one batch, the MOV got the still
   up to 6 Vision labels, and up to 300 characters of OCR, biggest text first. The file name isn't sent.
 - Structured output: `output_config.format` = `json_schema` with `subject`, `kind` (photo, screenshot,
   receipt, document, whiteboard, other), `merchant`, `total`, `confidence` and `people_present`, all required,
-  `additionalProperties: false`. If the API rejects `output_config` with a 400, airname remembers that
+  `additionalProperties: false`. If the API rejects `output_config` with a 400, BetterAirdrop remembers that
   for the rest of the run and asks for JSON in the system prompt instead, then parses and validates
   strictly (known kind, non-empty subject, finite confidence). Haiku 4.5 accepted `output_config` in the live run.
 - `stop_reason` is checked first: `refusal` and `max_tokens` are errors. 429, 529 and 5xx are retried
@@ -137,7 +137,7 @@ chunked slow write, a Live Photo MOV) there was one batch, the MOV got the still
   - `mediaGroupUUID` (present on some files; probably the Live Photo pairing id, to verify in M6)
 - **Copies lose the tag.** A plain `cp` of an AirDropped file (how `fixtures-local/` was built) gets a *new* quarantine value with an empty agent (`0281;<time>;;<uuid>`). So `sharingd` identifies the original arrival only, and a copied or re-downloaded file is correctly not treated as AirDrop. `--airdrop-only` tests have to set the xattr themselves (the unit tests do).
 - **Absent:** `kMDItemWhereFroms`, `kMDItemUserSharedReceivedTransport` and `…Sender` are all null. Spotlight doesn't record AirDrop provenance. Quarantine is the only signal.
-- Some files also carry `com.apple.macl` (sandbox file-access grants), `com.apple.lastuseddate#PS` and `com.apple.cscachefs`. A plain rename (`rename(2)`) keeps them. A converted JPEG is a new file with none of them: it gets the `dev.airname.done` marker instead, and since it has no `sharingd` quarantine the watcher can't pick it up a second time.
+- Some files also carry `com.apple.macl` (sandbox file-access grants), `com.apple.lastuseddate#PS` and `com.apple.cscachefs`. A plain rename (`rename(2)`) keeps them. A converted JPEG is a new file with none of them: it gets the `dev.betterairdrop.done` marker instead, and since it has no `sharingd` quarantine the watcher can't pick it up a second time.
 
 ### Procedure (needs an iPhone, about 5 minutes)
 
@@ -161,11 +161,11 @@ while :; do date +%T.%N | cut -c1-12; ls -la ~/Downloads | grep -iE 'heic|mov|do
 
 ## (e) TCC shim: does a stable launcher hold the Downloads grant?
 
-`scripts/spike-tcc-shim.sh` builds, in `~/Library/Application Support/airname-spike/`:
+`scripts/spike-tcc-shim.sh` builds, in `~/Library/Application Support/betterairdrop-spike/`:
 
-- **`Airname Spike.app`**: a roughly 25-line Swift launcher, ad-hoc signed with identifier `dev.airname.spike` and `LSUIElement`. It lists `~/Downloads` itself, then spawns the child and waits for it.
-- **`child/airname-child`**: a separate ad-hoc binary *outside* the bundle (standing in for the Homebrew Cellar binary). It lists `~/Downloads` too.
-- **`~/Library/LaunchAgents/dev.airname.spike.plist`**: `Program` = the launcher, `AssociatedBundleIdentifiers` = `dev.airname.spike`, not run at load. Each phase starts it with `launchctl kickstart`.
+- **`BetterAirdrop Spike.app`**: a roughly 25-line Swift launcher, ad-hoc signed with identifier `dev.betterairdrop.spike` and `LSUIElement`. It lists `~/Downloads` itself, then spawns the child and waits for it.
+- **`child/betterairdrop-child`**: a separate ad-hoc binary *outside* the bundle (standing in for the Homebrew Cellar binary). It lists `~/Downloads` too.
+- **`~/Library/LaunchAgents/dev.betterairdrop.spike.plist`**: `Program` = the launcher, `AssociatedBundleIdentifiers` = `dev.betterairdrop.spike`, not run at load. Each phase starts it with `launchctl kickstart`.
 
 It only **counts** directory entries. It never prints names or reads, changes or deletes anything in Downloads. Results go to `results.log` in the same folder.
 
@@ -174,8 +174,8 @@ Verified here without installing: `bash -n`, `install --dry-run`, `cleanup --dry
 ### How to run it
 
 ```sh
-cd airname
-scripts/spike-tcc-shim.sh install          # phase 1. A prompt should say "Airname Spike" would like to access Downloads → Allow
+cd betterairdrop
+scripts/spike-tcc-shim.sh install          # phase 1. A prompt should say "BetterAirdrop Spike" would like to access Downloads → Allow
 scripts/spike-tcc-shim.sh run              # phase 2: with the grant in place
 scripts/spike-tcc-shim.sh swap             # phase 3: child replaced (new cdhash, new inode) = a simulated brew upgrade
 scripts/spike-tcc-shim.sh rebuild-launcher # phase 4: launcher re-signed with a new cdhash, same identifier
@@ -183,17 +183,17 @@ scripts/spike-tcc-shim.sh results          # copy the output into this file
 scripts/spike-tcc-shim.sh cleanup          # removes the agent, bundle, plist and the TCC entry (log saved to /tmp)
 ```
 
-Check afterwards that System Settings → Privacy & Security → Files and Folders no longer lists "Airname Spike". The log file never contains file names, only counts.
+Check afterwards that System Settings → Privacy & Security → Files and Folders no longer lists "BetterAirdrop Spike". The log file never contains file names, only counts.
 
 ### Reading the results
 
 | Phase | What to look for | Meaning |
 |---|---|---|
-| 1 | A prompt naming **"Airname Spike"** (not "airname-child", not "bash"/"Terminal") | TCC attributes access to the launcher bundle. D3 (a) passes. |
-| 1 | No prompt and `launcher LIST FAIL … Operation not permitted` | launchd agents can't prompt. We'd need `airname install` to deep-link to System Settings and have the user add the app by hand. |
+| 1 | A prompt naming **"BetterAirdrop Spike"** (not "betterairdrop-child", not "bash"/"Terminal") | TCC attributes access to the launcher bundle. D3 (a) passes. |
+| 1 | No prompt and `launcher LIST FAIL … Operation not permitted` | launchd agents can't prompt. We'd need `betterairdrop install` to deep-link to System Settings and have the user add the app by hand. |
 | 1 | No prompt and `LIST OK` | Something already granted it, e.g. a stale entry. Run `cleanup` and repeat. |
 | 2 | `launcher LIST OK` **and** `child(v1) … LIST OK` | The child inherits the launcher's grant, because the launcher is the responsible process. **D3 (b) passes.** |
-| 2 | launcher OK but child `FAIL` | The child is attributed to itself. Fall back to putting the full `airname` binary inside the bundle (PLAN D3). |
+| 2 | launcher OK but child `FAIL` | The child is attributed to itself. Fall back to putting the full `betterairdrop` binary inside the bundle (PLAN D3). |
 | 3 | `child(v2) … LIST OK` | **The key result.** Swapping the Homebrew binary keeps the grant. D3 (c) passes and the free path works. |
 | 3 | `child(v2) … FAIL` | Swaps break it. Same fallback as above, plus `doctor` detection. |
 | 4 | `launcher LIST OK` (no new prompt) | TCC keyed the grant on the identifier (surprising for ad-hoc). The launcher can be rebuilt freely. |
@@ -297,5 +297,5 @@ The app is built so that the answer changes the release pipeline (M12), not the 
   onboarding access step (with the Open-panel fallback), so an update that drops the grant costs
   the user one click, never silent failure.
 
-(e) above (the `airname install` LaunchAgent shim) is superseded: the headless agent was cut in
+(e) above (the `betterairdrop install` LaunchAgent shim) is superseded: the headless agent was cut in
 favour of the menu-bar app, so its result no longer decides anything.

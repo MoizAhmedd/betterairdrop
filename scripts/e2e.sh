@@ -17,13 +17,13 @@ fi
 
 swift build -q
 echo "Credential check:"
-.build/debug/airname auth status
-if .build/debug/airname auth status | grep -q "^No credential"; then
+.build/debug/betterairdrop auth status
+if .build/debug/betterairdrop auth status | grep -q "^No credential"; then
   echo "No Anthropic credential; nothing to run. See README → Claude backend." >&2
   exit 2
 fi
 
-AIRNAME_E2E=1 swift test --filter E2E 2>&1 | grep -vE '^\s*$' | grep -E 'e2e:|✘|✔|Test run|error' || true
+BETTERAIRDROP_E2E=1 swift test --filter E2E 2>&1 | grep -vE '^\s*$' | grep -E 'e2e:|✘|✔|Test run|error' || true
 echo
 echo "Report: $(pwd)/e2e-report.html"
 [[ -f e2e-results.json ]] && python3 - <<'PY' || true

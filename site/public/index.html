@@ -169,7 +169,7 @@ body{overflow-x:hidden}
   <div class="demo" aria-label="Example of files being renamed in Downloads">
     <div class="demo-bar"><span class="d"></span><span class="d"></span><span class="d"></span><b>~/Downloads</b></div>
     <ul id="demo"></ul>
-    <div class="demo-foot"><span id="demo-status">Waiting for AirDrop…</span><span class="undo">airname undo</span></div>
+    <div class="demo-foot"><span id="demo-status">Waiting for AirDrop…</span><span class="undo">betterairdrop undo</span></div>
   </div>
 
   <div class="ctas">
@@ -197,7 +197,7 @@ body{overflow-x:hidden}
   <div class="grid3" style="margin-top:16px">
     <div class="card"><div class="n">1</div><h3>Only AirDrops</h3><p>It watches the top of <code>~/Downloads</code> and only touches files macOS marked as delivered by AirDrop. Browser downloads are left alone.</p></div>
     <div class="card"><div class="n">2</div><h3>HEIC becomes JPEG</h3><p>Photos are converted so they open anywhere. Screenshots and JPEGs are just renamed. Live Photo videos get the same name as their photo.</p></div>
-    <div class="card"><div class="n">3</div><h3>Undo anything</h3><p>Originals go to the Trash, never deleted, and every change is journaled. <code>airname undo</code> puts the last batch back exactly as it was.</p></div>
+    <div class="card"><div class="n">3</div><h3>Undo anything</h3><p>Originals go to the Trash, never deleted, and every change is journaled. <code>betterairdrop undo</code> puts the last batch back exactly as it was.</p></div>
   </div>
 </section>
 
@@ -248,13 +248,13 @@ body{overflow-x:hidden}
 <section id="install">
   <div class="eyebrow">Install</div>
   <h2>Try it today, from source.</h2>
-  <p class="sub">BetterAirDrop is pre-alpha; the command-line tool it installs is called <code>airname</code>. A menu-bar app with a one-line installer is next; for now it runs in a Terminal window. Needs macOS 13+ and Swift 6 (Xcode 16 or the command line tools).</p>
+  <p class="sub">BetterAirDrop is pre-alpha; the command-line tool it installs is called <code>betterairdrop</code>. A menu-bar app with a one-line installer is next; for now it runs in a Terminal window. Needs macOS 13+ and Swift 6 (Xcode 16 or the command line tools).</p>
   <div class="install-grid">
     <div class="code" id="code"><button class="copy" type="button" data-copy="git clone https://github.com/MoizAhmedd/betterairdrop.git && cd betterairdrop
 swift build -c release
-.build/release/airname watch --foreground">Copy</button><span class="p">$ </span>git clone https://github.com/MoizAhmedd/betterairdrop.git && cd betterairdrop
+.build/release/betterairdrop watch --foreground">Copy</button><span class="p">$ </span>git clone https://github.com/MoizAhmedd/betterairdrop.git && cd betterairdrop
 <span class="p">$ </span>swift build -c release
-<span class="p">$ </span>.build/release/airname watch --foreground
+<span class="p">$ </span>.build/release/betterairdrop watch --foreground
 <span class="c"># now AirDrop something to this Mac</span></div>
     <div class="card cmds">
       <div><code>rename --dry-run</code><span>See what it would do to files you already have.</span></div>

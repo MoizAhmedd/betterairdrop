@@ -1,13 +1,15 @@
-# airname
+# BetterAirdrop
+
+**No more IMG_4821.HEIC.** AirDropped photos get names you can search for. (Formerly `airname`.)
 
 > **Status: pre-alpha.** Not released or installable yet. What works today:
-> `airname watch --foreground` (names AirDrops as they land, in a Terminal window),
-> `airname rename` on files you pass it, plus `explain`, `undo`, `log` and `auth`. The naming
+> `betterairdrop watch --foreground` (names AirDrops as they land, in a Terminal window),
+> `betterairdrop rename` on files you pass it, plus `explain`, `undo`, `log` and `auth`. The naming
 > backends are Claude Haiku (when you give it a credential) and Apple Vision (on-device, always
-> there). The background agent (`airname install`) and Homebrew packaging come next. Expect
+> there). The background agent (`betterairdrop install`) and Homebrew packaging come next. Expect
 > names and flags to change.
 
-AirDrop a photo from your iPhone and it lands in `~/Downloads` as `IMG_4821.HEIC`. airname
+AirDrop a photo from your iPhone and it lands in `~/Downloads` as `IMG_4821.HEIC`. BetterAirdrop
 gives it a name you can find later, and converts it to a JPEG:
 
 ```
@@ -25,20 +27,20 @@ names come from a bundled offline table, so your coordinates never leave the mac
 Needs macOS 13+ and Swift 6 (Xcode 16 or the command line tools).
 
 ```sh
-git clone https://github.com/MoizAhmedd/airname.git && cd airname
+git clone https://github.com/MoizAhmedd/betterairdrop.git && cd betterairdrop
 swift build -c release
-.build/release/airname watch --foreground        # then AirDrop something to this Mac
+.build/release/betterairdrop watch --foreground        # then AirDrop something to this Mac
 ```
 
 `watch --foreground` runs in your Terminal window (which already has access to Downloads) until
 you press Ctrl-C. It only touches files AirDrop delivered **after it started**; your older
 downloads are left alone (pass `--backlog` to include earlier AirDrops). Each batch gets one
-notification, and `airname undo` puts the last batch back exactly as it was.
+notification, and `betterairdrop undo` puts the last batch back exactly as it was.
 
 To see what it would do to files you already have, without changing anything:
 
 ```sh
-.build/release/airname rename --dry-run ~/Downloads/IMG_*.HEIC
+.build/release/betterairdrop rename --dry-run ~/Downloads/IMG_*.HEIC
 ```
 
 ## Naming backends
@@ -53,7 +55,7 @@ To see what it would do to files you already have, without changing anything:
 Vision always runs anyway: it supplies the OCR text, kind hints and labels that go into Claude's
 context, and it names the photo by itself if Claude fails for any reason (no network, timeout,
 rate limit, refusal), so a rename never fails because of the network. The first time Claude is
-used, airname prints a one-time notice saying what gets sent.
+used, BetterAirdrop prints a one-time notice saying what gets sent.
 
 To keep everything on-device, set `backend = "vision"` or turn Claude off for `auto`:
 
@@ -67,39 +69,39 @@ output), measured on real AirDrops. On the same photos its names scored about 92
 (see [docs/spikes.md](docs/spikes.md)). Anthropic doesn't train on
 API inputs. Vision's names are honest but flat (they read like tags); the spike notes have the scores.
 
-### Giving airname a Claude credential
+### Giving BetterAirdrop a Claude credential
 
-airname looks for a credential in this order and uses the first one it finds:
+BetterAirdrop looks for a credential in this order and uses the first one it finds:
 
 1. **`ANTHROPIC_API_KEY`** in the environment (sent as `x-api-key`).
-2. **An API key in your Keychain**, stored by `airname auth claude` (hidden prompt; the key is
-   never written to a file or a log). Remove it with `airname auth logout`.
+2. **An API key in your Keychain**, stored by `betterairdrop auth claude` (hidden prompt; the key is
+   never written to a file or a log). Remove it with `betterairdrop auth logout`.
 3. **The Anthropic CLI's login.** If the Anthropic CLI `ant` (`brew install anthropics/tap/ant`) is
-   installed and logged in, airname runs `ant auth print-credentials --access-token` and uses
-   that OAuth token (`Authorization: Bearer …`). `airname auth login` runs `ant auth login` for
+   installed and logged in, BetterAirdrop runs `ant auth print-credentials --access-token` and uses
+   that OAuth token (`Authorization: Bearer …`). `betterairdrop auth login` runs `ant auth login` for
    you, or tells you to `brew install anthropics/tap/ant` first. The token is kept in memory for
    one run only.
 
-`airname auth status` shows which source would be used, without printing any secret.
+`betterairdrop auth status` shows which source would be used, without printing any secret.
 
 ## Commands
 
 ```
-airname watch --foreground [--dir DIR] [--backlog]   name AirDrops as they arrive (Ctrl-C to stop)
+betterairdrop watch --foreground [--dir DIR] [--backlog]   name AirDrops as they arrive (Ctrl-C to stop)
         [--backend auto|claude|vision] [--no-notify]
-airname rename <files…> [--dry-run] [--json]         name (and convert) specific files
+betterairdrop rename <files…> [--dry-run] [--json]         name (and convert) specific files
         [--backend auto|claude|vision] [--template STR] [--originals trash|keep|delete] [--format jpeg|keep] [--airdrop-only]
-airname explain <file>                               show the context and why it picked that name
-airname undo [--last | --batch ID | <file>]          put files back exactly as they were
-airname log [-n 20]                                  recent renames
-airname auth claude | status | login | logout        set up the Claude credential
+betterairdrop explain <file>                               show the context and why it picked that name
+betterairdrop undo [--last | --batch ID | <file>]          put files back exactly as they were
+betterairdrop log [-n 20]                                  recent renames
+betterairdrop auth claude | status | login | logout        set up the Claude credential
 ```
 
 What `rename` (and each watcher batch) does, in order: it writes the new JPEG next to the
 original and syncs it to disk, records it in the journal
-(`~/Library/Application Support/airname/journal.jsonl`), gives it its final name (it never
+(`~/Library/Application Support/betterairdrop/journal.jsonl`), gives it its final name (it never
 overwrites: a clash becomes `-2`, `-3`…), and only then moves the original HEIC to the Trash.
-`airname undo` brings the original back from the Trash, and refuses if you've edited the output
+`betterairdrop undo` brings the original back from the Trash, and refuses if you've edited the output
 since. PNG screenshots and JPEGs are renamed, not re-encoded. Running it twice does nothing the
 second time.
 
@@ -115,8 +117,8 @@ second time.
 
 ## Config
 
-`~/.config/airname/config.toml`. Every key is optional; the defaults live in
-`Sources/AirnameCore/System/Config.swift`. For example:
+`~/.config/betterairdrop/config.toml`. Every key is optional; the defaults live in
+`Sources/BetterAirdropCore/System/Config.swift`. For example:
 
 ```toml
 backend = "auto"                        # auto | claude | vision | apple
@@ -140,7 +142,7 @@ HTTP responses). The live end-to-end suite runs the real pipeline with Claude on
 photos in `fixtures-local/` (gitignored) and writes a review report, `e2e-report.html`:
 
 ```sh
-scripts/e2e.sh            # or: AIRNAME_E2E=1 swift test --filter E2E
+scripts/e2e.sh            # or: BETTERAIRDROP_E2E=1 swift test --filter E2E
 ```
 
 To try a real iPhone AirDrop, follow [TESTING-AIRDROP.md](TESTING-AIRDROP.md).
