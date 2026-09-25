@@ -15,6 +15,8 @@ protocol PanelActions: AnyObject {
     func undo(_ selection: Undoer.Selection)
     func reveal(_ paths: [String])
     func redo(_ item: RecentItem)
+    func previewBacklog()
+    func addClaudeKey()
     func quit()
 }
 
@@ -26,6 +28,7 @@ struct PanelView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             bars
+            firstRunRows
             HStack {
                 Text("Recent").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                 Spacer()
@@ -75,12 +78,12 @@ struct PanelView: View {
             Image(nsImage: NSApp.applicationIconImage ?? Art.appIcon(size: 64))
                 .resizable().frame(width: 28, height: 28)
             VStack(alignment: .leading, spacing: 1) {
-                Text("BetterAirdrop").font(.system(size: 13, weight: .semibold))
                 HStack(spacing: 5) {
                     Circle().fill(dotColor).frame(width: 7, height: 7)
-                    Text(model.statusLine).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(model.statusLine).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                     if model.busy { ProgressView().controlSize(.mini) }
                 }
+                Text(model.engineLine).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
             Toggle("", isOn: Binding(get: { !model.isPaused }, set: { $0 ? model.resume() : model.pause(.indefinitely) }))
@@ -108,6 +111,41 @@ struct PanelView: View {
         } else if model.state == .lockedByOther {
             AlertBar(text: "`betterairdrop watch` is running in Terminal, so the app is standing by.", button: "Retry",
                      tint: Color.primary.opacity(0.06), fg: .primary) { model.recheck() }
+        }
+    }
+}
+
+extension PanelView {
+    /// The first-run offers: a key found in the shell, the "add a key" nudge, old photos to preview.
+    @ViewBuilder var firstRunRows: some View {
+        if model.shellKeyOffer {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Found `ANTHROPIC_API_KEY` in your shell. Use it for photo names?")
+                    .font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
+                if let e = model.shellKeyError {
+                    Text(e).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+                }
+                HStack(spacing: 8) {
+                    Button(model.shellKeyChecking ? "Checking…" : "Use It") { model.acceptShellKey() }
+                        .controlSize(.small).buttonStyle(.borderedProminent).disabled(model.shellKeyChecking)
+                    Button("No Thanks") { model.declineShellKey() }.controlSize(.small)
+                    Spacer()
+                    Text("saved to your Keychain").font(.system(size: 10.5)).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.1)))
+            .padding(.horizontal, 4).padding(.bottom, 6)
+        } else if model.showKeyNudge {
+            Button { actions.addClaudeKey() } label: {
+                Text("Better names: add a Claude key ›").font(.system(size: 11.5))
+            }
+            .buttonStyle(.link).padding(.horizontal, 10).padding(.bottom, 6)
+        }
+        if !model.backlog.isEmpty && model.state == .watching {
+            MenuRow(title: "Found \(model.backlog.count) unnamed photo\(model.backlog.count == 1 ? "" : "s") in \(model.folderName)…") {
+                actions.previewBacklog()
+            }
         }
     }
 }

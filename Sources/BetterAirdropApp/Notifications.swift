@@ -11,9 +11,10 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         static let batch = "betterairdrop.batch"
         static let offline = "betterairdrop.batch.offline"
         static let lost = "betterairdrop.lost"
+        static let backlog = "betterairdrop.backlog"
     }
     enum Action {
-        static let undo = "undo", reveal = "reveal", renameAgain = "renameAgain", fix = "fix", pause = "pause"
+        static let undo = "undo", reveal = "reveal", renameAgain = "renameAgain", fix = "fix", pause = "pause", preview = "preview"
     }
 
     weak var app: AppDelegate?
@@ -36,6 +37,9 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
                 UNNotificationAction(identifier: Action.fix, title: "Fix…", options: [.foreground]),
                 UNNotificationAction(identifier: Action.pause, title: "Pause BetterAirdrop"),
             ], intentIdentifiers: []),
+            UNNotificationCategory(identifier: Category.backlog, actions: [
+                UNNotificationAction(identifier: Action.preview, title: "Preview", options: [.foreground]),
+            ], intentIdentifiers: []),
         ])
     }
 
@@ -55,7 +59,32 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
            let a = try? UNNotificationAttachment(identifier: "thumb", url: copy) {
             content.attachments = [a]
         }
-        center.add(UNNotificationRequest(identifier: batch.id, content: content, trigger: nil))
+        deliver(UNNotificationRequest(identifier: batch.id, content: content, trigger: nil), ask: true)
+    }
+
+    /// There's no setup step for notifications: the first rename asks (so the Downloads prompt at
+    /// first launch is the only one). Other banners are only shown once that's been answered yes.
+    private func deliver(_ request: UNNotificationRequest, ask: Bool) {
+        let center = self.center
+        center.getNotificationSettings { s in
+            switch s.authorizationStatus {
+            case .notDetermined where ask:
+                center.requestAuthorization(options: [.alert, .sound]) { ok, _ in if ok { center.add(request) } }
+            case .authorized, .provisional:
+                center.add(request)
+            default: break
+            }
+        }
+    }
+
+    /// First run: "12 photos in Downloads could have real names." Shown only if notifications are
+    /// already allowed (a reinstall); otherwise the menu, which opens by itself, carries the offer.
+    func postBacklog(count: Int, folder: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "BetterAirdrop is ready"
+        content.body = "\(count) photo\(count == 1 ? "" : "s") in \(folder) could have real names."
+        content.categoryIdentifier = Category.backlog
+        deliver(UNNotificationRequest(identifier: "backlog", content: content, trigger: nil), ask: false)
     }
 
     /// Replaces the batch's banner with "Undone".
@@ -66,7 +95,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         content.title = m.title
         content.body = m.body
         center.removeDeliveredNotifications(withIdentifiers: [batch])
-        center.add(UNNotificationRequest(identifier: batch, content: content, trigger: nil))
+        deliver(UNNotificationRequest(identifier: batch, content: content, trigger: nil), ask: false)
     }
 
     /// One banner when access goes missing (never one per file).
@@ -76,7 +105,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         content.title = m.title.replacingOccurrences(of: "Downloads", with: app?.model.folderName ?? "Downloads")
         content.body = m.body
         content.categoryIdentifier = Category.lost
-        center.add(UNNotificationRequest(identifier: "lost-access", content: content, trigger: nil))
+        deliver(UNNotificationRequest(identifier: "lost-access", content: content, trigger: nil), ask: false)
     }
 
     func clearLostAccess() { center.removeDeliveredNotifications(withIdentifiers: ["lost-access"]) }
@@ -99,9 +128,10 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
             case Action.undo: if let batch { app.undo(.batch(batch)) }
             case Action.renameAgain: if let batch { app.renameAgainWithClaude(batch) }
             case Action.fix: app.fixAccess()
+            case Action.preview: app.previewBacklog()
             case Action.pause: app.model.pause(.indefinitely)
             case UNNotificationDefaultActionIdentifier:
-                if category == Category.lost { app.fixAccess() } else { app.reveal(paths) }
+                if category == Category.lost { app.fixAccess() } else if category == Category.backlog { app.previewBacklog() } else { app.reveal(paths) }
             case Action.reveal: app.reveal(paths)
             default: break
             }

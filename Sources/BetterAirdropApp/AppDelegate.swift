@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
             runSnapshots()
             return
         }
-        if !UserDefaults.standard.bool(forKey: "onboardingDone") { showOnboarding() }
+        if !UserDefaults.standard.bool(forKey: "onboardingDone") { firstRun() }
     }
 
     /// Opening the app again (Spotlight, Finder) while it runs shows Settings, which is the way back
@@ -67,9 +67,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
         Windows.show(historyWindow!)
     }
 
-    func showSettings() {
+    func showSettings() { showSettings(pane: nil) }
+
+    func showSettings(pane: SettingsWindow.Pane?) {
         status.close()
         if settingsWindow == nil { settingsWindow = SettingsWindow.make(model: model, app: self) }
+        if let pane, let tabs = settingsWindow?.contentViewController as? NSTabViewController { tabs.selectedTabViewItemIndex = pane.rawValue }
         Windows.show(settingsWindow!)
     }
 
@@ -97,17 +100,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
         }
     }
 
-    /// The preview sheet for any set of files (Rename Files…, a drop on the icon, Services, backlog).
+    /// The preview sheet for any set of files (Rename Files…, a drop on the icon, Services, the
+    /// first-run backlog). Names are worked out 20 at a time; nothing changes until Rename.
     func renameFiles(_ urls: [URL]) {
         status.close()
         let files = urls.filter { Planner.imageExtensions.contains($0.pathExtension.lowercased()) }
         guard !files.isEmpty else { NSSound.beep(); return }
-        let pm = RenamePreviewModel(files: files)
+        let pm = RenamePreviewModel(files: files, claude: model.engine.name.hasPrefix("Claude"))
         let ref = WindowRef()
-        let view = RenamePreviewView(m: pm, cancel: { ref.window?.close() }, commit: { [weak self] proposals in
+        let view = RenamePreviewView(m: pm, cancel: { ref.window?.close() }, more: { [weak self] in self?.planNext(pm) },
+                                     commit: { [weak self] proposals in
             self?.model.commit(proposals) { batch in
                 ref.window?.close()
                 self?.notifications.post(batch)
+                self?.model.scanBacklog()
             }
         })
         let window = Windows.make("Rename Photos", size: NSSize(width: 560, height: 200)) { view }
@@ -118,9 +124,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
             MainActor.assumeIsolated { self?.renameWindows.removeAll { $0 === n.object as? NSWindow } }
         }
         Windows.show(window)
-        model.plan(files) { proposals in
-            pm.rows = proposals.map { .init(proposal: $0, name: (($0.target ?? $0.source) as NSString).lastPathComponent) }
+        planNext(pm)
+    }
+
+    private func planNext(_ pm: RenamePreviewModel) {
+        let batch = pm.nextBatch
+        guard !batch.isEmpty else { return }
+        pm.planning = true
+        model.plan(batch) { proposals in
+            pm.rows += proposals.map { .init(proposal: $0, name: (($0.target ?? $0.source) as NSString).lastPathComponent) }
+            pm.planned += batch.count
             pm.planning = false
+        }
+    }
+
+    /// "Found 12 unnamed photos in Downloads…" (menu) and the first-run banner's Preview.
+    func previewBacklog() {
+        guard !model.backlog.isEmpty else { return }
+        renameFiles(model.backlog)
+    }
+
+    /// "Better names: add a Claude key".
+    func addClaudeKey() { showSettings(pane: .naming) }
+
+    // MARK: - First run (no wizard)
+
+    /// Straight to the menu bar: ask for Downloads now (the one prompt), turn on launch at login,
+    /// look for a key in the shell, and offer to preview photos already in Downloads. The
+    /// notifications prompt waits for the first rename. The old wizard is in Settings → General.
+    func firstRun() {
+        let d = UserDefaults.standard
+        d.set(true, forKey: "onboardingDone")
+        Permissions.didAsk = true
+        if !LoginItem.isEnabled { LoginItem.set(true) }
+        model.refreshCredential { [weak self] in self?.model.lookForShellKey() }
+        Permissions.probe(model.folder) { [weak self] ok in
+            guard let self else { return }
+            self.model.recheck()
+            guard ok else { self.status.open(); return }
+            self.model.scanBacklog { count in
+                self.status.open()
+                if count > 0 { self.notifications.postBacklog(count: count, folder: self.model.folderName) }
+            }
         }
     }
 

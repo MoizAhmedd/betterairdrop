@@ -18,6 +18,13 @@ final class AppModel: ObservableObject {
     @Published private(set) var busy = false
     @Published private(set) var credential = CredentialInfo()
     @Published var historyVersion = 0
+    /// First run: a key was found in the login shell and is waiting for "Use It".
+    @Published private(set) var shellKeyOffer = false
+    @Published private(set) var shellKeyError: String?
+    @Published private(set) var shellKeyChecking = false
+    /// Unnamed camera files already in the folder (IMG_4821.HEIC…), for the first-run preview.
+    @Published private(set) var backlog: [URL] = []
+    private var shellKey: String?
 
     struct CredentialInfo: Equatable {
         var keychainKey = false
@@ -61,15 +68,26 @@ final class AppModel: ObservableObject {
     var engine: EngineStatus { EngineStatus.current(config: config, hasCredential: credential.any) }
     var needsAttention: Bool { state == .noAccess }
 
-    /// "● Watching Downloads · Claude Haiku 4.5"
+    /// "● Ready: watching Downloads"
     var statusLine: String {
         switch state {
-        case .watching, .stopped: "Watching \(folderName) · \(engine.name)"
+        case .watching, .stopped: "Ready: watching \(folderName)"
         case .paused: "Paused"
         case .noAccess: "Can't read \(folderName)"
         case .lockedByOther: "Running in Terminal instead"
         }
     }
+
+    /// "Naming with Claude Haiku 4.5 · your key"
+    var engineLine: String {
+        var s = "Naming with \(engine.name)"
+        if engine.name.hasPrefix("Claude") {
+            if credential.keychainKey || credential.environmentKey { s += " · your key" } else if credential.antLoggedIn { s += " · ant login" }
+        }
+        return s
+    }
+
+    var showKeyNudge: Bool { KeyOffer.showNudge(hasCredential: credential.any, backend: config.backend, offering: shellKeyOffer) }
 
     // MARK: - Lifecycle
 
@@ -179,7 +197,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func refreshCredential() {
+    func refreshCredential(then: (() -> Void)? = nil) {
         DispatchQueue.global(qos: .utility).async {
             var c = CredentialInfo()
             c.keychainKey = Keychain.hasAPIKey()
@@ -187,7 +205,75 @@ final class AppModel: ObservableObject {
             let auth = ClaudeAuth()
             c.antPath = auth.antExecutable
             if c.antPath != nil { c.antLoggedIn = auth.antToken() != nil }
-            DispatchQueue.main.async { [weak self] in self?.credential = c }
+            DispatchQueue.main.async { [weak self] in self?.credential = c; then?() }
+        }
+    }
+
+    // MARK: - First run: a key from the shell, photos already there
+
+    private static let declinedShellKey = "declinedShellKey"
+
+    /// Homebrew and Finder don't pass `~/.zshrc`'s exports to the app, so ask the login shell
+    /// (up to 3 s, off the main thread). The key stays in memory until the user accepts it.
+    func lookForShellKey() {
+        guard KeyOffer.shouldLookInShell(hasCredential: credential.any, backend: config.backend,
+                                         declined: defaults.bool(forKey: Self.declinedShellKey)) else { return }
+        DispatchQueue.global(qos: .utility).async {
+            let key = ShellKey.read()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let key, !self.credential.any else { return }
+                self.shellKey = key
+                self.shellKeyOffer = true
+            }
+        }
+    }
+
+    /// "Use It": check the key with Anthropic, then keep it in the Keychain.
+    func acceptShellKey() {
+        guard let key = shellKey, !shellKeyChecking else { return }
+        shellKeyChecking = true
+        shellKeyError = nil
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = ClaudeAuth.validate(key: key)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.shellKeyChecking = false
+                switch result {
+                case .valid:
+                    do {
+                        try Keychain.storeAPIKey(key)
+                        self.defaults.set(String(key.suffix(4)), forKey: "apiKeySuffix")
+                        self.defaults.set(Date(), forKey: "apiKeyVerified")
+                        self.shellKey = nil
+                        self.shellKeyOffer = false
+                        self.credentialsChanged()
+                    } catch {
+                        self.shellKeyError = "Couldn't save it in your Keychain."
+                    }
+                case .rejected(let why), .unreachable(let why):
+                    self.shellKeyError = why
+                }
+            }
+        }
+    }
+
+    func declineShellKey() {
+        shellKey = nil
+        shellKeyOffer = false
+        shellKeyError = nil
+        defaults.set(true, forKey: Self.declinedShellKey)
+    }
+
+    /// Counts unnamed camera files at the top of the folder (no AirDrop tag needed: the preview
+    /// renames nothing until the user clicks Rename).
+    func scanBacklog(then: ((Int) -> Void)? = nil) {
+        let folder = self.folder
+        DispatchQueue.global(qos: .utility).async {
+            let files = CameraFiles.find(in: folder)
+            DispatchQueue.main.async { [weak self] in
+                self?.backlog = files
+                then?(files.count)
+            }
         }
     }
 

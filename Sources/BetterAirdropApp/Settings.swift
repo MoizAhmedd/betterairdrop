@@ -20,7 +20,7 @@ enum SettingsWindow {
         tabs.tabStyle = .toolbar
         for pane in Pane.allCases {
             let root: AnyView = switch pane {
-            case .general: AnyView(GeneralPane(model: model))
+            case .general: AnyView(GeneralPane(model: model, app: app))
             case .naming: AnyView(NamingPane(model: model))
             case .advanced: AnyView(AdvancedPane(model: model, app: app))
             case .about: AnyView(AboutPane(updater: app.updater))
@@ -45,6 +45,7 @@ enum SettingsWindow {
 
 struct GeneralPane: View {
     @ObservedObject var model: AppModel
+    let app: AppDelegate
     @State private var login = LoginItem.isEnabled
     @State private var loginError: String?
     @State private var showInMenuBar = UserDefaults.standard.object(forKey: "showInMenuBar") as? Bool ?? true
@@ -91,6 +92,14 @@ struct GeneralPane: View {
                 Picker("Notifications", selection: Binding(get: { model.config.watchNotify }, set: setNotify)) {
                     Text("After each batch").tag(true)
                     Text("Never").tag(false)
+                }
+            }
+            Section {
+                LabeledContent {
+                    Button("Open Setup…") { app.showOnboarding() }
+                } label: {
+                    Text("Setup")
+                    Text("Folder access, the naming engine and your Claude key, step by step.")
                 }
             }
             Section("Files") {
