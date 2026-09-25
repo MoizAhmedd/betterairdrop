@@ -1,7 +1,0 @@
-{
-  "name": "betterairdrop-site",
-  "private": true,
-  "description": "Landing page for betterairdrop",
-  "engines": { "node": ">=20" },
-  "scripts": { "start": "node server.js" }
-}

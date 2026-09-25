@@ -9,7 +9,8 @@
 #   scripts/make-app.sh --out DIR            put the app in DIR
 #   scripts/make-app.sh --version 0.3.0 --build 42
 #
-# Sparkle's feed and key come from SPARKLE_FEED_URL / SPARKLE_PUBLIC_KEY (empty = updater off).
+# Signed builds get the Sparkle feed (SPARKLE_FEED_URL overrides it); ad-hoc builds have none, so a
+# local build never updates itself. The EdDSA public key is in Resources/App/Info.plist.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -27,12 +28,24 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-ARGS=(-c "$CONF")
-[ $UNIVERSAL = 1 ] && ARGS+=(--arch arm64 --arch x86_64)
-echo "==> swift build ${ARGS[*]}"
-swift build "${ARGS[@]}" --product BetterAirdropApp
-swift build "${ARGS[@]}" --product betterairdrop
-BIN=$(swift build "${ARGS[@]}" --show-bin-path)
+# Universal: each architecture is built on its own and joined with lipo. (SwiftPM's combined
+# `--arch arm64 --arch x86_64` build goes through xcbuild, which fails on this package with
+# "duplicate output file".)
+build() {
+  echo "==> swift build -c $CONF $*"
+  swift build -c "$CONF" "$@" --product BetterAirdropApp
+  swift build -c "$CONF" "$@" --product betterairdrop
+}
+if [ $UNIVERSAL = 1 ]; then
+  build --arch arm64; ARM=$(swift build -c "$CONF" --arch arm64 --show-bin-path)
+  build --arch x86_64; X86=$(swift build -c "$CONF" --arch x86_64 --show-bin-path)
+  BIN=$(mktemp -d)
+  # lipo drops the linker's ad-hoc signatures; put them back so the binaries run (the real signing is below).
+  for exe in BetterAirdropApp betterairdrop; do lipo -create "$ARM/$exe" "$X86/$exe" -output "$BIN/$exe"; codesign --force -s - "$BIN/$exe"; done
+  ditto "$ARM/Sparkle.framework" "$BIN/Sparkle.framework"   # the xcframework slice is already universal
+else
+  build; BIN=$(swift build -c "$CONF" --show-bin-path)
+fi
 
 APP="$OUT/BetterAirdrop.app"
 C="$APP/Contents"
@@ -45,13 +58,14 @@ cp "$BIN/betterairdrop" "$C/Helpers/betterairdrop"
 ditto "$BIN/Sparkle.framework" "$C/Frameworks/Sparkle.framework"
 cp Sources/BetterAirdropCore/Resources/cities.bin "$C/Resources/cities.bin"
 # The executable looks for Sparkle next to itself (SwiftPM's rpath); in a bundle it's in Frameworks.
-otool -l "$C/MacOS/BetterAirdrop" | grep -q "@executable_path/../Frameworks" \
+grep -q "@executable_path/../Frameworks" <(otool -l "$C/MacOS/BetterAirdrop") \
   || install_name_tool -add_rpath "@executable_path/../Frameworks" "$C/MacOS/BetterAirdrop" 2>/dev/null
 # install_name_tool invalidates the linker's signature; re-sign so the binary can run below.
 codesign --force -s - "$C/MacOS/BetterAirdrop" 2>/dev/null
 
-sed -e "s|__VERSION__|$VERSION|" -e "s|__BUILD__|$BUILD|" \
-    -e "s|__SU_FEED_URL__|${SPARKLE_FEED_URL:-}|" -e "s|__SU_PUBLIC_KEY__|${SPARKLE_PUBLIC_KEY:-}|" \
+FEED="${SPARKLE_FEED_URL-https://moizahmedd.github.io/betterairdrop/appcast.xml}"
+[ "$IDENTITY" = - ] && [ -z "${SPARKLE_FEED_URL:-}" ] && FEED=""
+sed -e "s|__VERSION__|$VERSION|" -e "s|__BUILD__|$BUILD|" -e "s|__SU_FEED_URL__|$FEED|" \
     Resources/App/Info.plist > "$C/Info.plist"
 plutil -lint "$C/Info.plist" >/dev/null
 

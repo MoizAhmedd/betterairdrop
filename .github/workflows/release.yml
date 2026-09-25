@@ -1,0 +1,139 @@
+# On a v* tag: universal build, signed with the BetterAirdrop Release certificate, zipped, released,
+# then Pages (appcast + installer, via pages.yml) and the Homebrew tap are updated. Tags with a hyphen
+# (v0.3.0-rc.1) are marked as pre-releases and go to Sparkle's opt-in "beta" channel.
+# Secrets and setup: docs/release/README.md.
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      sha256: ${{ steps.zip.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: v
+        name: Version
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          case "$V" in *-*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
+
+      - name: Import the signing certificate into a temporary keychain
+        env:
+          P12: ${{ secrets.SIGNING_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.SIGNING_P12_PASSWORD }}
+        run: |
+          KC="$RUNNER_TEMP/release.keychain-db"; PASS=$(openssl rand -hex 16)
+          security create-keychain -p "$PASS" "$KC"
+          security set-keychain-settings "$KC"
+          security unlock-keychain -p "$PASS" "$KC"
+          printf %s "$P12" | base64 --decode > "$RUNNER_TEMP/id.p12"
+          security import "$RUNNER_TEMP/id.p12" -k "$KC" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/id.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$PASS" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          # Self-signed and untrusted on purpose: codesign doesn't need trust, and the designated
+          # requirement (identifier + leaf hash) is what keeps permissions across updates.
+          ID=$(security find-identity -p codesigning "$KC" | grep -m1 -oE '[0-9A-F]{40}')
+          test -n "$ID"
+          echo "IDENTITY=$ID" >> "$GITHUB_ENV"
+          echo "KEYCHAIN=$KC" >> "$GITHUB_ENV"
+
+      - name: Test
+        run: swift test
+
+      - name: Build (universal) and sign inside-out
+        run: |
+          scripts/make-app.sh --universal --sign "$IDENTITY" --version "${{ steps.v.outputs.version }}" \
+            --build "$GITHUB_RUN_NUMBER" --out dist
+
+      - name: Verify the signature
+        run: |
+          codesign --verify --deep --strict --verbose=2 dist/BetterAirdrop.app
+          codesign -d -r- dist/BetterAirdrop.app
+          codesign -dvv dist/BetterAirdrop.app 2>&1 | grep -E '^(Identifier|Authority|TeamIdentifier)='
+          lipo -archs dist/BetterAirdrop.app/Contents/MacOS/BetterAirdrop
+          lipo -archs dist/BetterAirdrop.app/Contents/Helpers/betterairdrop
+          /usr/libexec/PlistBuddy -c 'Print :SUFeedURL' dist/BetterAirdrop.app/Contents/Info.plist
+
+      - id: zip
+        name: Zip and SHA256SUMS
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent BetterAirdrop.app BetterAirdrop.zip
+          shasum -a 256 BetterAirdrop.zip > SHA256SUMS
+          cat SHA256SUMS
+          echo "sha256=$(cut -d' ' -f1 SHA256SUMS)" >> "$GITHUB_OUTPUT"
+
+      - name: Sparkle signature and appcast item
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          export SPARKLE_ED_KEY_FILE="$RUNNER_TEMP/sparkle.key"
+          (umask 077; printf %s "$SPARKLE_ED_PRIVATE_KEY" > "$SPARKLE_ED_KEY_FILE")
+          scripts/release/appcast-item.sh dist/BetterAirdrop.zip "${{ steps.v.outputs.version }}" "$GITHUB_RUN_NUMBER" > dist/appcast-item.xml
+          rm -f "$SPARKLE_ED_KEY_FILE"
+          cat dist/appcast-item.xml
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRE=""; [ "${{ steps.v.outputs.prerelease }}" = true ] && PRE="--prerelease"
+          gh release create "$GITHUB_REF_NAME" dist/BetterAirdrop.zip dist/SHA256SUMS dist/appcast-item.xml \
+            --title "BetterAirdrop ${{ steps.v.outputs.version }}" --generate-notes $PRE
+
+      - name: Remove the temporary keychain
+        if: always()
+        run: |
+          [ -n "${KEYCHAIN:-}" ] && security delete-keychain "$KEYCHAIN" || true
+
+  # pages.yml rebuilds the site from main, including /install and /appcast.xml (which it assembles
+  # from every release's appcast-item.xml), so the release only has to trigger it.
+  pages:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Redeploy Pages (appcast + installer)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml -R "$GITHUB_REPOSITORY" --ref main
+
+  tap:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bump the cask in MoizAhmedd/homebrew-tap
+        env:
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+          V: ${{ needs.build.outputs.version }}
+          SHA: ${{ needs.build.outputs.sha256 }}
+        run: |
+          test -n "$SHA"
+          sed -e "s/__VERSION__/$V/" -e "s/__SHA256__/$SHA/" -e '/^# Template\./,/^# MoizAhmedd/d' \
+            packaging/homebrew/betterairdrop.rb > "$RUNNER_TEMP/betterairdrop.rb"
+          install -m 600 /dev/null "$RUNNER_TEMP/tap_key"; printf '%s\n' "$TAP_DEPLOY_KEY" > "$RUNNER_TEMP/tap_key"
+          export GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/tap_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone -q git@github.com:MoizAhmedd/homebrew-tap.git tap
+          mkdir -p tap/Casks && cp "$RUNNER_TEMP/betterairdrop.rb" tap/Casks/betterairdrop.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/betterairdrop.rb
+          git diff --cached --quiet || { git commit -q -m "betterairdrop $V"; git push -q origin main; }
+          rm -f "$RUNNER_TEMP/tap_key"

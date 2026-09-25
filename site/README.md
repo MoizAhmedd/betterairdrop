@@ -9,6 +9,11 @@ Takeaways from Maccy, Rectangle, Ice, Dropover, CleanShot and Hazel:
 - The facts are short fragments ("Free and Open Source, macOS 10.15+"), not whole feature sections.
 - They get worse as they grow. Dropover's 2,200 words and testimonial walls are what this page avoids.
 
-## Run
+## Hosting
 
-`npm start` serves `public/` on `$PORT` (default 3000). No dependencies. `/healthz` returns `ok`.
+GitHub Pages, at https://moizahmedd.github.io/betterairdrop/. `.github/workflows/pages.yml` publishes
+`public/` as the site root, with the installer at `/install` and the Sparkle feed at `/appcast.xml`,
+on every push to main that touches `site/` and after every release.
+
+Drop a 15-second screen recording at `public/demo.mp4` and it replaces the animated mock.
+Preview locally with `python3 -m http.server -d site/public`.

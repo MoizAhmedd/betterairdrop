@@ -24,8 +24,9 @@ BETTERAIRDROP_HOME=$S/state BETTERAIRDROP_CONFIG=$S/config.toml \
   .build/app/BetterAirdrop.app/Contents/MacOS/BetterAirdrop &
 ```
 
-- The onboarding window opens. Click through it: **turn off "Open BetterAirdrop when I log in"**
-  on step 4 (this is a throwaway build), leave notifications off.
+- No wizard: the menu opens by itself with "Ready: watching Drop". (Add
+  `BETTERAIRDROP_NO_LOGIN_ITEM=1` to the command above so this throwaway build doesn't register a
+  login item.) The setup screens are still in Settings → General → **Open Setup…**.
 - The tag icon appears in the menu bar. Then drop three fake AirDrops into the test folder:
 
 ```sh
@@ -45,13 +46,17 @@ ditto .build/app/BetterAirdrop.app ~/Applications/BetterAirdrop.app
 open ~/Applications/BetterAirdrop.app
 ```
 
-- Step 2 **Allow Access…** → macOS asks *"BetterAirdrop would like to access files in your
-  Downloads folder"* → **Allow**. The row flips to ✓ by itself.
-- Step 3: it should say it found your `ant` login. Keep Claude, or pick Apple Vision.
-- Step 4: turn notifications **on** → *"BetterAirdrop would like to send notifications"* → **Allow**.
-  Login item: your call (it's removed by uninstall).
-- If macOS asks to use a Keychain item, click **Always Allow**. (Ad-hoc builds are a new app to
-  the Keychain after every rebuild; the spike below is what fixes that.)
+- Straight away macOS asks *"BetterAirdrop would like to access files in your Downloads folder"*
+  → **Allow**. That's the only prompt at launch. The menu then opens by itself: "Ready: watching
+  Downloads", the engine line, and launch at login is on.
+- No credential? If `ANTHROPIC_API_KEY` is exported in your `~/.zshrc`, the menu offers "Found
+  ANTHROPIC_API_KEY in your shell. Use it for photo names?" → **Use It** (saved to
+  `~/Library/Application Support/betterairdrop/credentials`, 0600). Otherwise it shows
+  "Better names: add a Claude key". With an `ant` login, neither appears.
+- If Downloads has old `IMG_…` files: a "Found N unnamed photos in Downloads…" row → the preview
+  (20 at a time, with a cost estimate). Nothing is renamed until **Rename**; that first rename
+  asks for notifications → **Allow**.
+- To see the first run again: `defaults delete dev.betterairdrop.app`.
 
 Note: every rebuild of an ad-hoc app is a "new app" to macOS, so a rebuilt copy asks for
 Downloads again. The panel shows an orange **Fix…** bar when that happens.

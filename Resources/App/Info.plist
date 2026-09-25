@@ -34,10 +34,10 @@
       </array>
     </dict>
   </array>
-  <!-- Sparkle. The feed URL and EdDSA public key stay empty until the release pipeline (M12);
-       while they're empty the app doesn't start the updater. -->
+  <!-- Sparkle. The feed is on GitHub Pages (built by .github/workflows/pages.yml). make-app.sh
+       blanks the feed in ad-hoc (local) builds, so they never update themselves. -->
   <key>SUFeedURL</key><string>__SU_FEED_URL__</string>
-  <key>SUPublicEDKey</key><string>__SU_PUBLIC_KEY__</string>
+  <key>SUPublicEDKey</key><string>5YtsO3EpK/4KqPk44vxkjSdMuFxA6xJ4rKUW3+N4lws=</string>
   <key>SUEnableAutomaticChecks</key><true/>
   <key>SUAutomaticallyUpdate</key><false/>
 </dict>

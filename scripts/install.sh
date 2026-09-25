@@ -1,16 +1,18 @@
 #!/bin/sh
 # BetterAirdrop installer: puts BetterAirdrop.app in ~/Applications and opens it.
 #
-#   curl -fsSL https://moizahmedd.github.io/betterairdrop/install.sh | sh
-#
-# TODO(M12): DRAFT. Not published yet, and there are no releases for it to download. It goes live
-# with v0.3 once the maintainer approves the release pipeline (docs/release/README.md).
+#   curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh
 #
 # No sudo. Checks the zip's SHA-256 against the release's SHA256SUMS before installing.
+# BETTERAIRDROP_VERSION=0.3.0 installs a specific release (pre-releases too) instead of the latest.
 set -eu
 
 REPO="MoizAhmedd/betterairdrop"
-BASE="https://github.com/$REPO/releases/latest/download"
+if [ -n "${BETTERAIRDROP_VERSION:-}" ]; then
+  BASE="https://github.com/$REPO/releases/download/v${BETTERAIRDROP_VERSION#v}"
+else
+  BASE="https://github.com/$REPO/releases/latest/download"
+fi
 DEST="$HOME/Applications"
 
 [ "$(uname)" = Darwin ] || { echo "BetterAirdrop is for macOS."; exit 1; }
@@ -29,6 +31,8 @@ mkdir -p "$DEST"
 osascript -e 'quit app id "dev.betterairdrop.app"' >/dev/null 2>&1 || true
 rm -rf "$DEST/BetterAirdrop.app"
 ditto -x -k "$tmp/BetterAirdrop.zip" "$DEST"
+# curl doesn't set the quarantine flag; clear it anyway in case a proxy or tool did.
+xattr -dr com.apple.quarantine "$DEST/BetterAirdrop.app" 2>/dev/null || true
 echo "Installed $DEST/BetterAirdrop.app"
 open "$DEST/BetterAirdrop.app"
 echo "BetterAirdrop is in your menu bar."
