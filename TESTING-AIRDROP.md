@@ -1,5 +1,7 @@
 # Testing a real AirDrop (iPhone → Mac)
 
+> This is the Terminal (`watch --foreground`) test. For the menu-bar app, see [TESTING-MENUBAR.md](TESTING-MENUBAR.md).
+
 About 15 minutes. You need the iPhone, this Mac, and a Terminal window. Nothing here touches
 files that are already in `~/Downloads`: the watcher only handles AirDrops that arrive **after**
 it starts, and every rename can be undone.
