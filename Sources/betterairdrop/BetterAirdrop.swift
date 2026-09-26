@@ -13,7 +13,7 @@ struct BetterAirdrop: ParsableCommand {
 }
 
 enum BetterAirdropVersion {
-    static let current = "0.3.0-dev"
+    static let current = "0.3.1"
 }
 
 struct GlobalOptions: ParsableArguments {

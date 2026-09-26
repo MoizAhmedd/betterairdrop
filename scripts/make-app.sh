@@ -14,7 +14,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-CONF=release; UNIVERSAL=0; IDENTITY="-"; OUT=".build/app"; VERSION="0.3.0-dev"; BUILD="1"
+CONF=release; UNIVERSAL=0; IDENTITY="-"; OUT=".build/app"; VERSION="0.3.1-dev"; BUILD="1"
 while [ $# -gt 0 ]; do
   case "$1" in
     --debug) CONF=debug ;;
