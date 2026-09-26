@@ -29,6 +29,8 @@ public enum ClaudeCredential: Sendable, Equatable {
 ///   3. the Anthropic CLI's OAuth login: `ant auth print-credentials --access-token`
 ///
 /// The result is cached in memory for this process only. Secrets are never logged or written.
+/// An `ant` token is cached until 5 minutes before the expiry `ant` reports (5 minutes if it doesn't
+/// say), so a long-running app refreshes it before it lapses instead of after a failed request.
 public final class ClaudeAuth: @unchecked Sendable {
     public enum Source: String, Sendable, CaseIterable {
         case environment = "ANTHROPIC_API_KEY"
@@ -42,15 +44,23 @@ public final class ClaudeAuth: @unchecked Sendable {
     let storedKey: @Sendable () -> String?
     let antPath: @Sendable () -> String?
     let runAnt: @Sendable (String, [String]) -> String?
+    let now: @Sendable () -> Date
 
     private let lock = NSLock()
-    private var cached: ClaudeCredential??
+    private var cached: (credential: ClaudeCredential?, validUntil: Date?)?
+
+    /// How long an `ant` token (or a failed lookup) is trusted when `ant` doesn't give an expiry.
+    static let defaultTTL: TimeInterval = 300
+    /// Refresh this long before the reported expiry.
+    static let expiryMargin: TimeInterval = 300
 
     public init(environment: [String: String] = ProcessInfo.processInfo.environment,
                 storedKey: @escaping @Sendable () -> String? = { CredentialStore().readAPIKey() },
                 antPath: (@Sendable () -> String?)? = nil,
-                runAnt: @escaping @Sendable (String, [String]) -> String? = { ClaudeAuth.run($0, $1) }) {
+                runAnt: @escaping @Sendable (String, [String]) -> String? = { ClaudeAuth.run($0, $1) },
+                now: @escaping @Sendable () -> Date = { Date() }) {
         self.environment = environment
+        self.now = now
         self.storedKey = storedKey
         let env = environment
         self.antPath = antPath ?? { ClaudeAuth.findExecutable("ant", environment: env) }
@@ -62,11 +72,11 @@ public final class ClaudeAuth: @unchecked Sendable {
 
     public func resolve() -> ClaudeCredential? {
         lock.lock(); defer { lock.unlock() }
-        if let c = cached { return c }
+        if let c = cached, c.validUntil.map({ now() < $0 }) ?? true { return c.credential }
         let start = DispatchTime.now().uptimeNanoseconds
-        let c = lookup()
+        let (c, validUntil) = lookup()
         _lastLookupMilliseconds = Int((DispatchTime.now().uptimeNanoseconds - start) / 1_000_000)
-        cached = .some(c)
+        cached = (c, validUntil)
         return c
     }
 
@@ -79,13 +89,31 @@ public final class ClaudeAuth: @unchecked Sendable {
         lock.lock(); cached = nil; lock.unlock()
     }
 
-    func lookup() -> ClaudeCredential? {
+    /// The credential and how long to trust it (nil = for the rest of the process: API keys).
+    func lookup() -> (ClaudeCredential?, Date?) {
         if let k = environment["ANTHROPIC_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines), !k.isEmpty {
-            return .apiKey(k, source: .environment)
+            return (.apiKey(k, source: .environment), nil)
         }
-        if let k = storedKey() { return .apiKey(k, source: .stored) }
-        if let token = antToken() { return .oauth(token) }
-        return nil
+        if let k = storedKey() { return (.apiKey(k, source: .stored), nil) }
+        let t = now()
+        guard let (token, expiry) = antCredential() else { return (nil, t.addingTimeInterval(Self.defaultTTL)) }
+        let until = expiry.map { max($0.addingTimeInterval(-Self.expiryMargin), t.addingTimeInterval(60)) }
+        return (.oauth(token), until ?? t.addingTimeInterval(Self.defaultTTL))
+    }
+
+    /// One `ant` call: `print-credentials` without the flag prints JSON with `access_token` and
+    /// `expires_at` (Unix seconds), refreshing the token first if it's near expiry. Falls back to
+    /// `--access-token` (just the token, no expiry) if the JSON isn't there.
+    func antCredential() -> (String, Date?)? {
+        guard let ant = antPath() else { return nil }
+        if let out = runAnt(ant, ["auth", "print-credentials"]),
+           let obj = try? JSONSerialization.jsonObject(with: Data(out.utf8)) as? [String: Any],
+           let token = (obj["access_token"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !token.isEmpty, !token.contains(" ") {
+            let expiry = (obj["expires_at"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
+            return (token, expiry)
+        }
+        return antToken().map { ($0, nil) }
     }
 
     /// `ant auth print-credentials --access-token` prints just the token. Without the flag it

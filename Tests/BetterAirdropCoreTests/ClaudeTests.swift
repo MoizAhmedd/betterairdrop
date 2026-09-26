@@ -164,7 +164,10 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
                                .init(status: 200, body: message(goodAnswer))])
         final class Counter: @unchecked Sendable { var n = 0 }
         let c = Counter()
-        let auth = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { "/fake/ant" }, runAnt: { _, _ in c.n += 1; return "tok-\(c.n)" })
+        let auth = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { "/fake/ant" }, runAnt: { _, a in
+            guard a.contains("--access-token") else { return nil }
+            c.n += 1; return "tok-\(c.n)"
+        })
         let (url, ctx) = photo()
         _ = try namer(auth).suggest(for: url, context: ctx)
         #expect(StubURLProtocol.captured.map { $0.0.value(forHTTPHeaderField: "authorization") } == ["Bearer tok-1", "Bearer tok-2"])
@@ -301,13 +304,47 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
 
         let cli = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { "/x/ant" }, runAnt: ant)
         #expect(cli.resolve() == .oauth("oauth-tok"))
-        #expect(calls.args == [["auth", "print-credentials", "--access-token"]])
+        // Not JSON (an older ant), so it asked again for the bare token.
+        #expect(calls.args == [["auth", "print-credentials"], ["auth", "print-credentials", "--access-token"]])
         _ = cli.resolve()
-        #expect(calls.args.count == 1, "cached for the process")
+        #expect(calls.args.count == 2, "cached")
 
         #expect(ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { nil }).resolve() == nil)
-        // JSON output (i.e. the flag was ignored) is never mistaken for a token.
-        #expect(ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { "/x/ant" }, runAnt: { _, _ in #"{"access_token":"x"}"# }).resolve() == nil)
+        // JSON without a usable token is never mistaken for one.
+        #expect(ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { "/x/ant" }, runAnt: { _, _ in #"{"access_token":""}"# }).resolve() == nil)
+    }
+
+    @Test func antTokenIsCachedUntilShortlyBeforeItExpires() {
+        final class State: @unchecked Sendable { var calls = 0; var clock = Date(timeIntervalSince1970: 1_000_000) }
+        let st = State()
+        let expiry = 1_000_000 + 3600
+        let auth = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { "/x/ant" },
+                              runAnt: { _, a in
+                                  st.calls += 1
+                                  #expect(a == ["auth", "print-credentials"], "one call, JSON")
+                                  return #"{"type":"oauth_token","access_token":"tok-\#(st.calls)","expires_at":\#(expiry),"refresh_token":"r"}"#
+                              }, now: { st.clock })
+        #expect(auth.resolve() == .oauth("tok-1"))
+        st.clock += 3000   // 10 min before expiry: still cached
+        #expect(auth.resolve() == .oauth("tok-1"))
+        #expect(st.calls == 1)
+        st.clock += 400    // within 5 min of expiry: refreshed
+        #expect(auth.resolve() == .oauth("tok-2"))
+        #expect(st.calls == 2)
+    }
+
+    @Test func antTokenWithoutAnExpiryIsCachedForFiveMinutes() {
+        final class State: @unchecked Sendable { var calls = 0; var clock = Date(timeIntervalSince1970: 1_000_000) }
+        let st = State()
+        let auth = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { "/x/ant" },
+                              runAnt: { _, a in st.calls += 1; return a.contains("--access-token") ? "tok\n" : "Error: unknown" }, now: { st.clock })
+        #expect(auth.resolve() == .oauth("tok"))
+        st.clock += 290
+        _ = auth.resolve()
+        #expect(st.calls == 2)
+        st.clock += 20
+        _ = auth.resolve()
+        #expect(st.calls == 4)
     }
 
     @Test func headersAreExclusive() {
