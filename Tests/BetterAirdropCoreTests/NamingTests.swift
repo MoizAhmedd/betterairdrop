@@ -239,3 +239,57 @@ struct VisionIntegrationTests {
         #expect((p.target! as NSString).lastPathComponent == "2026-09-21_screenshot_failed-payment.png")
     }
 }
+
+/// Vision runs only when its output is used (docs/perf.md).
+@Suite struct VisionSkipTests {
+    struct Failing: Namer {
+        var id = "claude"
+        func availability() -> Availability { .ready }
+        func suggest(for url: URL, context: PhotoContext) throws -> NameSuggestion { throw ClaudeNamer.Error.network("offline") }
+    }
+
+    final class Calls: @unchecked Sendable { var n = 0 }
+
+    func planner(_ namer: any Namer, _ calls: Calls) -> Planner {
+        var p = Planner(config: Config(), places: nil, namer: namer)
+        p.analyzer = { _ in calls.n += 1; return VisionResult(labels: [.init("lamp", 0.8)]) }
+        return p
+    }
+
+    let claude = FakeNamer(id: "claude") { NameSuggestion(kind: $0.kind, subject: "walnut lamp", confidence: 0.9, backend: "claude") }
+
+    @Test func cameraPhotosNamedByClaudeSkipVision() throws {
+        let dir = TestImages.TempDir()
+        let calls = Calls()
+        let p = planner(claude, calls).plan([TestImages.heic(dir.path("IMG_1.HEIC"))])[0]
+        #expect(calls.n == 0)
+        #expect(p.context?.vision == nil && p.timings?[.vision] == nil)
+        #expect((p.target! as NSString).lastPathComponent == "2026-09-21_walnut-lamp.jpg")
+    }
+
+    @Test func screenshotsAndUnknownImagesStillGetVision() throws {
+        let dir = TestImages.TempDir()
+        let calls = Calls()
+        _ = planner(claude, calls).plan([TestImages.png(dir.path("IMG_2.PNG"), .init(gps: nil, userComment: "Screenshot"))])
+        #expect(calls.n == 1, "screenshot: OCR goes to Claude")
+        _ = planner(claude, calls).plan([TestImages.png(dir.path("saved.png"), .init(gps: nil, make: nil, model: nil))])
+        #expect(calls.n == 2, "no camera metadata")
+    }
+
+    @Test func visionNamerAlwaysGetsVision() throws {
+        let dir = TestImages.TempDir()
+        let calls = Calls()
+        let p = planner(VisionNamer(), calls).plan([TestImages.heic(dir.path("IMG_3.HEIC"))])[0]
+        #expect(calls.n == 1 && p.suggestion?.subject == "lamp")
+    }
+
+    @Test func claudeFailingOnASkippedPhotoFallsBackWithVision() throws {
+        let dir = TestImages.TempDir()
+        let calls = Calls()
+        let p = planner(FallbackNamer(primary: Failing(), fallback: VisionNamer()), calls).plan([TestImages.heic(dir.path("IMG_4.HEIC"))])[0]
+        #expect(calls.n == 1)
+        #expect(p.suggestion?.backend == "vision" && p.suggestion?.subject == "lamp")
+        #expect(p.suggestion?.fallbackFrom?.hasPrefix("claude: network error") == true)
+        #expect((p.target! as NSString).lastPathComponent == "2026-09-21_lamp.jpg")
+    }
+}

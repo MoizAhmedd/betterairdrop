@@ -58,7 +58,7 @@ struct Explain: ParsableCommand {
         }
         if let t = p.timings, !t.isEmpty { row("timing", t.summary) }
         if let n = planner.namer, Backends.isCloud(n), let ms = ClaudeAuth.shared.lastLookupMilliseconds {
-            row("", "· credential lookup at start-up: \(ms) ms (cached for the rest of the run)")
+            row("", "· credential lookup at start-up: \(ms) ms (cached until shortly before it expires)")
         }
         row("template", p.template ?? "-")
         switch p.action {

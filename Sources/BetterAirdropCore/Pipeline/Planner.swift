@@ -41,15 +41,36 @@ public struct Planner: Sendable {
         return try context(for: url, timings: &t)
     }
 
-    func context(for url: URL, timings t: inout StageTimings) throws -> PhotoContext {
+    func context(for url: URL, timings t: inout StageTimings, vision: Bool = true) throws -> PhotoContext {
         let meta = try PhotoMetadata.read(url)
         var ctx = PhotoContext(file: url.path, metadata: meta, airdrop: Quarantine.of(url)?.isAirDrop ?? false)
         if let lat = meta.latitude, let lon = meta.longitude {
             ctx.place = places?.nearest(latitude: lat, longitude: lon)
         }
-        if let analyzer { ctx.vision = t.time(.vision) { analyzer(url) } }
-        (ctx.kind, ctx.kindReason) = KindClassifier.classify(metadata: meta, vision: ctx.vision)
+        (ctx.kind, ctx.kindReason) = KindClassifier.classify(metadata: meta, vision: nil)
+        if vision { addVision(&ctx, url: url, timings: &t) }
         return ctx
+    }
+
+    /// Runs the analyzer (if any) and re-derives the kind with its labels and text.
+    func addVision(_ ctx: inout PhotoContext, url: URL, timings t: inout StageTimings) {
+        guard let analyzer, ctx.vision == nil else { return }
+        ctx.vision = t.time(.vision) { analyzer(url) }
+        (ctx.kind, ctx.kindReason) = KindClassifier.classify(metadata: ctx.metadata, vision: ctx.vision)
+    }
+
+    /// A photo straight from a camera: not a screenshot, and made by the Camera app or carrying the
+    /// camera's make/model. Receipts and documents photographed this way are recognised by Claude.
+    static func isCameraPhoto(_ m: PhotoMetadata) -> Bool {
+        !m.isScreenshotByMetadata && (m.creatorBundleID == "com.apple.camera" || (m.creatorBundleID == nil && m.model != nil))
+    }
+
+    /// Vision is only worth its ~1 s when its output is used: Claude names ordinary camera photos
+    /// from the pixels alone, but gets Vision's OCR for screenshots and images of unknown origin,
+    /// and the Vision namer needs it whenever Claude isn't there or fails.
+    func needsVision(_ ctx: PhotoContext) -> Bool {
+        guard let namer, Backends.isCloud(namer), case .ready = namer.availability() else { return true }
+        return !Self.isCameraPhoto(ctx.metadata)
     }
 
     public func willConvert(_ url: URL) -> Bool {
@@ -106,12 +127,23 @@ public struct Planner: Sendable {
     /// The slow, parallelisable part: local context, then the namer.
     public func analyse(_ url: URL) throws -> Analysis {
         var t = StageTimings()
-        let ctx = try context(for: url, timings: &t)
+        var ctx = try context(for: url, timings: &t, vision: false)
+        if needsVision(ctx) { addVision(&ctx, url: url, timings: &t) }
         var suggestion: NameSuggestion?
         if let namer, case .ready = namer.availability() {
             suggestion = try? namer.suggest(for: url, context: ctx)
         }
         t.merge(suggestion?.timings)
+        // Claude failed on a photo Vision skipped: analyse it now and let the fallback name it.
+        if let first = suggestion, let why = first.fallbackFrom, ctx.vision == nil, analyzer != nil,
+           let fallback = (namer as? FallbackNamer)?.fallback {
+            addVision(&ctx, url: url, timings: &t)
+            if var s = try? fallback.suggest(for: url, context: ctx) {
+                s.fallbackFrom = why
+                s.why = Array(first.why.prefix(1)) + s.why
+                suggestion = s
+            }
+        }
         return Analysis(context: ctx, suggestion: suggestion, timings: t)
     }
 
