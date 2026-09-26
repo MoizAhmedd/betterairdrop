@@ -25,7 +25,7 @@ printf 'backend = "%s"\n\n[watch]\nfolder = "%s/Drop"\nnotify = false\n' "$BACKE
 LOG="$W/watch.log"
 BETTERAIRDROP_HOME="$W/state" "$BIN" watch --foreground --no-notify --config "$W/config.toml" --dir "$W/Drop" > "$LOG" 2>&1 &
 WPID=$!
-cleanup() { kill -INT $WPID 2>/dev/null; sleep 0.3; kill $WPID 2>/dev/null || true; [ -n "${KEEP:-}" ] && echo "kept $W" >&2 || rm -rf "$W"; }
+cleanup() { kill -INT $WPID 2>/dev/null; sleep 0.3; kill $WPID 2>/dev/null; wait $WPID 2>/dev/null || true; [ -n "${KEEP:-}" ] && echo "kept $W" >&2 || rm -rf "$W"; }
 trap cleanup EXIT
 until grep -q "watching" "$LOG" 2>/dev/null; do sleep 0.05; done
 sleep 1

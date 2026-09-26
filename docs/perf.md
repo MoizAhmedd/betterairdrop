@@ -52,3 +52,41 @@ The names were equally good at both sizes: the same subjects, with wording that 
 does between two runs at one size (e.g. `croissant-ceramic-plate-wooden` vs
 `croissant-ceramic-plate-white`; screenshot text such as a portfolio dashboard's app name was read at
 both). 768 px is slightly faster and about 25% cheaper, so it's the new size.
+
+## After (v0.3.1)
+
+Same photos, same harness:
+
+| Run | Wall | settle | quiet | credential | vision | encode | claude | convert | commit |
+|---|---|---|---|---|---|---|---|---|---|
+| single HEIC | 2.3 s | 509 | 16 | 0 | – | 252 | 986 | 61 | 37 |
+| single HEIC | 2.4 s | 509 | 82 | 0 | – | 150 | 1035 | 67 | 9 |
+| single HEIC | 2.4 s | 511 | 191 | 0 | – | 149 | 918 | 63 | 21 |
+| single PNG screenshot | 2.8 s | 511 | 230 | 0 | 660 | 39 | 856 | – | 14 |
+| batch of 3 HEIC | 2.9 s | 505–512 | 168–317 | 0 | – | 158–222 | 1200–1281 | 64–87 | 11–38 |
+
+(Three clean rounds gave 2.3–2.6 s for a single HEIC and 2.9 s for the batch. A round run while a
+release build was compiling was 4–5 s, and one screenshot 10.8 s with Vision at 7.9 s, so CPU
+contention matters.)
+
+**About 10 s → about 2.5 s** for one photo, and 10.6 s → 2.9 s for three. What changed:
+
+1. **JSON in the prompt, not `output_config`**: Claude 3.5 s → 1.0 s. `output_config` is kept as a
+   one-time retry for an answer that doesn't parse.
+2. **A 768 px copy** instead of 1024 px: about 0.1 s and 25% of the input tokens.
+3. **Naming starts as soon as a photo settles** (up to 3 at once) instead of after the burst, and the
+   burst ends after **1 s** of quiet instead of 3 s. A burst is still one journal batch, one undo and
+   one notification. Quiet is now 0–0.3 s: the time between a photo's name being ready and the
+   burst being committed.
+4. **Settle 0.5 s** instead of 0.75 s. The container check that catches truncated HEICs is unchanged.
+5. **No Vision for camera photos** when Claude names them. Screenshots and images of unknown origin
+   still get it (its OCR helps Claude), and so does any photo Claude fails on, for the Vision namer.
+6. **A batch's conversions run in parallel** before the sequential journal and moves.
+7. **The `ant` token is cached until 5 minutes before its expiry** (from `ant`'s JSON), so a
+   long-running app refreshes it ahead of time instead of after a 401.
+
+**The floor** is about 1.9 s from first seen: settle 0.5 s (needed to trust that a transfer has
+stopped) + encode 0.15–0.25 s + one Haiku request 0.9–1.3 s + convert and commit 0.1 s. Wall time
+adds the watcher noticing the file: up to 0.5 s for the CLI's polling (these runs); the app is
+notified by FSEvents straight away. The Claude request is the one big stage left, and it's network
+and model time.
