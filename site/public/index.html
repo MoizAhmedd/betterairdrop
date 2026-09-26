@@ -90,7 +90,6 @@ h1 em{color:var(--accent)}
 .fname .caret{display:inline-block;width:2px;height:1.05em;background:var(--accent);vertical-align:-2px;margin-left:1px;animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
 .demo-foot{border-top:1px solid var(--rule);padding:10px 18px;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.demo-foot .undo{color:var(--accent);font-weight:500}
 
 /* install */
 #install{max-width:620px;margin:48px auto 0;scroll-margin-top:24px}
@@ -152,7 +151,7 @@ footer a{color:var(--muted)}
     <div id="mock" aria-label="Example of files being renamed in Downloads">
       <div class="demo-bar"><span class="d"></span><span class="d"></span><span class="d"></span><b>~/Downloads</b></div>
       <ul id="demo"></ul>
-      <div class="demo-foot"><span id="demo-status">Waiting for AirDrop…</span><span class="undo">Undo</span></div>
+      <div class="demo-foot"><span id="demo-status">Waiting for AirDrop…</span></div>
     </div>
   </div>
   </div>
@@ -187,7 +186,7 @@ footer a{color:var(--muted)}
   var rows = [
     ["IMG_4821.HEIC","2026-09-21","toronto","walnut-lamp-on-oak-sideboard",".jpg"],
     ["IMG_5277.HEIC","2026-03-31","copenhagen","glass-rose-wine-wooden",".jpg"],
-    ["IMG_4822.PNG","2026-09-21","screenshot","failed-payment-card-declined-error",".png"]
+    ["IMG_4822.PNG","2026-09-21","screenshot","boarding-pass-yyz-to-cph",".png"]
   ];
   var ul = document.getElementById('demo'), status = document.getElementById('demo-status');
   var bAir = document.getElementById('b-airdrop'), bApp = document.getElementById('b-app');
