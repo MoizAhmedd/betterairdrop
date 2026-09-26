@@ -113,12 +113,12 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
         let b64 = try #require(source["data"])
         #expect(!b64.contains("\n") && !b64.contains("\r"))
 
-        // The uploaded image: ≤ 1024 px, JPEG, and no EXIF date, GPS or camera make/model.
+        // The uploaded image: ≤ 768 px, JPEG, and no EXIF date, GPS or camera make/model.
         let jpeg = try #require(Data(base64Encoded: b64))
         let src = try #require(CGImageSourceCreateWithData(jpeg as CFData, nil))
         #expect(CGImageSourceGetType(src) as String? == "public.jpeg")
         let props = try #require(CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any])
-        #expect(max(props[kCGImagePropertyPixelWidth] as? Int ?? 0, props[kCGImagePropertyPixelHeight] as? Int ?? 0) == 1024)
+        #expect(max(props[kCGImagePropertyPixelWidth] as? Int ?? 0, props[kCGImagePropertyPixelHeight] as? Int ?? 0) == 768)
         #expect(props[kCGImagePropertyGPSDictionary] == nil)
         #expect(props[kCGImagePropertyTIFFDictionary] == nil)
         let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any] ?? [:]
@@ -130,6 +130,14 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
         #expect(text.contains("lamp 0.70") && text.contains("\"IKEA\""))
         #expect(!text.contains("43.6") && !text.contains("79.3") && !text.contains("IMG_"))
 
+        // JSON is asked for in the prompt (output_config added ~2.3 s per request); it's the retry.
+        #expect(b["output_config"] == nil)
+        #expect((b["system"] as? String)?.contains("Reply with only a JSON object") == true)
+        #expect(s.timings?[.encode] != nil && s.timings?[.claude] != nil && s.timings?[.credential] != nil)
+    }
+
+    @Test func structuredSchemaShape() throws {
+        let b = ClaudePrompt.body(model: "m", maxTokens: 256, image: Data([1]), context: "c", structured: true)
         let format = try #require((b["output_config"] as? [String: Any])?["format"] as? [String: Any])
         #expect(format["type"] as? String == "json_schema")
         let schema = try #require(format["schema"] as? [String: Any])
@@ -137,6 +145,7 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
         #expect(Set(schema["required"] as? [String] ?? []) == ["subject", "kind", "merchant", "total", "confidence", "people_present"])
         #expect(((schema["properties"] as? [String: Any])?["kind"] as? [String: Any])?["enum"] as? [String]
                 == ["photo", "screenshot", "receipt", "document", "whiteboard", "other"])
+        #expect((b["system"] as? String)?.contains("Reply with only a JSON object") == false)
     }
 
     @Test func oauthSendsBearerAndBetaHeaderOnly() throws {
@@ -190,18 +199,33 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
         #expect(throws: ClaudeNamer.Error.truncated) { try namer().suggest(for: url, context: ctx) }
     }
 
-    @Test func outputConfigRejectionFallsBackToPromptedJSON() throws {
+    @Test func unusableAnswerIsAskedAgainWithStructuredOutput() throws {
         StubURLProtocol.reset([
-            .init(status: 400, body: #"{"type":"error","error":{"type":"invalid_request_error","message":"output_config: structured outputs are not supported for this model"}}"#),
-            .init(status: 200, body: message("Here you go:\n" + goodAnswer)),
+            .init(status: 200, body: message("Sure! The subject is a lamp.")),
+            .init(status: 200, body: message(goodAnswer)),
         ])
         let (url, ctx) = photo()
         let s = try namer().suggest(for: url, context: ctx)
         #expect(s.subject == "walnut lamp on oak sideboard")
-        #expect(try body(0)["output_config"] != nil)
-        #expect(try body(1)["output_config"] == nil)
-        #expect((try body(1)["system"] as? String)?.contains("Reply with only a JSON object") == true)
-        #expect(s.why.contains { $0.contains("rejected output_config") })
+        #expect(try body(0)["output_config"] == nil)
+        #expect(try body(1)["output_config"] != nil)
+        #expect(s.why.contains { $0.contains("asked again with output_config") })
+        #expect(s.usage?.inputTokens == 3000, "both requests are counted")
+    }
+
+    @Test func outputConfigRejectionOnTheRetryIsRemembered() throws {
+        StubURLProtocol.reset([
+            .init(status: 200, body: message("no json here")),
+            .init(status: 400, body: #"{"type":"error","error":{"type":"invalid_request_error","message":"output_config: structured outputs are not supported for this model"}}"#),
+            .init(status: 200, body: message("still no json")),
+        ])
+        let (url, ctx) = photo()
+        let n = namer()
+        #expect(throws: ClaudeNamer.Error.self) { try n.suggest(for: url, context: ctx) }
+        #expect(ClaudeNamer.structuredOutput.value == false)
+        // The next photo doesn't try output_config again.
+        #expect(throws: ClaudeNamer.Error.self) { try n.suggest(for: url, context: ctx) }
+        #expect(StubURLProtocol.captured.count == 3)
         ClaudeNamer.structuredOutput.value = true
     }
 

@@ -84,7 +84,7 @@ public enum Backends {
 /// The one-time notice shown the first time a cloud backend runs on this Mac.
 public enum CloudNotice {
     public static let text = """
-    BetterAirdrop is naming photos with Claude (Anthropic's API). For each photo it sends a 1024 px JPEG
+    BetterAirdrop is naming photos with Claude (Anthropic's API). For each photo it sends a 768 px JPEG
     with all metadata removed (no EXIF, no GPS), plus the capture date, the city name, the detected
     kind and a short snippet of text found in the image. Coordinates and file names stay on this Mac.
     To keep everything on-device, set `backend = "vision"` (or `[claude] auto = false`) in

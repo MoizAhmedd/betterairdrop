@@ -113,7 +113,7 @@ public enum CameraFiles {
 /// The preview names at most `batchSize` photos at a time, so opening it never costs much.
 public enum PreviewCost {
     public static let batchSize = 20
-    /// Claude Haiku, a 1024 px photo: about $2 per 1,000 (docs/spikes.md).
+    /// Claude Haiku, a 768 px photo: about $1.6 per 1,000 (docs/perf.md), rounded up.
     public static let claudePerPhoto = 0.002
 
     public static func text(count: Int, claude: Bool) -> String {

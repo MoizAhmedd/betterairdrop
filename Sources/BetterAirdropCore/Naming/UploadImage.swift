@@ -12,7 +12,7 @@ public enum UploadImage {
         public var description: String { switch self { case .unreadable(let p): "can't decode \(p) for upload" } }
     }
 
-    public static func jpeg(from url: URL, maxPixelSize: Int = 1024, quality: Double = 0.8) throws -> Data {
+    public static func jpeg(from url: URL, maxPixelSize: Int = 768, quality: Double = 0.8) throws -> Data {
         guard let src = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary) else {
             throw Error.unreadable(url.lastPathComponent)
         }

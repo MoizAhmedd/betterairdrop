@@ -103,6 +103,10 @@ chunked slow write, a Live Photo MOV) there was one batch, the MOV got the still
 
 **What the backend does** (`Sources/BetterAirdropCore/Naming/ClaudeNamer.swift`):
 
+*Changed in v0.3.1 ([perf.md](perf.md)): the copy is 768 px, and the JSON is asked for in the prompt
+first, with `output_config` only as a retry for an answer that doesn't parse. Structured output
+added about 2.3 s per request.*
+
 - Model `claude-haiku-4-5` (config `claude.model`), `POST /v1/messages`, `anthropic-version: 2023-06-01`,
   `max_tokens` 256, no `thinking`, 20 s timeout.
 - The image is a 1024 px (long edge) JPEG at quality 0.8, redrawn from pixels so that **no metadata**

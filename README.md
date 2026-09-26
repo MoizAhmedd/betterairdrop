@@ -46,7 +46,7 @@ scripts/make-app.sh && open .build/app/BetterAirdrop.app
 
 | Engine | Runs on | Sends |
 |---|---|---|
-| Claude Haiku (your API key) | Anthropic | a 1024 px copy, no location or camera data |
+| Claude Haiku (your API key) | Anthropic | a 768 px copy, no location or camera data |
 | Apple Vision | your Mac | nothing |
 | Apple Intelligence (macOS 27) | your Mac | nothing (planned) |
 

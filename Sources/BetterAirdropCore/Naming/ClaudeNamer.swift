@@ -2,7 +2,7 @@ import Foundation
 
 /// Claude (Haiku 4.5 by default) over the Messages API, with raw HTTP (there's no official Swift SDK).
 ///
-/// What leaves the Mac: a 1024 px JPEG re-encoded with no metadata (`UploadImage`), and a short
+/// What leaves the Mac: a 768 px JPEG re-encoded with no metadata (`UploadImage`), and a short
 /// text context (date, city name, kind hints, a truncated OCR snippet, device/creator hints).
 /// Never GPS coordinates, never the file name. See `ClaudePrompt`.
 public struct ClaudeNamer: Namer {
@@ -37,6 +37,8 @@ public struct ClaudeNamer: Namer {
         case badOutput(String)
         case network(String)
 
+        var isBadOutput: Bool { if case .badOutput = self { true } else { false } }
+
         public var description: String {
             switch self {
             case .noCredential: "no Anthropic credential"
@@ -52,23 +54,32 @@ public struct ClaudeNamer: Namer {
     /// Remembers, for this process, that the model rejected `output_config` (so we stop sending it).
     static let structuredOutput = Flag(true)
 
+    /// Long edge of the copy sent to Claude. 768 px names as well as 1024 px, about 25% cheaper
+    /// and a little faster (docs/perf.md).
+    public var imageSize = 768
+
+    /// The JSON is asked for in the prompt first: `output_config` structured output added about
+    /// 2.3 s to every request (docs/perf.md). An answer that doesn't parse is asked for again
+    /// once with `output_config`, whose schema guarantees the shape.
     public func suggest(for url: URL, context ctx: PhotoContext) throws -> NameSuggestion {
         var timings = StageTimings()
-        let image = try timings.time(.encode) { try UploadImage.jpeg(from: url) }
+        let image = try timings.time(.encode) { try UploadImage.jpeg(from: url, maxPixelSize: imageSize) }
         let prompt = ClaudePrompt.context(ctx)
         var usage = TokenUsage(model: model, inputTokens: 0, outputTokens: 0)
         var why = ["sent a \(image.count / 1024) KB metadata-free JPEG and the text context to \(model)"]
 
-        let text: String
+        let answer: ClaudePrompt.Answer
         do {
-            text = try call(image: image, prompt: prompt, structured: Self.structuredOutput.value, usage: &usage, timings: &timings)
-        } catch Error.http(400, let msg) where Self.structuredOutput.value && ClaudePrompt.looksLikeOutputConfigRejection(msg) {
-            // Structured outputs not accepted for this model: ask for JSON in the prompt and validate strictly.
-            Self.structuredOutput.value = false
-            why.append("the API rejected output_config, so JSON was requested in the prompt instead")
-            text = try call(image: image, prompt: prompt, structured: false, usage: &usage, timings: &timings)
+            answer = try ClaudePrompt.parse(call(image: image, prompt: prompt, structured: false, usage: &usage, timings: &timings))
+        } catch let first as Error where first.isBadOutput && Self.structuredOutput.value {
+            do {
+                answer = try ClaudePrompt.parse(call(image: image, prompt: prompt, structured: true, usage: &usage, timings: &timings))
+                why.append("the first answer wasn't usable (\(first)), so it was asked again with output_config")
+            } catch Error.http(400, let msg) where ClaudePrompt.looksLikeOutputConfigRejection(msg) {
+                Self.structuredOutput.value = false
+                throw first
+            }
         }
-        let answer = try ClaudePrompt.parse(text)
         var s = answer.suggestion(context: ctx, backend: id, maxWords: 6)
         s.usage = usage
         s.timings = timings
