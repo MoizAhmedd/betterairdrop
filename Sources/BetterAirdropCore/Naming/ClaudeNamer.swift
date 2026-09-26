@@ -53,36 +53,38 @@ public struct ClaudeNamer: Namer {
     static let structuredOutput = Flag(true)
 
     public func suggest(for url: URL, context ctx: PhotoContext) throws -> NameSuggestion {
-        let image = try UploadImage.jpeg(from: url)
+        var timings = StageTimings()
+        let image = try timings.time(.encode) { try UploadImage.jpeg(from: url) }
         let prompt = ClaudePrompt.context(ctx)
         var usage = TokenUsage(model: model, inputTokens: 0, outputTokens: 0)
         var why = ["sent a \(image.count / 1024) KB metadata-free JPEG and the text context to \(model)"]
 
         let text: String
         do {
-            text = try call(image: image, prompt: prompt, structured: Self.structuredOutput.value, usage: &usage)
+            text = try call(image: image, prompt: prompt, structured: Self.structuredOutput.value, usage: &usage, timings: &timings)
         } catch Error.http(400, let msg) where Self.structuredOutput.value && ClaudePrompt.looksLikeOutputConfigRejection(msg) {
             // Structured outputs not accepted for this model: ask for JSON in the prompt and validate strictly.
             Self.structuredOutput.value = false
             why.append("the API rejected output_config, so JSON was requested in the prompt instead")
-            text = try call(image: image, prompt: prompt, structured: false, usage: &usage)
+            text = try call(image: image, prompt: prompt, structured: false, usage: &usage, timings: &timings)
         }
         let answer = try ClaudePrompt.parse(text)
         var s = answer.suggestion(context: ctx, backend: id, maxWords: 6)
         s.usage = usage
+        s.timings = timings
         s.why = why + s.why
         return s
     }
 
     /// One logical request, with retries for 429/5xx/network errors. Returns the first text block.
-    func call(image: Data, prompt: String, structured: Bool, usage: inout TokenUsage) throws -> String {
+    func call(image: Data, prompt: String, structured: Bool, usage: inout TokenUsage, timings: inout StageTimings) throws -> String {
         let body = try JSONSerialization.data(withJSONObject: ClaudePrompt.body(model: model, maxTokens: maxTokens, image: image,
                                                                                   context: prompt, structured: structured))
         var refreshedAuth = false
         var attempt = 0
         while true {
             attempt += 1
-            guard let cred = auth.resolve() else { throw Error.noCredential }
+            guard let cred = timings.time(.credential, { auth.resolve() }) else { throw Error.noCredential }
             var req = URLRequest(url: Self.endpoint, timeoutInterval: timeout)
             req.httpMethod = "POST"
             req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
@@ -92,9 +94,9 @@ public struct ClaudeNamer: Namer {
 
             let response: HTTPURLResponse, data: Data
             do {
-                (response, data) = try transport.send(req)
+                (response, data) = try timings.time(.claude) { try transport.send(req) }
             } catch {
-                if attempt < maxAttempts { sleep(backoff(attempt, retryAfter: nil)); continue }
+                if attempt < maxAttempts { timings.time(.claude) { sleep(backoff(attempt, retryAfter: nil)) }; continue }
                 throw Error.network((error as NSError).localizedDescription)
             }
             let status = response.statusCode
@@ -109,7 +111,8 @@ public struct ClaudeNamer: Namer {
                 continue
             }
             if (status == 429 || status == 529 || status >= 500) && attempt < maxAttempts {
-                sleep(backoff(attempt, retryAfter: response.value(forHTTPHeaderField: "retry-after")))
+                let wait = backoff(attempt, retryAfter: response.value(forHTTPHeaderField: "retry-after"))
+                timings.time(.claude) { sleep(wait) }
                 continue
             }
             throw Error.http(status, message)

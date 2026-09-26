@@ -63,10 +63,16 @@ public final class ClaudeAuth: @unchecked Sendable {
     public func resolve() -> ClaudeCredential? {
         lock.lock(); defer { lock.unlock() }
         if let c = cached { return c }
+        let start = DispatchTime.now().uptimeNanoseconds
         let c = lookup()
+        _lastLookupMilliseconds = Int((DispatchTime.now().uptimeNanoseconds - start) / 1_000_000)
         cached = .some(c)
         return c
     }
+
+    private var _lastLookupMilliseconds: Int?
+    /// How long the last uncached lookup took (spawning `ant` dominates), for `explain`.
+    public var lastLookupMilliseconds: Int? { lock.lock(); defer { lock.unlock() }; return _lastLookupMilliseconds }
 
     /// Forgets the cached credential (after a 401, so an expired OAuth token is refreshed once).
     public func invalidate() {

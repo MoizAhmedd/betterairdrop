@@ -76,7 +76,9 @@ struct Watch: ParsableCommand {
             for o in b.outcomes {
                 let src = (o.source as NSString).lastPathComponent
                 switch o.status {
-                case .done: print("  ✓ \(src)  →  \(((o.target ?? "") as NSString).lastPathComponent)")
+                case .done:
+                    print("  ✓ \(src)  →  \(((o.target ?? "") as NSString).lastPathComponent)")
+                    if let t = o.timings, !t.isEmpty { print("      \(t.summary)") }
                 case .skipped: print("  – \(src)  (\(o.message ?? "skipped"))")
                 case .failed: print("  ✗ \(src)  \(o.message ?? "")")
                 }

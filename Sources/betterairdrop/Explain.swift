@@ -56,6 +56,10 @@ struct Explain: ParsableCommand {
         } else {
             row("backend", "none produced a subject")
         }
+        if let t = p.timings, !t.isEmpty { row("timing", t.summary) }
+        if let n = planner.namer, Backends.isCloud(n), let ms = ClaudeAuth.shared.lastLookupMilliseconds {
+            row("", "· credential lookup at start-up: \(ms) ms (cached for the rest of the run)")
+        }
         row("template", p.template ?? "-")
         switch p.action {
         case .skip: row("result", "skip: \(p.reason ?? "")")

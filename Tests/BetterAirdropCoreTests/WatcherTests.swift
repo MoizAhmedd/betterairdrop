@@ -89,6 +89,10 @@ let stemNamer = FakeNamer { ctx in
         let rec = try #require(s.journal.records().last)
         #expect(rec.sourceSHA1 == Insecure_sha1(data))
         #expect(try PhotoMetadata.read(URL(fileURLWithPath: out)).pixelWidth == 1600)
+        // Every stage the watcher saw is timed.
+        let t = try #require(batch.outcomes.first?.timings)
+        for stage in [StageTimings.Stage.settle, .quiet, .convert, .commit, .total] { #expect(t[stage] != nil, "\(stage)") }
+        #expect(t[.settle]! >= 300 && t[.total]! >= t[.settle]!)
     }
 
     @Test func burstOfEightWithLivePhotoIsOneBatch() throws {
@@ -152,6 +156,21 @@ let stemNamer = FakeNamer { ctx in
         let q = AirDropSim.quarantine()
         #expect(q.range(of: #"^0081;[0-9a-f]{8};sharingd;[0-9A-F-]{36}$"#, options: .regularExpression) != nil)
         #expect(Quarantine(q)?.isAirDrop == true)
+    }
+}
+
+@Suite struct StageTimingsTests {
+    @Test func summaryAndMerge() {
+        var a = StageTimings()
+        a.add(.vision, seconds: 0.8404)
+        a.time(.commit) {}
+        var b = StageTimings()
+        b[.claude] = 1500
+        b[.total] = 3420
+        a.merge(b)
+        #expect(a[.vision] == 840 && a[.commit] != nil)
+        #expect(a.summary.hasPrefix("vision 840 ms · claude 1500 ms · commit "))
+        #expect(a.summary.hasSuffix(" · total 3.4 s"))
     }
 }
 

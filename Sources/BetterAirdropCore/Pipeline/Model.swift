@@ -36,6 +36,8 @@ public struct NameSuggestion: Codable, Sendable, Equatable {
     public var usage: TokenUsage?
     /// Set when the chosen backend failed and another one produced this name: why the first failed.
     public var fallbackFrom: String?
+    /// Time spent naming (credential, encode, Claude request) for `explain` and the perf log.
+    public var timings: StageTimings?
 
     public init(kind: Kind, subject: String, merchant: String? = nil, total: String? = nil,
                 confidence: Double, backend: String, why: [String] = [], usage: TokenUsage? = nil) {
@@ -82,6 +84,8 @@ public struct Proposal: Codable, Sendable {
     public var tokens: [String: String]?
     public var context: PhotoContext?
     public var suggestion: NameSuggestion?
+    /// Time spent planning this file (Vision and naming).
+    public var timings: StageTimings?
 
     public static func skip(_ source: URL, _ reason: String) -> Proposal {
         Proposal(source: source.path, action: .skip, reason: reason)

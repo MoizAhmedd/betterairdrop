@@ -37,12 +37,17 @@ public struct Planner: Sendable {
     }
 
     public func context(for url: URL) throws -> PhotoContext {
+        var t = StageTimings()
+        return try context(for: url, timings: &t)
+    }
+
+    func context(for url: URL, timings t: inout StageTimings) throws -> PhotoContext {
         let meta = try PhotoMetadata.read(url)
         var ctx = PhotoContext(file: url.path, metadata: meta, airdrop: Quarantine.of(url)?.isAirDrop ?? false)
         if let lat = meta.latitude, let lon = meta.longitude {
             ctx.place = places?.nearest(latitude: lat, longitude: lon)
         }
-        ctx.vision = analyzer?(url)
+        if let analyzer { ctx.vision = t.time(.vision) { analyzer(url) } }
         (ctx.kind, ctx.kindReason) = KindClassifier.classify(metadata: meta, vision: ctx.vision)
         return ctx
     }
@@ -77,31 +82,41 @@ public struct Planner: Sendable {
             let url = urls[i]
             if let why = skips[i] { return .skip(url, why) }
             do {
-                let (ctx, suggestion) = try results.get(i)!.get()
-                return try finish(url, context: ctx, suggestion: suggestion, reserved: &reserved)
+                let a = try results.get(i)!.get()
+                return try finish(url, analysis: a, reserved: &reserved)
             } catch { return .skip(url, "\(error)") }
         }
     }
 
     final class Results: @unchecked Sendable {
         private let lock = NSLock()
-        private var items: [Result<(PhotoContext, NameSuggestion?), any Error>?]
+        private var items: [Result<Analysis, any Error>?]
         init(count: Int) { items = Array(repeating: nil, count: count) }
-        func set(_ i: Int, _ r: Result<(PhotoContext, NameSuggestion?), any Error>) { lock.lock(); items[i] = r; lock.unlock() }
-        func get(_ i: Int) -> Result<(PhotoContext, NameSuggestion?), any Error>? { lock.lock(); defer { lock.unlock() }; return items[i] }
+        func set(_ i: Int, _ r: Result<Analysis, any Error>) { lock.lock(); items[i] = r; lock.unlock() }
+        func get(_ i: Int) -> Result<Analysis, any Error>? { lock.lock(); defer { lock.unlock() }; return items[i] }
+    }
+
+    /// A file's local context and suggested name, before a target path is picked.
+    public struct Analysis: Sendable {
+        public var context: PhotoContext
+        public var suggestion: NameSuggestion?
+        public var timings: StageTimings
     }
 
     /// The slow, parallelisable part: local context, then the namer.
-    func analyse(_ url: URL) throws -> (PhotoContext, NameSuggestion?) {
-        let ctx = try context(for: url)
+    public func analyse(_ url: URL) throws -> Analysis {
+        var t = StageTimings()
+        let ctx = try context(for: url, timings: &t)
         var suggestion: NameSuggestion?
         if let namer, case .ready = namer.availability() {
             suggestion = try? namer.suggest(for: url, context: ctx)
         }
-        return (ctx, suggestion)
+        t.merge(suggestion?.timings)
+        return Analysis(context: ctx, suggestion: suggestion, timings: t)
     }
 
-    func finish(_ url: URL, context ctx: PhotoContext, suggestion: NameSuggestion?, reserved: inout Set<String>) throws -> Proposal {
+    func finish(_ url: URL, analysis a: Analysis, reserved: inout Set<String>) throws -> Proposal {
+        let ctx = a.context, suggestion = a.suggestion
         let (stem, template, tokens) = try compose(url: url, context: ctx, suggestion: suggestion)
         let convert = willConvert(url)
         let ext = convert ? "jpg" : Self.normalizedExtension(url.pathExtension)
@@ -110,7 +125,7 @@ public struct Planner: Sendable {
         if target.path == url.path { return .skip(url, "name unchanged") }
         reserved.insert(target.path.lowercased())
         return Proposal(source: url.path, action: convert ? .convert : .rename, target: target.path,
-                        template: template, tokens: tokens, context: ctx, suggestion: suggestion)
+                        template: template, tokens: tokens, context: ctx, suggestion: suggestion, timings: a.timings)
     }
 
     /// Builds the stem from context + suggestion. Returns the stem, the template used and the token values.

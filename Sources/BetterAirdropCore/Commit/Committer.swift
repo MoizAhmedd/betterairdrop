@@ -25,6 +25,8 @@ public final class Committer {
         public var status: Status
         public var trashed: String?
         public var message: String?
+        /// Planning and commit times (the watcher adds settle, quiet and total).
+        public var timings: StageTimings?
     }
 
     public let config: Config
@@ -45,8 +47,14 @@ public final class Committer {
                 out.append(Outcome(source: p.source, status: .skipped, message: p.reason))
                 continue
             }
+            let start = DispatchTime.now().uptimeNanoseconds
             do {
-                out.append(try commitOne(p, target: URL(fileURLWithPath: target), batch: batch))
+                var o = try commitOne(p, target: URL(fileURLWithPath: target), batch: batch)
+                var t = p.timings ?? StageTimings()
+                t.merge(o.timings)
+                t.add(.commit, seconds: Double(DispatchTime.now().uptimeNanoseconds - start) / 1e9 - Double(o.timings?[.convert] ?? 0) / 1000)
+                o.timings = t
+                out.append(o)
             } catch let crash as SimulatedCrash {
                 throw crash
             } catch {
@@ -65,13 +73,16 @@ public final class Committer {
         var begun: JournalRecord?
         var trashed: URL?
         var deletedOriginal = false
+        var timings = StageTimings()
 
         do {
             var outputSHA1 = sourceSHA1
             if p.action == .convert {
                 let t = dir.appendingPathComponent(".betterairdrop-\(UUID().uuidString).jpg.tmp")
                 temp = t
-                try Converter.toJPEG(source: source, destination: t, quality: config.jpegQuality, stripGPS: config.stripGPSFromOutput)
+                try timings.time(.convert) {
+                    try Converter.toJPEG(source: source, destination: t, quality: config.jpegQuality, stripGPS: config.stripGPSFromOutput)
+                }
                 FileOps.copyDates(from: source, to: t)
                 try FileOps.fsync(t)
                 outputSHA1 = try FileOps.sha1(t)
@@ -123,7 +134,7 @@ public final class Committer {
             }
             try fault?(.originalHandled, source)
             try journal.append(begun!.with(.done, trashed: trashed?.path))
-            return Outcome(source: source.path, target: dest.path, status: .done, trashed: trashed?.path)
+            return Outcome(source: source.path, target: dest.path, status: .done, trashed: trashed?.path, timings: timings)
         } catch let crash as SimulatedCrash {
             throw crash
         } catch {

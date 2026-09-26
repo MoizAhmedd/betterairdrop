@@ -130,6 +130,7 @@ public final class Watcher {
     public func runOnce() -> Batch? {
         struct Seen { var fp: Fingerprint; var since: Date }
         var seen: [String: Seen] = [:]
+        var clocks: [String: Clock] = [:]
         var lastActivity = Date()
         let start = Date()
         while true {
@@ -140,13 +141,17 @@ public final class Watcher {
             for gone in seen.keys where !paths.contains(gone) { seen[gone] = nil; lastActivity = now }
             for url in candidates {
                 guard let fp = Self.fingerprint(url) else { continue }
-                if seen[url.path]?.fp != fp { seen[url.path] = Seen(fp: fp, since: now); lastActivity = now }
+                if seen[url.path]?.fp != fp {
+                    seen[url.path] = Seen(fp: fp, since: now); lastActivity = now
+                    clocks[url.path, default: Clock(firstSeen: now)].settled = nil
+                }
             }
             if seen.isEmpty { return nil }
             let settled = candidates.filter { u in
                 guard let s = seen[u.path] else { return false }
                 return now.timeIntervalSince(s.since) >= options.settleInterval && isComplete(u)
             }
+            for u in settled where clocks[u.path]?.settled == nil { clocks[u.path]?.settled = now }
             let quiet = now.timeIntervalSince(lastActivity) >= options.quietWindow
             let timedOut = now.timeIntervalSince(start) >= options.maxWait
             if (settled.count == seen.count && quiet) || (timedOut && !settled.isEmpty) {
@@ -154,7 +159,7 @@ public final class Watcher {
                     log("still incomplete after \(Int(options.maxWait)) s, left for later: "
                         + seen.keys.filter { p in !settled.contains { $0.path == p } }.map { ($0 as NSString).lastPathComponent }.joined(separator: ", "))
                 }
-                let batch = process(settled)
+                let batch = process(settled, clocks: clocks)
                 return batch.outcomes.isEmpty ? nil : batch
             }
             if timedOut && now.timeIntervalSince(start) >= options.maxWait * 2 {
@@ -166,8 +171,14 @@ public final class Watcher {
         }
     }
 
+    /// When the watcher first saw a file and when it settled, for the stage timings.
+    struct Clock { var firstSeen: Date; var settled: Date?; var ready: Date? }
+
     /// Plans stills, pairs Live Photo MOVs with them, commits everything as one batch.
-    public func process(_ urls: [URL]) -> Batch {
+    public func process(_ urls: [URL]) -> Batch { process(urls, clocks: [:]) }
+
+    func process(_ urls: [URL], clocks: [String: Clock]) -> Batch {
+        let processStart = Date()
         let stills = urls.filter { !Self.isMovie($0.path) }.sorted { $0.lastPathComponent < $1.lastPathComponent }
         let movies = urls.filter { Self.isMovie($0.path) }
         let stem = { (u: URL) in u.deletingPathExtension().lastPathComponent.lowercased() }
@@ -199,7 +210,22 @@ public final class Watcher {
         }
 
         let id = Journal.newBatchID()
-        let outcomes = (try? committer.commit(proposals, batch: id)) ?? []
+        let commitStart = Date()
+        var outcomes = (try? committer.commit(proposals, batch: id)) ?? []
+        for i in outcomes.indices where outcomes[i].status == .done {
+            var t = outcomes[i].timings ?? StageTimings()
+            // A Live Photo video shares its still's clock.
+            let key = URL(fileURLWithPath: outcomes[i].source).standardizedFileURL.path
+            if let c = clocks[key] ?? clocks[outcomes[i].source] {
+                let settled = c.settled ?? c.firstSeen
+                t.add(.settle, seconds: settled.timeIntervalSince(c.firstSeen))
+                // Waiting for the burst: settled → planning started, or named → committed.
+                t.add(.quiet, seconds: c.ready.map { commitStart.timeIntervalSince($0) } ?? processStart.timeIntervalSince(settled))
+                t.add(.total, seconds: Date().timeIntervalSince(c.firstSeen))
+            }
+            outcomes[i].timings = t
+            PerfLog.record(outcomes[i].source, t)
+        }
         for o in outcomes where o.status != .done {
             ignore(URL(fileURLWithPath: o.source), o.message ?? o.status.rawValue)
         }
