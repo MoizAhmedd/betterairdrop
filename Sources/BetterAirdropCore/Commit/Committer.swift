@@ -40,19 +40,35 @@ public final class Committer {
         self.config = config; self.journal = journal; self.trasher = trasher
     }
 
+    /// How many HEIC → JPEG conversions run at once before the (sequential) journal and moves.
+    public var conversionConcurrency = 3
+
     public func commit(_ proposals: [Proposal], batch: String = Journal.newBatchID()) throws -> [Outcome] {
+        // Step 1 for every file first, in parallel: hashing and converting don't depend on each
+        // other or on the journal, and conversion is the slow part of a burst.
+        let prepared = Prepared.Box(count: proposals.count)
+        let work = proposals.indices.filter { proposals[$0].action != .skip && proposals[$0].target != nil }
+        let lanes = max(1, min(conversionConcurrency, work.count))
+        let config = self.config
+        DispatchQueue.concurrentPerform(iterations: lanes) { lane in
+            for j in stride(from: lane, to: work.count, by: lanes) {
+                let i = work[j]
+                prepared.set(i, Result { try Self.prepare(proposals[i], config: config) })
+            }
+        }
         var out: [Outcome] = []
-        for p in proposals {
+        for (i, p) in proposals.enumerated() {
             guard p.action != .skip, let target = p.target else {
                 out.append(Outcome(source: p.source, status: .skipped, message: p.reason))
                 continue
             }
             let start = DispatchTime.now().uptimeNanoseconds
             do {
-                var o = try commitOne(p, target: URL(fileURLWithPath: target), batch: batch)
+                let prep = try prepared.get(i)!.get()
+                var o = try commitOne(p, target: URL(fileURLWithPath: target), batch: batch, prepared: prep)
                 var t = p.timings ?? StageTimings()
-                t.merge(o.timings)
-                t.add(.commit, seconds: Double(DispatchTime.now().uptimeNanoseconds - start) / 1e9 - Double(o.timings?[.convert] ?? 0) / 1000)
+                t.merge(prep.timings)
+                t.add(.commit, seconds: Double(DispatchTime.now().uptimeNanoseconds - start) / 1e9)
                 o.timings = t
                 out.append(o)
             } catch let crash as SimulatedCrash {
@@ -64,30 +80,57 @@ public final class Committer {
         return out
     }
 
-    func commitOne(_ p: Proposal, target planned: URL, batch: String) throws -> Outcome {
+    /// The source's hash and, for a conversion, the finished and synced temp JPEG.
+    struct Prepared: Sendable {
+        var sourceSHA1: String
+        var temp: URL?
+        var outputSHA1: String
+        var timings = StageTimings()
+
+        final class Box: @unchecked Sendable {
+            private let lock = NSLock()
+            private var items: [Result<Prepared, any Error>?]
+            init(count: Int) { items = Array(repeating: nil, count: count) }
+            func set(_ i: Int, _ r: Result<Prepared, any Error>) { lock.lock(); items[i] = r; lock.unlock() }
+            func get(_ i: Int) -> Result<Prepared, any Error>? { lock.lock(); defer { lock.unlock() }; return items[i] }
+        }
+    }
+
+    /// Step 1: convert to a hidden temp file in the target folder and fsync it. Removes its temp on failure.
+    static func prepare(_ p: Proposal, config: Config) throws -> Prepared {
+        let source = URL(fileURLWithPath: p.source)
+        let sourceSHA1 = try FileOps.sha1(source)
+        var prep = Prepared(sourceSHA1: sourceSHA1, outputSHA1: sourceSHA1)
+        guard p.action == .convert, let target = p.target else { return prep }
+        let t = URL(fileURLWithPath: target).deletingLastPathComponent().appendingPathComponent(".betterairdrop-\(UUID().uuidString).jpg.tmp")
+        do {
+            try prep.timings.time(.convert) {
+                try Converter.toJPEG(source: source, destination: t, quality: config.jpegQuality, stripGPS: config.stripGPSFromOutput)
+                FileOps.copyDates(from: source, to: t)
+                try FileOps.fsync(t)
+            }
+            prep.outputSHA1 = try FileOps.sha1(t)
+            prep.temp = t
+            return prep
+        } catch {
+            try? FileManager.default.removeItem(at: t)
+            throw error
+        }
+    }
+
+    func commitOne(_ p: Proposal, target planned: URL, batch: String, prepared prep: Prepared) throws -> Outcome {
         let source = URL(fileURLWithPath: p.source)
         let dir = planned.deletingLastPathComponent()
-        let sourceSHA1 = try FileOps.sha1(source)
-        var temp: URL?
+        let sourceSHA1 = prep.sourceSHA1
+        var temp = prep.temp
         var placed: URL?
         var begun: JournalRecord?
         var trashed: URL?
         var deletedOriginal = false
-        var timings = StageTimings()
 
         do {
-            var outputSHA1 = sourceSHA1
-            if p.action == .convert {
-                let t = dir.appendingPathComponent(".betterairdrop-\(UUID().uuidString).jpg.tmp")
-                temp = t
-                try timings.time(.convert) {
-                    try Converter.toJPEG(source: source, destination: t, quality: config.jpegQuality, stripGPS: config.stripGPSFromOutput)
-                }
-                FileOps.copyDates(from: source, to: t)
-                try FileOps.fsync(t)
-                outputSHA1 = try FileOps.sha1(t)
-                try fault?(.tempWritten, source)
-            }
+            let outputSHA1 = prep.outputSHA1
+            if temp != nil { try fault?(.tempWritten, source) }
 
             // Re-check the planned name: something may have appeared since planning.
             let stem = planned.deletingPathExtension().lastPathComponent
@@ -134,7 +177,7 @@ public final class Committer {
             }
             try fault?(.originalHandled, source)
             try journal.append(begun!.with(.done, trashed: trashed?.path))
-            return Outcome(source: source.path, target: dest.path, status: .done, trashed: trashed?.path, timings: timings)
+            return Outcome(source: source.path, target: dest.path, status: .done, trashed: trashed?.path)
         } catch let crash as SimulatedCrash {
             throw crash
         } catch {
