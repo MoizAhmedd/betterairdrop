@@ -152,6 +152,104 @@ let stemNamer = FakeNamer { ctx in
         #expect(b.photos == 1)
     }
 
+    /// A namer that takes `delay` and records when each photo's naming started and how many ran at once.
+    final class SlowNamer: @unchecked Sendable {
+        let lock = NSLock()
+        var started: [String: [Date]] = [:]
+        var inFlight = 0, maxInFlight = 0
+        let delay: TimeInterval
+        init(delay: TimeInterval) { self.delay = delay }
+        var namer: FakeNamer {
+            FakeNamer { [self] ctx in
+                let stem = URL(fileURLWithPath: ctx.file).deletingPathExtension().lastPathComponent
+                lock.lock(); started[stem, default: []].append(Date()); inFlight += 1; maxInFlight = max(maxInFlight, inFlight); lock.unlock()
+                Thread.sleep(forTimeInterval: delay)
+                lock.lock(); inFlight -= 1; lock.unlock()
+                return NameSuggestion(kind: ctx.kind, subject: "\(stem) \(ctx.metadata.pixelWidth)px", confidence: 0.9, backend: "fake")
+            }
+        }
+        func starts(_ stem: String) -> [Date] { lock.lock(); defer { lock.unlock() }; return started[stem] ?? [] }
+    }
+
+    func watcher(_ s: Sandbox, namer: FakeNamer) -> Watcher {
+        let w = watcher(s)
+        w.planner.namer = namer
+        return w
+    }
+
+    @Test func photoArrivingWhileOthersAreNamedJoinsTheBurst() throws {
+        let s = Sandbox()
+        let slow = SlowNamer(delay: 0.6)
+        let w = watcher(s, namer: slow.namer)
+        var batches: [Watcher.Batch] = []
+        w.onBatch = { batches.append($0) }
+        for i in 1...2 { AirDropSim.tag(TestImages.heic(s.file("IMG_000\(i).HEIC"), seed: i)) }
+        let late = Box<Date?>(nil)
+        let writer = Thread {
+            Thread.sleep(forTimeInterval: 0.7)   // A and B are being named by now
+            late.value = Date()
+            AirDropSim.tag(TestImages.heic(s.file("IMG_0003.HEIC"), seed: 3))
+        }
+        writer.start()
+        let batch = try #require(w.runOnce())
+        #expect(batches.count == 1, "one burst, one notification")
+        #expect(batch.photos == 3 && batch.failed == 0)
+        // A and B were named as soon as they settled, before C had even arrived.
+        let arrivedC = try #require(late.value)
+        #expect(slow.starts("IMG_0001").first! < arrivedC && slow.starts("IMG_0002").first! < arrivedC)
+        #expect(slow.starts("IMG_0003").first! > arrivedC)
+        // Every photo was named once, and the whole burst is one journal batch that undoes as a unit.
+        #expect([1, 2, 3].allSatisfy { slow.starts("IMG_000\($0)").count == 1 })
+        #expect(Set(s.journal.records().map(\.batch)) == [batch.id])
+        let undone = try s.undoer().undo(.batch(batch.id))
+        #expect(undone.count == 3 && undone.allSatisfy { $0.status == .restored })
+        #expect(Set(s.listing()) == ["IMG_0001.HEIC", "IMG_0002.HEIC", "IMG_0003.HEIC"])
+    }
+
+    @Test func arrivalAfterTheBurstIsItsOwnBatch() throws {
+        let s = Sandbox()
+        let w = watcher(s, namer: SlowNamer(delay: 0.2).namer)
+        AirDropSim.tag(TestImages.heic(s.file("IMG_0001.HEIC"), seed: 1))
+        let first = try #require(w.runOnce())
+        AirDropSim.tag(TestImages.heic(s.file("IMG_0002.HEIC"), seed: 2))
+        let second = try #require(w.runOnce())
+        #expect(first.id != second.id && first.photos == 1 && second.photos == 1)
+        // Undoing the first batch leaves the second alone.
+        _ = try s.undoer().undo(.batch(first.id))
+        #expect(s.listing().contains("IMG_0001.HEIC") && !s.listing().contains("IMG_0002.HEIC"))
+    }
+
+    @Test func aFileThatChangesWhileBeingNamedIsNamedAgain() throws {
+        let s = Sandbox()
+        let slow = SlowNamer(delay: 0.5)
+        let w = watcher(s, namer: slow.namer)
+        let u = s.file("IMG_0001.HEIC")
+        AirDropSim.tag(TestImages.heic(u, seed: 1))                     // 96 px wide
+        let rewrite = Thread {
+            Thread.sleep(forTimeInterval: 0.55)                          // settled (0.3 s) and being named
+            let tmp = s.file(".tmp.HEIC")
+            TestImages.write(tmp, type: .heic, seed: 2, width: 200, height: 100)
+            _ = try? FileManager.default.replaceItemAt(u, withItemAt: tmp)
+            AirDropSim.tag(u)
+        }
+        rewrite.start()
+        let batch = try #require(w.runOnce())
+        #expect(slow.starts("IMG_0001").count == 2, "named again after the change")
+        let out = try #require(batch.outcomes.first?.target)
+        #expect((out as NSString).lastPathComponent == "2026-09-21_toronto_img-0001-200px.jpg", "the stale name was dropped")
+        #expect(try PhotoMetadata.read(URL(fileURLWithPath: out)).pixelWidth == 200)
+    }
+
+    @Test func namingRunsAtMostThreeAtOnce() throws {
+        let s = Sandbox()
+        let slow = SlowNamer(delay: 0.4)
+        let w = watcher(s, namer: slow.namer)
+        for i in 1...6 { AirDropSim.tag(TestImages.heic(s.file("IMG_000\(i).HEIC"), seed: i)) }
+        let batch = try #require(w.runOnce())
+        #expect(batch.photos == 6)
+        #expect(slow.maxInFlight == 3)
+    }
+
     @Test func quarantineFormatMatchesRealAirDrops() {
         let q = AirDropSim.quarantine()
         #expect(q.range(of: #"^0081;[0-9a-f]{8};sharingd;[0-9A-F-]{36}$"#, options: .regularExpression) != nil)

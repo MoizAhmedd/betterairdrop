@@ -82,11 +82,16 @@ public struct Planner: Sendable {
 
     /// Plans a batch. Targets are unique within the batch and don't collide with existing files.
     /// Context extraction and naming run concurrently; names are composed in input order.
-    public func plan(_ urls: [URL]) -> [Proposal] {
+    /// `prepared` holds analyses already done (by the watcher, as each file settled), keyed by
+    /// standardized path; only the rest are analysed here.
+    public func plan(_ urls: [URL], prepared: [String: Result<Analysis, any Error>] = [:]) -> [Proposal] {
         let urls = urls.map(\.standardizedFileURL)
         let skips = urls.map(skipReason)
-        let todo = urls.indices.filter { skips[$0] == nil }
         let results = Results(count: urls.count)
+        for i in urls.indices where skips[i] == nil {
+            if let r = prepared[urls[i].path] { results.set(i, r) }
+        }
+        let todo = urls.indices.filter { skips[$0] == nil && prepared[urls[$0].path] == nil }
         // Striped so at most `concurrency` files are in flight. concurrentPerform runs work on the
         // calling thread too, so it can't deadlock even when no other thread is free.
         let lanes = max(1, min(concurrency, todo.count))

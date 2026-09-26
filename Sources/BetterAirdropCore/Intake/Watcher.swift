@@ -9,7 +9,9 @@ import Foundation
 /// - arrived after the watcher started (quarantine time), unless `backlog` is on, so starting the
 ///   watcher never renames a folder's worth of old AirDrops by surprise
 /// - settled: size and mtime unchanged for `settleInterval`, and the image container is complete
-/// - batched: processed together once nothing new has appeared for `quietWindow`
+/// - named as soon as it settles, up to `namingConcurrency` at a time, while the burst goes on
+/// - batched: committed together (one journal batch, one undo, one notification) once every file
+///   is named and nothing new has appeared for `quietWindow`
 /// - Live Photos: `IMG_1.HEIC` + `IMG_1.MOV` in the same batch; the MOV gets the still's new name.
 ///   An orphan MOV is left alone.
 public final class Watcher {
@@ -17,8 +19,14 @@ public final class Watcher {
         public var folder: URL
         public var airdropOnly = true
         public var backlog = false
-        public var settleInterval: TimeInterval = 0.75
-        public var quietWindow: TimeInterval = 3
+        /// Size and mtime must hold this long. The container check (`ImageIntegrity`) is what
+        /// guards against a truncated HEIC; this only covers a transfer that pauses mid-write.
+        public var settleInterval: TimeInterval = 0.5
+        /// A burst ends after this long with nothing new. Photos are named during it, so it only
+        /// adds time when naming is quicker than the window.
+        public var quietWindow: TimeInterval = 1
+        /// Photos named at once (each is a Claude request, or Vision work).
+        public var namingConcurrency = 3
         /// Give up waiting on a file that never settles (a stalled transfer) after this long.
         public var maxWait: TimeInterval = 60
         public var pollInterval: TimeInterval = 0.25
@@ -104,12 +112,13 @@ public final class Watcher {
         if isPaused { return [] }
         let fm = FileManager.default
         guard let names = try? fm.contentsOfDirectory(atPath: options.folder.path) else { return [] }
+        let folder = options.folder.standardizedFileURL
         var out: [URL] = []
         for name in names.sorted() {
             if name.hasPrefix(".") || Planner.partialSuffixes.contains(where: { name.hasSuffix($0) }) { continue }
             let ext = (name as NSString).pathExtension.lowercased()
             guard Planner.imageExtensions.contains(ext) || Self.movieExtensions.contains(ext) else { continue }
-            let url = options.folder.appendingPathComponent(name)
+            let url = folder.appendingPathComponent(name)
             guard let fp = Self.fingerprint(url) else { continue }
             if let old = ignored[url.path], old == fp { continue }
             let q = Quarantine.of(url)
@@ -125,12 +134,16 @@ public final class Watcher {
         Self.isMovie(url.path) ? true : ImageIntegrity.isComplete(url)
     }
 
-    /// Waits for candidates to settle and go quiet, then processes them as one batch.
-    /// Returns nil if there was nothing to do (including only orphan videos).
+    /// Waits for a burst of arrivals to settle and go quiet, naming each photo as soon as it has
+    /// settled, then commits the burst as one batch. Returns nil if there was nothing to do
+    /// (including only orphan videos, or a pause).
     public func runOnce() -> Batch? {
         struct Seen { var fp: Fingerprint; var since: Date }
         var seen: [String: Seen] = [:]
         var clocks: [String: Clock] = [:]
+        var jobs: [String: Fingerprint] = [:]   // stills being (or done being) named, at this fingerprint
+        let naming = Naming(limit: options.namingConcurrency)
+        defer { naming.cancel() }
         var lastActivity = Date()
         let start = Date()
         while true {
@@ -138,7 +151,9 @@ public final class Watcher {
             let candidates = scan()
             if candidates.isEmpty && seen.isEmpty { return nil }
             let paths = Set(candidates.map(\.path))
-            for gone in seen.keys where !paths.contains(gone) { seen[gone] = nil; lastActivity = now }
+            for gone in seen.keys where !paths.contains(gone) {
+                seen[gone] = nil; jobs[gone] = nil; naming.forget(gone); lastActivity = now
+            }
             for url in candidates {
                 guard let fp = Self.fingerprint(url) else { continue }
                 if seen[url.path]?.fp != fp {
@@ -151,15 +166,30 @@ public final class Watcher {
                 guard let s = seen[u.path] else { return false }
                 return now.timeIntervalSince(s.since) >= options.settleInterval && isComplete(u)
             }
-            for u in settled where clocks[u.path]?.settled == nil { clocks[u.path]?.settled = now }
+            // Name each still as soon as it has settled. A file that changed since its naming
+            // started is named again; the stale result is dropped.
+            for u in settled {
+                if clocks[u.path]?.settled == nil { clocks[u.path]?.settled = now }
+                guard !Self.isMovie(u.path), let fp = seen[u.path]?.fp, jobs[u.path] != fp else { continue }
+                jobs[u.path] = fp
+                naming.start(u, fingerprint: fp, planner: planner)
+            }
+            let named = settled.allSatisfy { u in Self.isMovie(u.path) || naming.result(u.path, fingerprint: seen[u.path]!.fp) != nil }
             let quiet = now.timeIntervalSince(lastActivity) >= options.quietWindow
             let timedOut = now.timeIntervalSince(start) >= options.maxWait
-            if (settled.count == seen.count && quiet) || (timedOut && !settled.isEmpty) {
+            if (settled.count == seen.count && quiet && named) || (timedOut && !settled.isEmpty) {
                 if settled.count < seen.count {
                     log("still incomplete after \(Int(options.maxWait)) s, left for later: "
                         + seen.keys.filter { p in !settled.contains { $0.path == p } }.map { ($0 as NSString).lastPathComponent }.joined(separator: ", "))
                 }
-                let batch = process(settled, clocks: clocks)
+                var prepared: [String: Result<Planner.Analysis, any Error>] = [:]
+                for u in settled {
+                    guard let (r, done) = naming.result(u.path, fingerprint: seen[u.path]!.fp) else { continue }
+                    if case .failure(let e) = r, e is Naming.Skipped { continue }   // the planner skips it again
+                    prepared[u.path] = r
+                    clocks[u.path]?.ready = done
+                }
+                let batch = process(settled, prepared: prepared, clocks: clocks)
                 return batch.outcomes.isEmpty ? nil : batch
             }
             if timedOut && now.timeIntervalSince(start) >= options.maxWait * 2 {
@@ -171,13 +201,52 @@ public final class Watcher {
         }
     }
 
-    /// When the watcher first saw a file and when it settled, for the stage timings.
+    /// Names settled photos in the background, at most `limit` at a time, while the watcher keeps
+    /// polling. Results are keyed by path and the fingerprint the file had when naming started.
+    final class Naming: @unchecked Sendable {
+        private let queue = OperationQueue()
+        private let lock = NSLock()
+        private var results: [String: (Fingerprint, Result<Planner.Analysis, any Error>, Date)] = [:]
+
+        init(limit: Int) {
+            queue.maxConcurrentOperationCount = max(1, limit)
+            queue.qualityOfService = .userInitiated
+        }
+
+        func start(_ url: URL, fingerprint: Fingerprint, planner: Planner) {
+            let path = url.path
+            queue.addOperation { [self] in
+                // A file the planner would skip anyway (e.g. already named) isn't analysed.
+                let r: Result<Planner.Analysis, any Error> = planner.skipReason(url).map { .failure(Skipped(reason: $0)) }
+                    ?? Result { try planner.analyse(url) }
+                lock.lock()
+                results[path] = (fingerprint, r, Date())
+                lock.unlock()
+            }
+        }
+
+        /// The analysis and when it finished, if naming at this fingerprint is done.
+        func result(_ path: String, fingerprint: Fingerprint) -> (Result<Planner.Analysis, any Error>, Date)? {
+            lock.lock(); defer { lock.unlock() }
+            guard let (fp, r, t) = results[path], fp == fingerprint else { return nil }
+            return (r, t)
+        }
+
+        func forget(_ path: String) { lock.lock(); results[path] = nil; lock.unlock() }
+
+        /// Drops work that hasn't started (a pause, or the burst was committed).
+        func cancel() { queue.cancelAllOperations() }
+
+        struct Skipped: Error { var reason: String }
+    }
+
+    /// When the watcher first saw a file, when it settled and when its name was ready, for the stage timings.
     struct Clock { var firstSeen: Date; var settled: Date?; var ready: Date? }
 
     /// Plans stills, pairs Live Photo MOVs with them, commits everything as one batch.
-    public func process(_ urls: [URL]) -> Batch { process(urls, clocks: [:]) }
+    public func process(_ urls: [URL]) -> Batch { process(urls, prepared: [:], clocks: [:]) }
 
-    func process(_ urls: [URL], clocks: [String: Clock]) -> Batch {
+    func process(_ urls: [URL], prepared: [String: Result<Planner.Analysis, any Error>], clocks: [String: Clock]) -> Batch {
         let processStart = Date()
         let stills = urls.filter { !Self.isMovie($0.path) }.sorted { $0.lastPathComponent < $1.lastPathComponent }
         let movies = urls.filter { Self.isMovie($0.path) }
@@ -188,7 +257,7 @@ public final class Watcher {
             else { ignore(m, "a video without a matching photo in this batch (only Live Photo videos are renamed)") }
         }
 
-        let planned = planner.plan(stills)
+        let planned = planner.plan(stills, prepared: prepared)
         var reserved = Set(planned.compactMap { $0.target?.lowercased() })
         var proposals: [Proposal] = []
         for p in planned {
