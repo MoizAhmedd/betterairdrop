@@ -69,7 +69,7 @@ Same photos, same harness:
 release build was compiling was 4–5 s, and one screenshot 10.8 s with Vision at 7.9 s, so CPU
 contention matters.)
 
-**About 10 s → about 2.5 s** for one photo, and 10.6 s → 2.9 s for three. What changed:
+**8–9 s here (about 10 s in the app) → about 2.5 s** for one photo, and 10.6 s → 2.9 s for three. What changed:
 
 1. **JSON in the prompt, not `output_config`**: Claude 3.5 s → 1.0 s. `output_config` is kept as a
    one-time retry for an answer that doesn't parse.
