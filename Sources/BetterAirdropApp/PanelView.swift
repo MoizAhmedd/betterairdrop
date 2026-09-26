@@ -12,6 +12,7 @@ protocol PanelActions: AnyObject {
     func showHistory()
     func showSettings()
     func fixAccess()
+    func stopOtherWatcher(_ holder: LockHolder)
     func undo(_ selection: Undoer.Selection)
     func reveal(_ paths: [String])
     func redo(_ item: RecentItem)
@@ -86,9 +87,12 @@ struct PanelView: View {
                 Text(model.engineLine).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
-            Toggle("", isOn: Binding(get: { !model.isPaused }, set: { $0 ? model.resume() : model.pause(.indefinitely) }))
+            // On only while actually watching; off (and disabled) while standing by or without access.
+            let standingBy = !model.isPaused && model.state != .watching
+            Toggle("", isOn: Binding(get: { model.isWatching }, set: { $0 ? model.resume() : model.pause(.indefinitely) }))
                 .toggleStyle(.switch).labelsHidden().controlSize(.small)
-                .help(model.isPaused ? "Resume" : "Pause")
+                .disabled(standingBy)
+                .help(model.isPaused ? "Resume" : standingBy ? "Not watching right now" : "Pause")
         }
         .padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 10)
     }
@@ -109,8 +113,10 @@ struct PanelView: View {
             AlertBar(text: PauseText.banner(until: model.pausedUntil), button: "Resume",
                      tint: Color.primary.opacity(0.06), fg: .primary) { model.resume() }
         } else if model.state == .lockedByOther {
-            AlertBar(text: "`betterairdrop watch` is running in Terminal, so the app is standing by.", button: "Retry",
-                     tint: Color.primary.opacity(0.06), fg: .primary) { model.recheck() }
+            let holder = model.lockHolder
+            AlertBar(text: holder?.banner(folderName: model.folderName) ?? "Another copy of BetterAirdrop is watching \(model.folderName).",
+                     button: "Retry", tint: Color.primary.opacity(0.06), fg: .primary,
+                     secondary: holder.flatMap { h in h.canStop ? ("Stop It", { actions.stopOtherWatcher(h) }) : nil }) { model.recheck() }
         }
     }
 }
@@ -155,11 +161,13 @@ struct AlertBar: View {
     let button: String
     let tint: Color
     let fg: Color
+    var secondary: (String, () -> Void)? = nil
     let action: () -> Void
     var body: some View {
         HStack(spacing: 8) {
             Text(.init(text)).font(.system(size: 12)).foregroundStyle(fg).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 4)
+            if let (title, act) = secondary { Button(title, action: act).controlSize(.small) }
             Button(button, action: action).controlSize(.small)
         }
         .padding(.horizontal, 10).padding(.vertical, 8)

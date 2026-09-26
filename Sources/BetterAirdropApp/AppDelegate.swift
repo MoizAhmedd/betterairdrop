@@ -214,6 +214,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
         }
     }
 
+    /// "Stop It" on the standing-by bar: confirm, SIGTERM the other watcher, then watch here.
+    func stopOtherWatcher(_ holder: LockHolder) {
+        status.close()
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Stop the other copy of BetterAirdrop?"
+        alert.informativeText = "\(holder.label ?? "Another BetterAirdrop process") is watching \(model.folderName). "
+            + "BetterAirdrop will ask it to quit, then watch \(model.folderName) here instead."
+        alert.addButton(withTitle: "Stop It")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        model.stopLockHolder(holder) { freed in
+            guard !freed else { return }
+            let a = NSAlert()
+            a.messageText = "The other copy is still running"
+            a.informativeText = "It didn't quit within 3 seconds. Quit it yourself (Ctrl-C in its Terminal window, or Activity Monitor), then click Retry."
+            a.runModal()
+        }
+    }
+
     func showFailures(_ outcomes: [Undoer.Outcome]) {
         let alert = NSAlert()
         alert.messageText = "Some files couldn't be put back"

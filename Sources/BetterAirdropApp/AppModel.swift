@@ -16,6 +16,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var lastUndoableCount = 0
     @Published private(set) var stats = Journal.Stats()
     @Published private(set) var busy = false
+    /// Who holds the watch lock while the app stands by (`.lockedByOther`).
+    @Published private(set) var lockHolder: LockHolder?
     @Published private(set) var credential = CredentialInfo()
     @Published var historyVersion = 0
     /// First run: a key was found in the login shell and is waiting for "Use It".
@@ -74,7 +76,7 @@ final class AppModel: ObservableObject {
         case .watching, .stopped: "Ready: watching \(folderName)"
         case .paused: "Paused"
         case .noAccess: "Can't read \(folderName)"
-        case .lockedByOther: "Running in Terminal instead"
+        case .lockedByOther: "Standing by: another copy is watching"
         }
     }
 
@@ -136,6 +138,33 @@ final class AppModel: ObservableObject {
         let was = state
         state = s
         if s == .noAccess && was != .noAccess { onLostAccess?() }
+        if s == .lockedByOther { refreshLockHolder() } else { lockHolder = nil }
+    }
+
+    /// True only while the app is actually watching: the switch in the panel shows this.
+    var isWatching: Bool { state == .watching && !isPaused }
+
+    func refreshLockHolder() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let h = LockHolder.current()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.state == .lockedByOther else { return }
+                self.lockHolder = h
+            }
+        }
+    }
+
+    /// "Stop It": SIGTERM to the other watcher (only if it's still the holder and a BetterAirdrop
+    /// process), then take over. Completion gets false if it's still holding the lock.
+    func stopLockHolder(_ holder: LockHolder, completion: @escaping (Bool) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let freed = LockHolder.stop(pid: holder.pid)
+            DispatchQueue.main.async { [weak self] in
+                self?.recheck()
+                if !freed { self?.refreshLockHolder() }
+                completion(freed)
+            }
+        }
     }
 
     private func handle(_ batch: Watcher.Batch) {
@@ -143,8 +172,11 @@ final class AppModel: ObservableObject {
         onBatch?(batch)
     }
 
-    /// Re-checks folder access now (menu opened, onboarding saw a grant).
-    func recheck() { service?.recheck() }
+    /// Re-checks folder access and the lock now (menu opened, onboarding saw a grant, Retry).
+    func recheck() {
+        service?.recheck()
+        if state == .lockedByOther { refreshLockHolder() }
+    }
 
     // MARK: - Pause
 

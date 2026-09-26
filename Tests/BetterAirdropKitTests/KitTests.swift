@@ -197,3 +197,36 @@ func batch(_ items: [(String, String?, Committer.Outcome.Status, String?)], fall
         #expect(throws: (any Error).self) { try TemplatePreview.render("{nope}").get() }
     }
 }
+
+@Suite struct LockHolderTests {
+    @Test func bannerNamesTheHolder() {
+        let h = LockHolder(pid: 4242, processName: "betterairdrop", kind: .cli)
+        #expect(h.banner(folderName: "Downloads") == "Another copy of BetterAirdrop is watching Downloads (betterairdrop, PID 4242).")
+        #expect(h.canStop)
+        let unknown = LockHolder(pid: 0, processName: nil, kind: .cli)
+        #expect(unknown.banner(folderName: "Downloads") == "Another copy of BetterAirdrop is watching Downloads.")
+        #expect(!unknown.canStop)
+        #expect(LockHolder(pid: 77, processName: nil, kind: .app).label == "PID 77")
+        #expect(LockHolder(pid: 77, processName: "BetterAirdrop", kind: .app).canStop)
+        #expect(!LockHolder(pid: getpid(), processName: "betterairdrop", kind: .app).canStop, "never itself")
+    }
+
+    /// The owner record names a process that isn't BetterAirdrop: it's reported, never signalled.
+    @Test func neverStopsSomethingElse() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("lockholder-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let sleeper = Process()
+        sleeper.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        sleeper.arguments = ["30"]
+        try sleeper.run()
+        defer { sleeper.terminate() }
+        let lockURL = dir.appendingPathComponent("lock")
+        let lock = ProcessLock(lockURL, owner: .init(kind: .cli, pid: sleeper.processIdentifier, folder: "/x"))
+        #expect(lock != nil)
+        let h = try #require(LockHolder.current(lockURL))
+        #expect(h.pid == sleeper.processIdentifier && h.processName == "sleep" && !h.canStop)
+        #expect(LockHolder.stop(pid: h.pid, lockURL: lockURL, timeout: 0.2) == false)
+        #expect(sleeper.isRunning)
+        withExtendedLifetime(lock) {}
+    }
+}
