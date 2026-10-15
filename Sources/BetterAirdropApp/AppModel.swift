@@ -386,20 +386,17 @@ final class AppModel: ObservableObject {
     }
 
     /// `betterairdrop setup` changed the config file or the key: pick both up without a restart.
+    /// One rebuild, after the key is re-read (a new key can change what `auto` picks): two rebuilds
+    /// in a row can leave the first watcher running unreferenced.
     func reloadFromDisk() {
         do {
-            let c = try Config.load(from: configURL)
+            config = try Config.load(from: configURL)
             configError = nil
-            if c != config { config = c; rebuildService() }
         } catch {
             configError = "\(error)"
         }
         ClaudeAuth.shared.invalidate()
-        let before = credential
-        refreshCredential { [weak self] in
-            guard let self, self.credential != before else { return }
-            self.rebuildService()
-        }
+        refreshCredential { [weak self] in self?.rebuildService() }
     }
 
     /// After a key was stored or removed.
