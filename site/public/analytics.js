@@ -4,9 +4,9 @@
 //
 // The one number is Pro purchases: buy_click is our side of it, Polar holds the real count.
 // Measured: page_view, guide_view (guide: the slug), install_copy (command: brew or curl, from the Copy button or a
-// selection copied by hand), buy_click (sent by index.html's Buy button). Every event carries `path` (the page, without
-// the /betterairdrop prefix) and `from` (?from=hn, ?from=reddit: kept for the rest of the tab's visit, so a buy_click
-// on the home page still says where the visit started). Nothing else: no autocapture, replay, heatmaps or cookies (a
+// selection copied by hand), buy_click (sent by index.html's Buy button). Every event carries `path` (the page) and
+// `from` (?from=hn, ?from=reddit: kept for the rest of the tab's visit, so a buy_click on the home page still says
+// where the visit started). Nothing else: no autocapture, replay, heatmaps or cookies (a
 // random ID in localStorage), never identify().
 //
 // Not counted: Do Not Track or Global Privacy Control; "Don't count me" (the footer notice); ?internal=1 (Moiz's
@@ -16,8 +16,8 @@
   // The project key: public by design, it can only send. Nothing loads while it's the placeholder.
   var KEY = 'phc_TODO';
   var HOST = 'https://us.i.posthog.com', SCRIPT = 'https://us-assets.i.posthog.com/static/array.js', MAX_EVENTS = 200;
-  // The live site: hostname -> the path it's served under. Add the custom domain here once Pages serves it.
-  var SITES = { 'moizahmedd.github.io': '/betterairdrop', 'betterairdrop.com': '', 'www.betterairdrop.com': '' };
+  // The live site: hostname -> the path it's served under. moizahmedd.github.io/betterairdrop/ now redirects here.
+  var SITES = { 'betterairdrop.com': '', 'www.betterairdrop.com': '' };
 
   var params = new URLSearchParams(location.search);
   var flag = {
