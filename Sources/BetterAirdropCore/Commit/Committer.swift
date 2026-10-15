@@ -145,11 +145,14 @@ public final class Committer {
             var dest = FileOps.exists(planned) ? CollisionResolver.resolve(directory: dir, stem: stem, ext: ext) : planned
 
             let summary = p.suggestion.map { "\($0.kind.rawValue): \($0.subject)" } ?? p.context.map { $0.kind.rawValue }
-            let rec = JournalRecord(op: .begin, batch: batch, action: p.action, source: source.path, target: dest.path,
+            var rec = JournalRecord(op: .begin, batch: batch, action: p.action, source: source.path, target: dest.path,
                                     sourceSHA1: sourceSHA1, outputSHA1: outputSHA1,
                                     originals: p.action == .convert ? config.originals.rawValue : nil,
                                     backend: p.suggestion?.backend ?? backend, summary: summary,
                                     costUSD: p.suggestion?.usage?.cost())
+            if let s = p.suggestion, s.kind == .receipt, !Watcher.isMovie(source.path) {
+                rec.receipt = .init(date: p.context?.metadata.date, merchant: s.merchant, total: s.total)
+            }
             try journal.append(rec)
             begun = rec
             try fault?(.journaledBegin, source)

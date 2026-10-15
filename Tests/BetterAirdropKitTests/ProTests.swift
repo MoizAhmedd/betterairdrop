@@ -298,6 +298,52 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
     }
 }
 
+@Suite struct ReceiptsCSVTests {
+    func journal(_ t: Temp) throws -> Journal {
+        let j = Journal(url: t.url.appendingPathComponent("journal.jsonl"))
+        func add(_ batch: String, _ source: String, _ target: String, summary: String, receipt: JournalRecord.ReceiptFields?, undo: Bool = false) throws {
+            var r = JournalRecord(op: .begin, batch: batch, action: .rename, source: source, target: target,
+                                  sourceSHA1: "a", outputSHA1: "a", summary: summary)
+            r.receipt = receipt
+            try j.append(r)
+            try j.append(r.with(.done))
+            if undo { try j.append(r.with(.undo)) }
+        }
+        try add("b1", "/d/IMG_2.png", "/d/Receipts/2026-10/2026-10-02_receipt_cafe.png", summary: "receipt: coffee",
+                receipt: .init(date: "2026-10-02", merchant: "Café \"Olé\", Inc", total: "4.50"))
+        try add("b1", "/d/IMG_1.png", "/d/2026-09-30_receipt_loblaws_84-12.png", summary: "receipt: groceries",
+                receipt: .init(date: "2026-09-30", merchant: "Loblaws", total: "84.12"))
+        try add("b2", "/d/IMG_3.png", "/d/lamp.png", summary: "photo: lamp", receipt: nil)
+        try add("b3", "/d/IMG_4.png", "/d/undone.png", summary: "receipt: x", receipt: .init(date: "2026-01-01", merchant: "X", total: "1"), undo: true)
+        try add("b4", "/d/IMG_5.png", "/d/old.png", summary: "receipt: from an older build", receipt: nil)
+        try add("b5", "/d/IMG_6.png", "/d/evil.png", summary: "receipt: x", receipt: .init(date: "2026-10-03", merchant: "=HYPERLINK(\"x\")", total: "-5.00"))
+        return j
+    }
+
+    @Test func exportsDoneReceiptsOldestFirst() throws {
+        let t = Temp()
+        let rows = ReceiptsCSV.rows(try journal(t).entries())
+        let today = String(Journal.timestamp().prefix(10))
+        // Not the photo, not the undone receipt; the older-build receipt is dated the day it was renamed.
+        #expect(Set(rows.map(\.file)) == ["/d/2026-09-30_receipt_loblaws_84-12.png", "/d/Receipts/2026-10/2026-10-02_receipt_cafe.png",
+                                          "/d/evil.png", "/d/old.png"])
+        #expect(rows.map(\.date) == rows.map(\.date).sorted())
+        #expect(rows.first { $0.file == "/d/old.png" } == .init(date: today, merchant: "", total: "", file: "/d/old.png"))
+    }
+
+    @Test func quotingAndFormulaGuard() throws {
+        let t = Temp()
+        let csv = ReceiptsCSV.make(try journal(t).entries())
+        let lines = csv.components(separatedBy: "\r\n")
+        #expect(lines[0] == "date,merchant,total,file")
+        #expect(lines[1] == "2026-09-30,Loblaws,84.12,/d/2026-09-30_receipt_loblaws_84-12.png")
+        #expect(lines[2] == "2026-10-02,\"Café \"\"Olé\"\", Inc\",4.50,/d/Receipts/2026-10/2026-10-02_receipt_cafe.png")
+        #expect(lines.contains("2026-10-03,\"'=HYPERLINK(\"\"x\"\")\",-5.00,/d/evil.png"))
+        #expect(csv.hasSuffix("\r\n"))
+        #expect(ReceiptsCSV.make([]) == "date,merchant,total,file\r\n")
+    }
+}
+
 @Suite struct ProMentionTests {
     @Test func onceAfterTwentyRenames() {
         #expect(!ProMention.shouldShow(renames: 19, isPro: false, alreadyShown: false))

@@ -175,6 +175,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
     /// Settings → Pro (from the one-time menu row or the folder note).
     func showPro() { showSettings(pane: .pro) }
 
+    /// "Export Receipts as CSV…" (Pro): date, merchant, total and file for every receipt renamed and not undone.
+    func exportReceipts() {
+        status.close()
+        guard model.isPro else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Receipts.csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.directoryURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let journal = model.journal
+        DispatchQueue.global(qos: .userInitiated).async {
+            let csv = ReceiptsCSV.make(journal.entries())
+            let ok = (try? Data(csv.utf8).write(to: url, options: .atomic)) != nil
+            DispatchQueue.main.async {
+                if ok { NSWorkspace.shared.activateFileViewerSelecting([url]) } else { NSSound.beep() }
+            }
+        }
+    }
+
     // MARK: - First run (no wizard)
 
     /// Straight to the menu bar: ask for Downloads now (the one prompt), turn on launch at login,

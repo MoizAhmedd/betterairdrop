@@ -19,6 +19,7 @@ protocol PanelActions: AnyObject {
     func previewBacklog()
     func addClaudeKey()
     func showPro()
+    func exportReceipts()
     func quit()
 }
 
@@ -55,6 +56,7 @@ struct PanelView: View {
             MenuRow(title: "Open \(model.folderName)", shortcut: "⇧⌘L") { actions.openFolder() }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
             MenuRow(title: "Show All History…") { actions.showHistory() }
+            if model.isPro { MenuRow(title: "Export Receipts as CSV…") { actions.exportReceipts() } }
             PauseMenuRow(model: model)
             Divider().padding(.horizontal, 10).padding(.vertical, 5)
             MenuRow(title: "Settings…", shortcut: "⌘,") { actions.showSettings() }
