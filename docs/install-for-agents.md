@@ -43,7 +43,8 @@ The app can't read the shell's environment, so a key that's only exported in `~/
 stored this way. `setup` checks the key with Anthropic first. Add `--no-verify` when offline.
 
 Other flags: `--no-notify`, `--no-launch-at-login`, `--no-open`, `--api-key-stdin`. Exit code 2
-means nothing was changed, and the message says why.
+means setup stopped, and the message says why. Bad flags and a rejected key stop it before anything
+is changed.
 
 ## 2. Tell the person
 
