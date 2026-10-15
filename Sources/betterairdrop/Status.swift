@@ -54,13 +54,14 @@ struct Status: ParsableCommand {
         var state = AppState.load()
         var running = state.map { isApp(pid: $0.pid) } ?? false
         if !running { running = appRunning() }
-        if running, let before = state?.updatedAt {
+        if running, let before = state {
             // Ask the app for a fresh report (it re-checks its permissions), and wait briefly for it.
+            // Compared whole: updated_at has whole seconds, so a report in the same second ties.
             AppSignal.report.post()
             let end = Date().addingTimeInterval(1.5)
             while Date() < end {
                 Thread.sleep(forTimeInterval: 0.1)
-                if let s = AppState.load(), s.updatedAt > before { state = s; break }
+                if let s = AppState.load(), s != before { state = s; break }
             }
         }
         let version = app.flatMap { Bundle(url: $0)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String }
