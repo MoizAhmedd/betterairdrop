@@ -81,8 +81,9 @@ async function ask(client: Anthropic, body: Anthropic.MessageCreateParamsNonStre
 
 /**
  * ClaudePrompt.parse's rules (the whole text, or the first {…} in it, must be the object; known
- * kind; a real subject; a finite confidence), then each field is trimmed to what a filename can use.
- * Null if the answer can't be used.
+ * kind; a real subject; a finite confidence), then each field is trimmed to what a filename can use:
+ * the app keeps 6 words of the subject (12 leaves room for the "photo of" and city words it drops),
+ * and reads merchant and total only for a receipt. Null if the answer can't be used.
  */
 export function parseAnswer(text: string): Answer | null {
   let json = text.trim();
@@ -101,15 +102,17 @@ export function parseAnswer(text: string): Answer | null {
   const { subject, kind, merchant, total, confidence, people_present } = o;
   if (typeof subject !== "string" || typeof kind !== "string" || !KINDS.includes(kind)) return null;
   if (typeof confidence !== "number" || !Number.isFinite(confidence)) return null;
-  const subj = subject.trim().slice(0, 120);
+  const words = (v: string, n: number, max: number) => v.trim().split(/\s+/).slice(0, n).join(" ").slice(0, max);
+  const subj = words(subject, 12, 120);
   if ((subj.match(/[\p{L}\p{N}]/gu) ?? []).length < 2) return null;
-  const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
-  const t = str(total, 20);
+  const receipt = kind === "receipt";
+  const m = receipt && typeof merchant === "string" ? words(merchant, 5, 60) : "";
+  const t = receipt && typeof total === "string" ? total.trim() : "";
   return {
     subject: subj,
     kind,
-    merchant: str(merchant, 60),
-    total: /^[0-9]+([.,][0-9]{1,2})?$/.test(t) ? t : "",
+    merchant: m,
+    total: /^[0-9]{1,9}([.,][0-9]{1,2})?$/.test(t) ? t : "",
     confidence: Math.min(Math.max(confidence, 0), 1),
     people_present: people_present === true,
   };

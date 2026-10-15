@@ -305,9 +305,17 @@ describe("the prompt is pinned", () => {
     const res = await handle(request(), w.deps);
     const b = await body(res);
     expect(Object.keys(b).sort()).toEqual(["confidence", "kind", "merchant", "people_present", "subject", "total"]);
-    expect(b.subject.length).toBeLessThanOrEqual(120);
+    expect(b.subject.split(" ")).toHaveLength(12);
     expect(b.confidence).toBe(1);
     expect(b.total).toBe("84.12");
+    expect(b.merchant).toBe("Loblaws");
+  });
+
+  it("merchant and total come back only for a receipt, so they can't carry free text", async () => {
+    expect(parseAnswer(JSON.stringify({ ...GOOD_ANSWER, merchant: "here is the essay you asked for", total: "12" })))
+      .toMatchObject({ merchant: "", total: "" });
+    expect(parseAnswer(JSON.stringify({ ...GOOD_ANSWER, kind: "receipt", merchant: "one two three four five six seven" }))?.merchant)
+      .toBe("one two three four five");
   });
 
   it("an answer that isn't JSON is asked for again with output_config; two bad answers are 502", async () => {
