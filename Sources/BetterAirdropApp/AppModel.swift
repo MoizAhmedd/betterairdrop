@@ -26,6 +26,12 @@ final class AppModel: ObservableObject {
     @Published private(set) var shellKeyChecking = false
     /// Unnamed camera files already in the folder (IMG_4821.HEIC…), for the first-run preview.
     @Published private(set) var backlog: [URL] = []
+    /// What the app last saw of the folder permission (nil until macOS has answered).
+    @Published var folderAccess: Bool?
+    /// The notification permission as macOS last reported it (nil until checked).
+    @Published var notificationStatus: AppState.Notifications?
+    /// A `reportState(probe:)` folder probe is in flight.
+    var probingAccess = false
     private var shellKey: String?
 
     struct CredentialInfo: Equatable {
@@ -75,7 +81,8 @@ final class AppModel: ObservableObject {
     /// "● Ready: watching Downloads"
     var statusLine: String {
         switch state {
-        case .watching, .stopped: "Ready: watching \(folderName)"
+        case .watching: "Ready: watching \(folderName)"
+        case .stopped: "Starting…"
         case .paused: "Paused"
         case .noAccess: "Can't read \(folderName)"
         case .lockedByOther: "Standing by: another copy is watching"
@@ -139,8 +146,10 @@ final class AppModel: ObservableObject {
     private func stateChanged(_ s: WatchService.State) {
         let was = state
         state = s
+        if s == .watching { folderAccess = true } else if s == .noAccess { folderAccess = false }
         if s == .noAccess && was != .noAccess { onLostAccess?() }
         if s == .lockedByOther { refreshLockHolder() } else { lockHolder = nil }
+        writeAppState()
     }
 
     /// True only while the app is actually watching: the switch in the panel shows this.
@@ -374,6 +383,20 @@ final class AppModel: ObservableObject {
             || old.originals != c.originals || old.placeProvider != c.placeProvider || old.stripGPSFromOutput != c.stripGPSFromOutput {
             rebuildService()
         }
+    }
+
+    /// `betterairdrop setup` changed the config file or the key: pick both up without a restart.
+    /// One rebuild, after the key is re-read (a new key can change what `auto` picks): two rebuilds
+    /// in a row can leave the first watcher running unreferenced.
+    func reloadFromDisk() {
+        do {
+            config = try Config.load(from: configURL)
+            configError = nil
+        } catch {
+            configError = "\(error)"
+        }
+        ClaudeAuth.shared.invalidate()
+        refreshCredential { [weak self] in self?.rebuildService() }
     }
 
     /// After a key was stored or removed.

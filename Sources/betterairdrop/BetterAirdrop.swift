@@ -1,4 +1,5 @@
 import BetterAirdropCore
+import BetterAirdropKit
 import ArgumentParser
 import Foundation
 
@@ -8,7 +9,7 @@ struct BetterAirdrop: ParsableCommand {
         commandName: "betterairdrop",
         abstract: "Name AirDropped photos from their context, on your Mac.",
         version: BetterAirdropVersion.current,
-        subcommands: [Rename.self, Explain.self, Watch.self, Undo.self, Log.self, Status.self, Auth.self, Uninstall.self]
+        subcommands: [Rename.self, Explain.self, Watch.self, Undo.self, Log.self, Status.self, Setup.self, Auth.self, Uninstall.self]
     )
 }
 
@@ -61,7 +62,4 @@ func stderr(_ s: String) {
 }
 
 /// Shortens paths under $HOME to ~/… for display.
-func tilde(_ path: String) -> String {
-    let home = FileManager.default.homeDirectoryForCurrentUser.path
-    return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
-}
+func tilde(_ path: String) -> String { StatusReport.tilde(path) }

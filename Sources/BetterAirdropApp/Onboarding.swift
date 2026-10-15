@@ -3,8 +3,10 @@ import BetterAirdropCore
 import BetterAirdropKit
 import SwiftUI
 
-/// First run (UX mockup b): Welcome → folder access → naming engine → background → done.
-/// Also opened at the access step alone ("Fix…") when the permission goes missing.
+/// Settings → General → Setup: welcome and folder access on one screen, then the naming engine.
+/// Launch at login and notifications are on by default (Settings changes them), so they aren't
+/// steps. Also opened at the access screen alone ("Fix…") when the permission goes missing. The
+/// first launch itself shows none of this (AppDelegate.firstRun).
 @MainActor
 final class OnboardingState: ObservableObject {
     enum Access: Equatable { case notAsked, checking, granted, denied }
@@ -17,11 +19,6 @@ final class OnboardingState: ObservableObject {
     @Published var verify = Verify.idle
     @Published var useKeyInsteadOfAnt = false
     @Published var replacingKey = false
-    @Published var launchAtLogin = true
-    @Published var notify = false
-    @Published var notifyNote: String?
-    @Published var backlog = false
-    @Published var backlogFiles: [URL] = []
 
     let fixMode: Bool
     @Published private(set) var apple = AppleIntelligenceStatus.current
@@ -29,7 +26,6 @@ final class OnboardingState: ObservableObject {
     var presetForSnapshot = false
     init(fixMode: Bool) {
         self.fixMode = fixMode
-        if fixMode { step = 1 }
     }
 
     /// Re-reads Apple Intelligence's status (it changes when it's turned on or the model finishes downloading).
@@ -42,27 +38,24 @@ final class OnboardingState: ObservableObject {
 struct OnboardingView: View {
     @ObservedObject var model: AppModel
     @StateObject var s: OnboardingState
-    let finish: (_ backlog: [URL]) -> Void
+    let finish: () -> Void
     private let poll = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     /// `state` lets snapshots start at a given step with given answers.
-    init(model: AppModel, fixMode: Bool = false, state: OnboardingState? = nil, finish: @escaping ([URL]) -> Void) {
+    init(model: AppModel, fixMode: Bool = false, state: OnboardingState? = nil, finish: @escaping () -> Void) {
         self.model = model
         _s = StateObject(wrappedValue: state ?? OnboardingState(fixMode: fixMode))
         self.finish = finish
     }
 
-    static let steps = 5
+    static let steps = 2
 
     var body: some View {
         VStack(spacing: 0) {
             Group {
                 switch s.step {
-                case 0: welcome
-                case 1: accessStep
-                case 2: engineStep
-                case 3: backgroundStep
-                default: doneStep
+                case 0: accessStep
+                default: engineStep
                 }
             }
             .padding(.horizontal, 44).padding(.top, 44)
@@ -72,34 +65,29 @@ struct OnboardingView: View {
         .frame(width: 620, height: 500)
         .onAppear(perform: appear)
         .onReceive(poll) { _ in
-            if s.step == 1 && Permissions.didAsk && s.access != .granted { probe() }
-            if s.step == 2 && !s.appleReady { s.refreshApple() }
+            if s.step == 0 && Permissions.didAsk && s.access != .granted { probe() }
+            if s.step == 1 && !s.appleReady { s.refreshApple() }
         }
     }
 
     // MARK: Steps
 
-    var welcome: some View {
-        VStack(spacing: 0) {
-            Image(nsImage: NSApp.applicationIconImage ?? Art.appIcon()).resizable().frame(width: 96, height: 96).padding(.top, 6)
-            Text("Welcome to BetterAirdrop").font(.system(size: 22, weight: .bold)).padding(.top, 10).padding(.bottom, 6)
-            Text("AirDrop a photo from your iPhone and it lands in Downloads with a name you can search for, instead of IMG_4821.HEIC.")
-                .font(.system(size: 13)).multilineTextAlignment(.center).frame(maxWidth: 380).padding(.bottom, 10)
-            VStack(alignment: .leading, spacing: 8) {
-                Feature(symbol: "sparkles", color: .blue, title: "Names from context", detail: "date, city, kind (screenshot, receipt…), text and subject")
-                Feature(symbol: "arrow.left.arrow.right", color: .orange, title: "HEIC becomes JPEG", detail: "opens anywhere. The original goes to the Trash, not away.")
-                Feature(symbol: "arrow.uturn.backward", color: .green, title: "Every change can be undone", detail: "from the notification or the menu bar, any time")
-            }
-            .frame(maxWidth: 410)
-            Text("Only files AirDrop delivers are touched. Your other downloads are never renamed.")
-                .font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 10)
-        }
-    }
-
+    /// Welcome and the one permission, on one screen (the fix window shows just the permission).
     var accessStep: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Let BetterAirdrop see your \(model.folderName)").font(.system(size: 22, weight: .bold)).padding(.vertical, 6)
-            Text("AirDrop saves photos to your \(model.folderName) folder. macOS asks you once whether BetterAirdrop may read and rename files there.")
+            if s.fixMode {
+                Text("Let BetterAirdrop see your \(model.folderName)").font(.system(size: 22, weight: .bold)).padding(.vertical, 6)
+            } else {
+                HStack(spacing: 14) {
+                    Image(nsImage: NSApp.applicationIconImage ?? Art.appIcon()).resizable().frame(width: 64, height: 64)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Welcome to BetterAirdrop").font(.system(size: 22, weight: .bold))
+                        Text("AirDropped photos get names you can search for, instead of IMG_4821.HEIC.").font(.system(size: 13))
+                    }
+                }
+                .padding(.bottom, 18)
+            }
+            Text("macOS asks once whether BetterAirdrop may read and rename files in \(model.folderName), where AirDrop saves them.")
                 .font(.system(size: 13)).padding(.bottom, 10)
             VStack(spacing: 0) {
                 HStack(spacing: 10) {
@@ -112,7 +100,8 @@ struct OnboardingView: View {
                     switch s.access {
                     case .granted: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).font(.system(size: 16))
                     case .checking: ProgressView().controlSize(.small)
-                    default: Button("Allow Access…", action: askAccess).buttonStyle(.borderedProminent)
+                    case .notAsked: Button("Allow Access…", action: askAccess).buttonStyle(.borderedProminent)
+                    case .denied: EmptyView()   // macOS won't ask again; the row below says what to do
                     }
                 }
                 .padding(.horizontal, 12).frame(minHeight: 44)
@@ -120,7 +109,7 @@ struct OnboardingView: View {
                     Divider()
                     HStack(spacing: 10) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Access was turned off").font(.system(size: 13, weight: .medium)).foregroundStyle(Color.red)
+                            Text("Access is off").font(.system(size: 13, weight: .medium)).foregroundStyle(Color.red)
                             Text("Turn on **BetterAirdrop** under *Privacy & Security → Files & Folders → \(model.folderName)*. This window notices on its own.")
                                 .font(.system(size: 11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                         }
@@ -136,7 +125,7 @@ struct OnboardingView: View {
                 }
             }
             .groupBox()
-            Text("BetterAirdrop only reads the top level of \(model.folderName), and only changes files whose macOS “downloaded by” tag says AirDrop. It never uploads your folder anywhere.")
+            Text("Only files AirDrop delivers are renamed, and every rename can be undone. Nothing in \(model.folderName) is uploaded.")
                 .font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 12)
         }
     }
@@ -228,59 +217,6 @@ struct OnboardingView: View {
         .padding(.leading, 42).padding(.trailing, 12).padding(.bottom, 12)
     }
 
-    var backgroundStep: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Run quietly in the background").font(.system(size: 22, weight: .bold)).padding(.vertical, 6)
-            Text("BetterAirdrop sits in the menu bar and uses no CPU until something arrives in \(model.folderName).")
-                .font(.system(size: 13)).padding(.bottom, 10)
-            VStack(spacing: 0) {
-                ToggleRow(title: "Open BetterAirdrop when I log in", detail: "macOS will say “Background item added”. That's this.", isOn: $s.launchAtLogin)
-                Divider()
-                ToggleRow(title: "Tell me when photos are renamed", detail: s.notifyNote ?? "one notification per AirDrop, with an Undo button",
-                          isOn: Binding(get: { s.notify }, set: setNotify))
-                Divider()
-                ToggleRow(title: "Also rename earlier AirDrops",
-                          detail: s.backlogFiles.isEmpty ? "No earlier AirDrops found in \(model.folderName)."
-                            : "\(s.backlogFiles.count) photo\(s.backlogFiles.count == 1 ? "" : "s") from AirDrop \(s.backlogFiles.count == 1 ? "is" : "are") already in \(model.folderName). You'll see the names before anything changes.",
-                          isOn: $s.backlog)
-                    .disabled(s.backlogFiles.isEmpty)
-            }
-            .groupBox()
-        }
-        .onAppear(perform: countBacklog)
-    }
-
-    var doneStep: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                Circle().fill(Color.green.opacity(0.15)).frame(width: 64, height: 64)
-                Image(systemName: "checkmark").font(.system(size: 28, weight: .semibold)).foregroundStyle(.green)
-            }
-            .padding(.top, 18)
-            Text("You're set").font(.system(size: 22, weight: .bold)).padding(.top, 10).padding(.bottom, 6)
-            Text("BetterAirdrop lives in your menu bar. AirDrop a photo from your iPhone to try it.")
-                .font(.system(size: 13)).multilineTextAlignment(.center).frame(maxWidth: 380)
-            MenuBarHint().padding(.top, 12)
-            if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26 {
-                Text("Don't see the icon? Check **System Settings → Menu Bar**.").font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 8)
-            }
-            HStack {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Summary").font(.system(size: 13, weight: .medium))
-                    Text(summary).font(.system(size: 11.5)).foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(12).frame(width: 380).groupBox().padding(.top, 12)
-        }
-    }
-
-    var summary: String {
-        let access = s.access == .granted ? "\(model.folderName) ✓" : "\(model.folderName) not allowed yet"
-        let engine = s.engine == .claude ? "Claude Haiku" : s.engine == .apple ? "Apple Intelligence" : "Apple Vision"
-        return [access, engine, s.launchAtLogin ? "starts at login" : "doesn't start at login"].joined(separator: " · ")
-    }
-
     // MARK: Footer
 
     var footer: some View {
@@ -296,8 +232,8 @@ struct OnboardingView: View {
             }
             Spacer()
             HStack(spacing: 12) {
-                if s.step == 1 && s.access != .granted {
-                    Button(s.fixMode ? "Not Now" : "Skip for now") { s.fixMode ? finish([]) : next() }
+                if s.step == 0 && s.access != .granted {
+                    Button(s.fixMode ? "Not Now" : "Skip for now") { s.fixMode ? finish() : next() }
                         .buttonStyle(.link).font(.system(size: 12.5))
                 }
                 Button(primaryTitle, action: primary)
@@ -313,17 +249,13 @@ struct OnboardingView: View {
 
     var primaryTitle: String {
         if s.fixMode { return "Done" }
-        switch s.step {
-        case 0: return "Get Started"
-        case Self.steps - 1: return "Finish"
-        default: return "Continue"
-        }
+        return s.step == Self.steps - 1 ? "Done" : "Continue"
     }
 
     var canContinue: Bool {
         switch s.step {
-        case 1: return s.access == .granted
-        case 2:
+        case 0: return s.access == .granted
+        case 1:
             if s.engine == .claude { return antFound || s.verify == .ok || (model.credential.storedKey && !s.replacingKey) }
             return true
         default: return true
@@ -331,8 +263,8 @@ struct OnboardingView: View {
     }
 
     func primary() {
-        if s.fixMode { model.recheck(); finish([]); return }
-        if s.step == 2 { saveEngine() }
+        if s.fixMode { model.recheck(); finish(); return }
+        if s.step == 1 { saveEngine() }
         if s.step == Self.steps - 1 { complete() } else { next() }
     }
 
@@ -361,7 +293,7 @@ struct OnboardingView: View {
     }
 
     func granted() {
-        if s.access != .granted { s.access = .granted; model.recheck() }
+        if s.access != .granted { s.access = .granted; model.folderAccess = true; model.recheck(); model.reportState() }
     }
 
     func verifyKey() {
@@ -398,50 +330,13 @@ struct OnboardingView: View {
         model.updateConfig { $0.backend = backend }
     }
 
-    func setNotify(_ on: Bool) {
-        guard on else { s.notify = false; model.updateConfig { $0.watchNotify = false }; return }
-        NotificationPermission.request { ok in
-            s.notify = ok
-            s.notifyNote = ok ? nil : "Notifications are off for BetterAirdrop in System Settings → Notifications."
-            model.updateConfig { $0.watchNotify = ok }
-        }
-    }
-
-    func countBacklog() {
-        let config = model.config, folder = model.folder
-        DispatchQueue.global(qos: .userInitiated).async {
-            var o = Watcher.Options(folder: folder)
-            o.backlog = true
-            o.airdropOnly = true
-            let w = Watcher(options: o, planner: Planner(config: config), committer: Committer(config: config))
-            let files = w.scan().filter { $0.pathExtension.lowercased() != "mov" }
-            DispatchQueue.main.async { s.backlogFiles = files }
-        }
-    }
-
     func complete() {
         UserDefaults.standard.set(true, forKey: "onboardingDone")
-        if !s.notify { model.updateConfig { $0.watchNotify = false } }
-        if s.launchAtLogin != LoginItem.isEnabled { LoginItem.set(s.launchAtLogin) }
-        finish(s.backlog ? s.backlogFiles : [])
+        finish()
     }
 }
 
 // MARK: - Pieces
-
-struct Feature: View {
-    let symbol: String, color: Color, title: String, detail: String
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: symbol).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
-                .frame(width: 28, height: 28).background(RoundedRectangle(cornerRadius: 7).fill(color))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(size: 13, weight: .semibold))
-                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-        }
-    }
-}
 
 struct FolderIcon: View {
     var body: some View {
@@ -477,44 +372,5 @@ struct EngineCard: View {
         .padding(.horizontal, 12).padding(.vertical, 10)
         .contentShape(Rectangle())
         .onTapGesture { if enabled { selected = choice } }
-    }
-}
-
-struct ToggleRow: View {
-    let title: String
-    let detail: String?
-    @Binding var isOn: Bool
-    var body: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(size: 13, weight: .medium))
-                if let detail { Text(detail).font(.system(size: 11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-            }
-            Spacer()
-            Toggle("", isOn: $isOn).toggleStyle(.switch).labelsHidden()
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8).frame(minHeight: 44)
-    }
-}
-
-/// A little strip of menu bar with our icon in it, for the last step.
-struct MenuBarHint: View {
-    var body: some View {
-        HStack(spacing: 14) {
-            Spacer()
-            Image(systemName: "chevron.up").font(.system(size: 10))
-            Image(nsImage: Art.menuBarGlyph()).renderingMode(.template)
-                .padding(.horizontal, 4).padding(.vertical, 2)
-                .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.12)))
-                .overlay(alignment: .topLeading) {
-                    Text("↑ BetterAirdrop").font(.system(size: 12)).foregroundStyle(Color.accentColor)
-                        .fixedSize().offset(x: 6, y: 30)
-                }
-            Image(systemName: "wifi").font(.system(size: 11))
-            Text(Date.now, format: .dateTime.weekday().hour().minute()).font(.system(size: 12))
-        }
-        .padding(.horizontal, 12).frame(width: 300, height: 26)
-        .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.06)))
-        .padding(.bottom, 22)
     }
 }
