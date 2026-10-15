@@ -375,6 +375,10 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
         #expect(lines[2] == "2026-10-02,\"Café \"\"Olé\"\", Inc\",4.50,/d/Receipts/2026-10/2026-10-02_receipt_cafe.png")
         #expect(lines.contains("2026-10-03,\"'=HYPERLINK(\"\"x\"\")\",-5.00,/d/evil.png"))
         #expect(csv.hasSuffix("\r\n"))
+        // A refund stays a number; anything else starting with - is text.
+        #expect(ReceiptsCSV.cell("-5.00") == "-5.00" && ReceiptsCSV.cell("-1,234.50") == "\"-1,234.50\"")
+        #expect(ReceiptsCSV.cell("-1+1") == "'-1+1" && ReceiptsCSV.cell("-2+3+cmd|' /C calc'!A0") == "'-2+3+cmd|' /C calc'!A0")
+        #expect(ReceiptsCSV.cell("+15") == "'+15" && ReceiptsCSV.cell("@SUM(A1)") == "'@SUM(A1)")
         #expect(ReceiptsCSV.make([]) == "date,merchant,total,file\r\n")
     }
 }

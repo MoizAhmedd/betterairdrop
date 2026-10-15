@@ -33,12 +33,13 @@ public enum ReceiptsCSV {
     }
 
     /// RFC 4180 quoting, and a leading `'` on text a spreadsheet would run as a formula
-    /// (`=`, `+`, `@`, or `-` not followed by a number).
+    /// (`=`, `+`, `@`, tab, CR, or `-` unless the whole cell is a plain negative number like a refund's
+    /// `-5.00`; `-1+cmd|…` is a formula). Merchant and total are read off a photo, so they're untrusted.
     static func cell(_ s: String) -> String {
         var v = s
         if let first = v.first {
-            let numeric = v.dropFirst().first.map { $0.isNumber || $0 == "." } ?? false
-            if "=+@\t\r".contains(first) || (first == "-" && !numeric) { v = "'" + v }
+            let negativeNumber = v.range(of: #"^-[0-9]+([.,][0-9]+)*$"#, options: .regularExpression) != nil
+            if "=+@\t\r".contains(first) || (first == "-" && !negativeNumber) { v = "'" + v }
         }
         guard v.contains(where: { $0 == "," || $0 == "\"" || $0 == "\n" || $0 == "\r" }) else { return v }
         return "\"" + v.replacingOccurrences(of: "\"", with: "\"\"") + "\""
