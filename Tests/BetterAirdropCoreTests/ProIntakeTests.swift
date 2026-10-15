@@ -106,6 +106,60 @@ import Testing
     }
 }
 
+/// The Pro watchers run like the AirDrop one, minus the shared lock: settle, name, one batch, undo.
+@Suite(.serialized) struct ProWatcherEndToEndTests {
+    func service(_ s: Sandbox, _ intake: Watcher.Options.Intake, monitor: ManualFolderMonitor) -> WatchService {
+        var planner = s.planner()
+        planner.namer = stemNamer
+        var o = Watcher.Options(folder: s.downloads)
+        o.intake = intake
+        o.movies = false
+        o.settleInterval = 0.2; o.quietWindow = 0.4; o.pollInterval = 0.05
+        return WatchService(watcher: Watcher(options: o, planner: planner, committer: s.committer()), monitor: monitor, lockURL: nil)
+    }
+
+    @Test func screenshotWatcherNamesNewScreenshotsAndUndoes() throws {
+        let s = Sandbox()
+        TestImages.png(s.file("old screenshot.png"))   // there before: left alone
+        ScreenshotDetectionTests.markScreenshot(s.file("old screenshot.png"))
+        Thread.sleep(forTimeInterval: 2.2)              // older than the watcher's 2 s of slack
+        let m = ManualFolderMonitor()
+        let svc = service(s, .screenshots, monitor: m)
+        let batches = Box<[Watcher.Batch]>([])
+        svc.watcher.onBatch = { batches.value.append($0) }
+        svc.start()
+        #expect(eventually { svc.state == .watching })
+        let shot = TestImages.png(s.file("Screenshot 2026-10-15 at 9.41.03.png"), .init(gps: nil, make: nil, model: nil, userComment: "Screenshot"))
+        ScreenshotDetectionTests.markScreenshot(shot)
+        TestImages.jpeg(s.file("download.jpg"))         // not a screenshot: left alone
+        m.fire()
+        #expect(eventually { batches.value.count == 1 })
+        svc.stop()
+        #expect(batches.value[0].photos == 1)
+        #expect(s.listing() == ["2026-09-21_screenshot_subject-screenshot-2026-10-15-9.png", "download.jpg", "old screenshot.png"])
+        let undone = try s.undoer().undo(.batch(batches.value[0].id))
+        #expect(undone.map(\.status) == [.restored])
+        #expect(s.listing() == ["Screenshot 2026-10-15 at 9.41.03.png", "download.jpg", "old screenshot.png"])
+    }
+
+    @Test func anyFolderWatcherNamesNewImagesOnly() throws {
+        let s = Sandbox()
+        let m = ManualFolderMonitor()
+        let svc = service(s, .all, monitor: m)
+        let batches = Box<[Watcher.Batch]>([])
+        svc.watcher.onBatch = { batches.value.append($0) }
+        svc.start()
+        #expect(eventually { svc.state == .watching })
+        TestImages.jpeg(s.file("scan_0001.jpg"))
+        try Data("mov".utf8).write(to: s.file("scan_0001.mov"))
+        try Data("text".utf8).write(to: s.file("readme.txt"))
+        m.fire()
+        #expect(eventually { batches.value.count == 1 })
+        svc.stop()
+        #expect(s.listing() == ["2026-09-21_toronto_subject-scan-0001.jpg", "readme.txt", "scan_0001.mov"])
+    }
+}
+
 @Suite struct DateFormatTests {
     @Test func formats() {
         #expect(DateFormat.iso.apply("2026-09-24") == "2026-09-24")
