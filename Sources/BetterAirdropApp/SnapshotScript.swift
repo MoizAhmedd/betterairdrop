@@ -5,14 +5,14 @@ import SwiftUI
 /// The sequence of surfaces `BETTERAIRDROP_SNAPSHOT_DIR` renders.
 extension AppDelegate {
     func runSnapshots() {
-        func onboarding(_ name: String, _ setup: @escaping (OnboardingState) -> Void) -> [(String, () -> Void)] {
+        func onboarding(_ name: String, fix: Bool = false, _ setup: @escaping (OnboardingState) -> Void) -> [(String, () -> Void)] {
             [(name, {
-                let st = OnboardingState(fixMode: false)
+                let st = OnboardingState(fixMode: fix)
                 st.presetForSnapshot = true
                 setup(st)
                 self.onboardingWindow?.close()
                 let w = Windows.make("Welcome to BetterAirdrop", size: NSSize(width: 620, height: 500), transparentTitle: true) {
-                    OnboardingView(model: self.model, state: st) { _ in }
+                    OnboardingView(model: self.model, state: st) {}
                 }
                 self.onboardingWindow = w
                 Windows.show(w)
@@ -24,11 +24,10 @@ extension AppDelegate {
             ("close", { self.status.close() }),
         ]
         steps += onboarding("onboarding-1-welcome") { $0.step = 0 }
-        steps += onboarding("onboarding-2-access") { $0.step = 1 }
-        steps += onboarding("onboarding-2-denied") { $0.step = 1; $0.access = .denied }
-        steps += onboarding("onboarding-3-engine") { $0.step = 2; $0.engine = .claude; $0.verify = .failed("Anthropic didn't accept this key. Check that you copied all of it.") }
-        steps += onboarding("onboarding-4-background") { $0.step = 3; $0.backlogFiles = [URL(fileURLWithPath: "/x.heic")] }
-        steps += onboarding("onboarding-5-done") { $0.step = 4; $0.access = .granted }
+        steps += onboarding("onboarding-1-granted") { $0.step = 0; $0.access = .granted }
+        steps += onboarding("onboarding-1-denied") { $0.step = 0; $0.access = .denied }
+        steps += onboarding("onboarding-2-engine") { $0.step = 1; $0.engine = .claude; $0.verify = .failed("Anthropic didn't accept this key. Check that you copied all of it.") }
+        steps += onboarding("onboarding-fix-denied", fix: true) { $0.access = .denied }
         steps += [
             ("rename", { self.renameFiles(Snapshot.sampleFiles(self.model.folder)) }),
             ("rename-wait", {}),
@@ -48,6 +47,10 @@ extension AppDelegate {
             ]
         }
         steps += [
+            // Notifications turned off in System Settings while the config still has them on.
+            ("notify-off", { self.model.updateConfig { $0.watchNotify = true }; self.model.notificationStatus = .denied
+                (self.settingsWindow?.contentViewController as? NSTabViewController)?.selectedTabViewItemIndex = 0 }),
+            ("notify-off-capture", { Snapshot.capture(self.settingsWindow, "settings-general-notifications-off") }),
             ("settings-close", { self.settingsWindow?.close() }),
             // Lost access: make the (test) folder unreadable for a moment.
             ("lock", { guard !self.model.folderIsDownloads else { return }; try? FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: self.model.folder.path); self.model.recheck() }),

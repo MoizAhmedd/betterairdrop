@@ -9,6 +9,10 @@ enum BetterAirdropMain {
             do { try Art.writeIconset(to: URL(fileURLWithPath: args[i + 1])); exit(0) } catch { print(error); exit(1) }
         }
         if args.contains("--uninstall") { exit(Headless.uninstall(purge: args.contains("--purge"))) }
+        // `betterairdrop setup --launch-at-login`: SMAppService only acts for the app that calls it.
+        if let i = args.firstIndex(of: "--login-item"), i + 1 < args.count {
+            exit(MainActor.assumeIsolated { Headless.loginItem(args[i + 1] == "on") })
+        }
 
         let app = NSApplication.shared
         let delegate = AppDelegate()

@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
     var settingsWindow: NSWindow?
     var renameWindows: [NSWindow] = []
 
+    private var signalTokens: [Int32] = []
+
     func applicationDidFinishLaunching(_ note: Notification) {
         status = StatusItemController(model: model, actions: self)
         notifications = Notifications(app: self)
@@ -31,7 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
             runSnapshots()
             return
         }
-        if !UserDefaults.standard.bool(forKey: "onboardingDone") { firstRun() }
+        // `betterairdrop setup` and `status` talk to the running app through these.
+        signalTokens = [
+            AppSignal.reload.observe { [weak self] in self?.model.reloadFromDisk(); self?.model.reportState() },
+            AppSignal.report.observe { [weak self] in self?.model.reportState(probe: true) },
+        ]
+        if !firstRun() { model.reportState(probe: true) }
     }
 
     /// Opening the app again (Spotlight, Finder) while it runs shows Settings, which is the way back
@@ -46,11 +53,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
     func showOnboarding(fix: Bool = false) {
         onboardingWindow?.close()
         let w = Windows.make(fix ? "BetterAirdrop" : "Welcome to BetterAirdrop", size: NSSize(width: 620, height: 500), transparentTitle: true) {
-            OnboardingView(model: model, fixMode: fix) { [weak self] backlog in
+            OnboardingView(model: model, fixMode: fix) { [weak self] in
                 self?.onboardingWindow?.close()
                 self?.onboardingWindow = nil
                 self?.notifications.clearLostAccess()
-                if !backlog.isEmpty { self?.renameFiles(backlog) }
+                if !fix { self?.status.open() }   // shows where BetterAirdrop lives
             }
         }
         onboardingWindow = w
@@ -150,23 +157,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
     // MARK: - First run (no wizard)
 
     /// Straight to the menu bar: ask for Downloads now (the one prompt), turn on launch at login,
-    /// look for a key in the shell, and offer to preview photos already in Downloads. The
-    /// notifications prompt waits for the first rename. The old wizard is in Settings → General.
-    func firstRun() {
+    /// and offer to preview photos already in Downloads. Without `betterairdrop setup`, the login
+    /// shell is then asked for a key, and the notifications prompt waits for the first rename. After
+    /// setup (a script or an agent made the choices), the notifications prompt follows Downloads
+    /// straight away, while the person who was told to expect it is at the Mac. If Downloads is
+    /// refused, the window that explains how to turn it on opens instead of the menu. The setup
+    /// screens are in Settings → General. Returns false after the first launch.
+    @discardableResult
+    func firstRun() -> Bool {
         let d = UserDefaults.standard
+        guard let plan = FirstRunPlan.make(onboardingDone: d.bool(forKey: "onboardingDone"), setup: SetupRecord.load(),
+                                           notify: model.config.watchNotify) else { return false }
         d.set(true, forKey: "onboardingDone")
         Permissions.didAsk = true
-        if !LoginItem.isEnabled { LoginItem.set(true) }
-        model.refreshCredential { [weak self] in self?.model.lookForShellKey() }
+        if plan.registerLoginItem && !LoginItem.isEnabled { LoginItem.set(true) }
+        model.reportState()   // "waiting": status --json tells the agent a person has to click Allow
         Permissions.probe(model.folder) { [weak self] ok in
             guard let self else { return }
+            self.model.folderAccess = ok
             self.model.recheck()
-            guard ok else { self.status.open(); return }
-            self.model.scanBacklog { count in
-                self.status.open()
-                if count > 0 { self.notifications.postBacklog(count: count, folder: self.model.folderName) }
+            // Only now: whatever the shell's rc files touch can't prompt on top of the Downloads question.
+            if plan.lookForShellKey { self.model.refreshCredential { self.model.lookForShellKey() } }
+            guard ok else { self.showOnboarding(fix: true); self.model.reportState(); return }
+            let ready = {
+                self.model.reportState()
+                self.model.scanBacklog { count in
+                    self.status.open()
+                    if count > 0 { self.notifications.postBacklog(count: count, folder: self.model.folderName) }
+                }
             }
+            if plan.askNotificationsAfterAccess { NotificationPermission.request { _ in ready() } } else { ready() }
         }
+        return true
     }
 
     /// Finder → Services → Rename with BetterAirdrop (NSServices in Info.plist).
@@ -286,6 +308,14 @@ enum AppUninstall {
 /// `BetterAirdrop --uninstall [--purge]`: what `betterairdrop uninstall` runs, inside the app's own
 /// identity so SMAppService can remove its login item.
 enum Headless {
+    /// `BetterAirdrop --login-item on|off`. Prints the resulting state.
+    @MainActor
+    static func loginItem(_ on: Bool) -> Int32 {
+        if let error = LoginItem.set(on) { print("error: \(error)"); return 1 }
+        print(LoginItem.isEnabled ? "on" : LoginItem.needsApproval ? "needs approval in System Settings → General → Login Items" : "off")
+        return 0
+    }
+
     static func uninstall(purge: Bool) -> Int32 {
         let me = ProcessInfo.processInfo.processIdentifier
         for app in NSRunningApplication.runningApplications(withBundleIdentifier: "dev.betterairdrop.app") where app.processIdentifier != me {

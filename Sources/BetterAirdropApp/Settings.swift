@@ -93,13 +93,21 @@ struct GeneralPane: View {
                     Text("After each batch").tag(true)
                     Text("Never").tag(false)
                 }
+                if model.config.watchNotify && model.notificationStatus == .denied {
+                    LabeledContent {
+                        Button("Open Notification Settings") { NotificationPermission.openSettings() }
+                    } label: {
+                        Text("Notifications are off for BetterAirdrop in System Settings").foregroundStyle(.red)
+                        Text("so no banners (and no Undo button) appear after a batch.")
+                    }
+                }
             }
             Section {
                 LabeledContent {
                     Button("Open Setup…") { app.showOnboarding() }
                 } label: {
                     Text("Setup")
-                    Text("Folder access, the naming engine and your Claude key, step by step.")
+                    Text("Folder access, the naming engine and your Claude key.")
                 }
             }
             Section("Files") {
@@ -119,6 +127,7 @@ struct GeneralPane: View {
         .onAppear {
             login = LoginItem.isEnabled
             Permissions.probe(model.folder) { access = $0 }
+            model.reportState()   // re-reads the notification permission
         }
     }
 
@@ -131,6 +140,7 @@ struct GeneralPane: View {
         NotificationPermission.request { ok in
             model.updateConfig { $0.watchNotify = ok }
             if !ok { NotificationPermission.openSettings() }
+            model.reportState()
         }
     }
 
