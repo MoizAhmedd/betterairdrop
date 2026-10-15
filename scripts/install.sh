@@ -20,7 +20,6 @@ Installs BetterAirdrop.app in ~/Applications, links `betterairdrop` into ~/.loca
 Installer flags:
   --version X        a specific release, pre-releases too (or BETTERAIRDROP_VERSION=X)
   --no-open          don't open the app
-  --no-cli           don't link the betterairdrop command
 Any other flag goes to `betterairdrop setup` (passing flags here counts as --yes):
   --engine auto|claude|vision|apple   --api-key-env VAR   --[no-]launch-at-login   --[no-]notify
 USAGE
@@ -28,7 +27,7 @@ USAGE
 
 REPO="MoizAhmedd/betterairdrop"
 VERSION="${BETTERAIRDROP_VERSION:-}"
-OPEN=1; LINK_CLI=1
+OPEN=1
 
 # Keep the installer's own flags; everything else is passed to `betterairdrop setup`.
 n=$#; i=0
@@ -38,7 +37,6 @@ while [ "$i" -lt "$n" ]; do
     --version) [ "$i" -lt "$n" ] || { echo "--version needs a value"; exit 2; }; VERSION=$1; shift; i=$((i + 1)) ;;
     --version=*) VERSION=${a#--version=} ;;
     --no-open) OPEN=0 ;;
-    --no-cli) LINK_CLI=0 ;;
     -y|--yes) ;;   # implied: passing setup flags to the installer is the confirmation
     -h|--help) usage; exit 0 ;;
     *) set -- "$@" "$a" ;;
@@ -79,11 +77,9 @@ echo "Installed $APP"
 
 CLI="$APP/Contents/Helpers/betterairdrop"
 LINK="$HOME/.local/bin/betterairdrop"
-if [ "$LINK_CLI" = 1 ]; then
-  # Same link as Settings → Advanced → Install; never replaces something that isn't ours.
-  if [ ! -e "$LINK" ] && [ ! -L "$LINK" ] || readlink "$LINK" 2>/dev/null | grep -q '\.app/Contents/Helpers/betterairdrop$'; then
-    mkdir -p "$HOME/.local/bin" && ln -sfn "$CLI" "$LINK" && echo "Linked $LINK"
-  fi
+# Same link as Settings → Advanced → Install; never replaces something that isn't ours.
+if [ ! -e "$LINK" ] && [ ! -L "$LINK" ] || readlink "$LINK" 2>/dev/null | grep -q '\.app/Contents/Helpers/betterairdrop$'; then
+  mkdir -p "$HOME/.local/bin" && ln -sfn "$CLI" "$LINK" && echo "Linked $LINK"
 fi
 
 if [ $# -gt 0 ]; then
