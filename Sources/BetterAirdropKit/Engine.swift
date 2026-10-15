@@ -20,6 +20,8 @@ public struct EngineStatus: Equatable, Sendable {
     public var name: String
     /// e.g. "Vision if offline".
     public var detail: String?
+    /// Claude with the user's own credential names the next photo.
+    public var isClaude = false
 
     /// `hasCredential`: a Claude credential resolves (key, env or `ant`). `appleReady`: Foundation Models is usable.
     /// `hasLicense`: Pro is active or in grace on this Mac (hosted naming). `hostedProblem`: why
@@ -28,7 +30,7 @@ public struct EngineStatus: Equatable, Sendable {
     /// `auto` follows `Backends.resolve`: Claude, hosted, Apple Intelligence, Vision.
     public static func current(config: Config, hasCredential: Bool, appleReady: Bool = false,
                                hasLicense: Bool = false, hostedProblem: String? = nil, hostedRemaining: Int? = nil) -> EngineStatus {
-        let claude = EngineStatus(name: modelName(config.claudeModel), detail: "Vision if offline")
+        let claude = EngineStatus(name: modelName(config.claudeModel), detail: "Vision if offline", isClaude: true)
         // Hosted falls back to Apple Intelligence when it's ready, else Vision (Backends.onDevice).
         let onDevice = appleReady ? "Apple Intelligence" : "Apple Vision"
         let hosted = hostedProblem.map { EngineStatus(name: onDevice, detail: $0) }
@@ -52,12 +54,25 @@ public struct EngineStatus: Equatable, Sendable {
     /// Hosted naming is what names the next photo.
     public var isHosted: Bool { name == Self.hostedName }
 
+    /// A cloud engine (Claude, or hosted naming) names the next photo, and so PDFs too
+    /// (`Backends.resolveDocuments` picks the same one).
+    public var isCloud: Bool { isHosted || isClaude }
+
     /// What hosted naming sends and keeps, in one line (site/public/privacy/ says the same). Shown
     /// when activating Pro turns it on (Settings → Pro, `license activate`) and under "Now using".
     public static let hostedNotice = "Pro names photos with hosted Claude: a 768 px copy without GPS or EXIF, "
         + "plus its date, city and any text in it, goes to BetterAirdrop's server, then Anthropic. The server "
-        + "keeps no photos or names. For PDFs, only a text extract goes (never the file). "
-        + "To keep everything on this Mac, set Engine to Apple Vision in Settings → Naming."
+        + "keeps no photos or names. To keep everything on this Mac, set Engine to Apple Vision in Settings → Naming."
+
+    /// Added to the notice when a cloud engine names PDFs too (Pro, "Name PDFs too").
+    public static let pdfNotice = "PDFs: a text extract, never the file."
+
+    /// What to show under "Now using" and when Pro is activated: `hostedNotice` for hosted naming,
+    /// plus `pdfNotice` when `namesPDFs` and the engine is a cloud one. Nil when there's nothing to say.
+    public func notice(namesPDFs: Bool) -> String? {
+        let parts = [isHosted ? Self.hostedNotice : nil, namesPDFs && isCloud ? Self.pdfNotice : nil].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
 
     /// "claude-haiku-4-5" → "Claude Haiku 4.5". Unknown IDs are shown as they are.
     public static func modelName(_ id: String) -> String {

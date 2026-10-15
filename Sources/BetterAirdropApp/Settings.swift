@@ -197,7 +197,7 @@ struct NamingPane: View {
                     }
                 } label: {
                     Text("Now using")
-                    if model.engine.isHosted { Text(EngineStatus.hostedNotice) }
+                    if let notice = model.engine.notice(namesPDFs: model.namesPDFs) { Text(notice) }
                 }
                 if !model.isPro { ProLine(text: "Pro: great names without an API key.") }
             }

@@ -335,6 +335,21 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
         var local = Config(); local.claudeInAuto = false
         #expect(l.activatedMessage(engine: EngineStatus.current(config: local, hasCredential: false, hasLicense: true)) == done)
     }
+
+    /// With "Name PDFs too", a cloud engine's notice says a PDF sends a text extract; on-device engines say nothing.
+    @Test func noticeSaysWhatAPDFSends() {
+        let l = License(key: "BA_1234ABCD", activationID: "act", label: "Studio Mac", activatedAt: Date())
+        let done = "BetterAirdrop Pro is active on “Studio Mac” (key …ABCD)."
+        let hosted = EngineStatus.current(config: Config(), hasCredential: false, hasLicense: true)
+        let claude = EngineStatus.current(config: Config(), hasCredential: true, hasLicense: true)
+        var local = Config(); local.claudeInAuto = false
+        let onDevice = EngineStatus.current(config: local, hasCredential: true, appleReady: true, hasLicense: true)
+        #expect(l.activatedMessage(engine: hosted, namesPDFs: true) == done + "\n" + EngineStatus.hostedNotice + " " + EngineStatus.pdfNotice)
+        #expect(l.activatedMessage(engine: claude, namesPDFs: true) == done + "\n" + EngineStatus.pdfNotice)
+        #expect(l.activatedMessage(engine: onDevice, namesPDFs: true) == done)
+        #expect(hosted.notice(namesPDFs: false) == EngineStatus.hostedNotice)
+        #expect(claude.notice(namesPDFs: false) == nil && onDevice.notice(namesPDFs: true) == nil)
+    }
 }
 
 /// `betterairdrop status --json` → credentials.hosted: available with Pro, and what the app last heard.
