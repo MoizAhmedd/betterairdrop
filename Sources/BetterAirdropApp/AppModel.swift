@@ -30,6 +30,8 @@ final class AppModel: ObservableObject {
     @Published var folderAccess: Bool?
     /// The notification permission as macOS last reported it (nil until checked).
     @Published var notificationStatus: AppState.Notifications?
+    /// A `reportState(probe:)` folder probe is in flight.
+    var probingAccess = false
     private var shellKey: String?
 
     struct CredentialInfo: Equatable {

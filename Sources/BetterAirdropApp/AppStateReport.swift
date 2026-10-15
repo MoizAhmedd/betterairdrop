@@ -9,13 +9,17 @@ import UserNotifications
 extension AppModel {
     /// Re-reads the notification permission (and, with `probe`, folder access, but only once
     /// the first run has asked for it, so this never shows a prompt of its own), then writes the file.
+    /// One folder probe at a time: while macOS's prompt is up a probe blocks its thread until the
+    /// click, and an agent polling `status` would otherwise pile up a blocked thread per poll.
     func reportState(probe: Bool = false) {
         let folder = self.folder
         NotificationPermission.current { [weak self] status in
             guard let self else { return }
             self.notificationStatus = AppState.Notifications(status)
-            guard probe && Permissions.didAsk else { self.writeAppState(); return }
+            guard probe && Permissions.didAsk && !self.probingAccess else { self.writeAppState(); return }
+            self.probingAccess = true
             Permissions.probe(folder) { [weak self] ok in
+                self?.probingAccess = false
                 self?.folderAccess = ok
                 self?.writeAppState()
             }
