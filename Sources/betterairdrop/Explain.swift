@@ -7,7 +7,7 @@ struct Explain: ParsableCommand {
 
     @OptionGroup var global: GlobalOptions
 
-    @Argument(help: "An image file.", completion: .file())
+    @Argument(help: "An image file (or a PDF, with Pro and name_pdfs on).", completion: .file())
     var file: String
 
     @Option(help: "Naming backend: auto, claude, vision, apple (Apple Intelligence, macOS 26+).")
@@ -34,12 +34,18 @@ struct Explain: ParsableCommand {
         func row(_ k: String, _ v: String) { print("  " + k.padding(toLength: 10, withPad: " ", startingAt: 0) + v) }
 
         row("date", [m.date, m.time.map { "\($0.prefix(2)):\($0.suffix(2))" }, m.offset].compactMap { $0 }.joined(separator: " ")
-            + (m.dateSource == "file" ? "  (no EXIF date: file creation date)" : ""))
+            + (m.dateSource == "file" ? (ctx.document != nil ? "  (file creation date)" : "  (no EXIF date: file creation date)")
+               : m.dateSource == "document" ? "  (the document's own date)" : m.dateSource == "pdf" ? "  (the PDF's creation date)" : ""))
         row("place", ctx.place.map { "\($0.city), \($0.countryCode)  (\($0.distanceKm) km from the city point)" }
             ?? (m.hasGPS ? "GPS present, no city with 15k+ people within 25 km" : "no GPS"))
         row("device", m.model ?? "unknown")
         row("airdrop", ctx.airdrop ? "yes (quarantine agent sharingd)" : "no")
         row("kind", "\(ctx.kind.rawValue)  (\(ctx.kindReason))")
+        if let d = ctx.document {
+            row("pdf", "\(d.pages) page\(d.pages == 1 ? "" : "s"), \(d.text.count) characters \(d.source == .ocr ? "OCR'd from page 1 (no text layer)" : "from the text layer")"
+                + (d.title.map { ", title \"\($0)\"" } ?? ""))
+            row("text", "\"\(d.text.prefix(120).replacingOccurrences(of: "\n", with: " / "))\(d.text.count > 120 ? "…" : "")\"")
+        }
         if let v = ctx.vision {
             row("labels", v.labels.prefix(8).map { "\($0.id) \(String(format: "%.2f", $0.confidence))" }.joined(separator: ", ").ifEmpty("none"))
             let lines = v.lines.filter { $0.confidence >= 0.3 }

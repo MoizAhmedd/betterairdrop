@@ -97,6 +97,10 @@ public struct AppleFMNamer: Namer {
     var generate: @Sendable (_ prompt: String, _ timeout: TimeInterval) throws -> ClaudePrompt.Answer = {
         try AppleFMNamer.onDevice($0, timeout: $1)
     }
+    /// The model call for a PDF's text (prompt → answer).
+    var generateDocument: @Sendable (_ prompt: String, _ timeout: TimeInterval) throws -> DocumentPrompt.Answer = {
+        try AppleFMNamer.onDeviceDocument($0, timeout: $1)
+    }
 
     public init() {}
 
@@ -124,6 +128,7 @@ public struct AppleFMNamer: Namer {
     }
 
     public func suggest(for url: URL, context ctx: PhotoContext) throws -> NameSuggestion {
+        if let doc = ctx.document { return try suggestDocument(doc) }
         // Without labels or text the model would only be guessing from the date and city.
         guard AppleFMPrompt.hasEvidence(ctx) else { throw Error.noEvidence }
         var timings = StageTimings()
@@ -135,9 +140,28 @@ public struct AppleFMNamer: Namer {
         return s
     }
 
+    /// A PDF's text is what the on-device model reads best: it gets the same context and text Claude does.
+    func suggestDocument(_ doc: DocumentText) throws -> NameSuggestion {
+        var timings = StageTimings()
+        let prompt = DocumentPrompt.message(context: DocumentPrompt.context(doc), text: String(doc.text.prefix(AppleFMPrompt.maxDocumentChars)))
+        let answer = try timings.time(.apple) { try generateDocument(prompt, timeout) }
+        if let why = DocumentPrompt.problem(with: answer) { throw Error.badOutput(why) }
+        var s = answer.suggestion(backend: id, maxWords: 6, source: "Apple Intelligence")
+        s.timings = timings
+        s.why.insert("sent the PDF's text (\(doc.source == .ocr ? "OCR of page 1" : "text layer")) to Apple Intelligence on this Mac", at: 0)
+        return s
+    }
+
     static func onDevice(_ prompt: String, timeout: TimeInterval) throws -> ClaudePrompt.Answer {
         #if canImport(FoundationModels)
         if #available(macOS 26, *) { return try AppleFMSession.respond(prompt, timeout: timeout) }
+        #endif
+        throw Error.unavailable(AppleIntelligenceStatus.current.message)
+    }
+
+    static func onDeviceDocument(_ prompt: String, timeout: TimeInterval) throws -> DocumentPrompt.Answer {
+        #if canImport(FoundationModels)
+        if #available(macOS 26, *) { return try AppleFMSession.respondDocument(prompt, timeout: timeout) }
         #endif
         throw Error.unavailable(AppleIntelligenceStatus.current.message)
     }
@@ -158,6 +182,13 @@ public enum AppleFMPrompt {
     /// The same text context Claude gets: date, city, device, kind guess, labels and an OCR snippet.
     /// Never coordinates or the file name.
     public static func prompt(_ ctx: PhotoContext) -> String { ClaudePrompt.context(ctx) }
+
+    /// The on-device model's context is about 4,000 tokens for instructions, prompt and answer
+    /// together; 3,000 characters of text (about 800 tokens) leaves plenty of room.
+    static let maxDocumentChars = 3000
+
+    /// The instructions for a PDF: the same rules Claude gets (`DocumentPrompt`).
+    static let documentInstructions = DocumentPrompt.instructions
 
     /// True when Vision found something to go on: a label scoring 0.3 or more, or confident text.
     static func hasEvidence(_ ctx: PhotoContext) -> Bool {
@@ -184,6 +215,24 @@ struct AppleFMAnswer {
     var confidence: Double
 }
 
+/// A PDF's answer, with the same fields as `DocumentPrompt.Answer`. The kinds are `DocumentPrompt.kinds`.
+@available(macOS 26, *)
+@Generable
+struct AppleFMDocumentAnswer {
+    @Guide(description: "What kind of document this is", .anyOf(["invoice", "receipt", "statement", "contract", "form", "letter", "ticket", "manual", "paper", "other"]))
+    var kind: String
+    @Guide(description: "2 to 6 lowercase words naming the document, like \"internet and tv bill\" or \"lease agreement 45 carlton st\"")
+    var subject: String
+    @Guide(description: "The company or organisation that issued it, in 1 to 3 words; empty if none")
+    var issuer: String
+    @Guide(description: "For an invoice or receipt, the total as digits like 84.12; otherwise empty")
+    var amount: String
+    @Guide(description: "The document's own date as YYYY-MM-DD; empty if the text has none")
+    var date: String
+    @Guide(description: "How sure you are, from 0 to 1, that the subject describes the document", .range(0.0...1.0))
+    var confidence: Double
+}
+
 @available(macOS 26, *)
 enum AppleFMSession {
     /// One request at a time: the model runs on one Neural Engine, so parallel requests (the planner
@@ -206,6 +255,33 @@ enum AppleFMSession {
                 let a = response.content
                 box.result = .success(ClaudePrompt.Answer(subject: a.subject, kind: a.kind, merchant: a.merchant,
                                                           total: a.total, confidence: a.confidence, people_present: nil))
+            } catch {
+                box.result = .failure(AppleFMNamer.Error.model((error as? LocalizedError)?.errorDescription ?? String(describing: error)))
+            }
+            done.signal()
+        }
+        guard done.wait(timeout: .now() + timeout) == .success else {
+            task.cancel()
+            throw AppleFMNamer.Error.timeout(timeout)
+        }
+        return try box.result!.get()
+    }
+
+    final class DocumentBox: @unchecked Sendable { var result: Result<DocumentPrompt.Answer, any Error>? }
+
+    /// `respond`, for a PDF's text.
+    static func respondDocument(_ prompt: String, timeout: TimeInterval) throws -> DocumentPrompt.Answer {
+        gate.lock(); defer { gate.unlock() }
+        let box = DocumentBox()
+        let done = DispatchSemaphore(value: 0)
+        let task = Task.detached {
+            do {
+                let session = LanguageModelSession(instructions: AppleFMPrompt.documentInstructions)
+                let response = try await session.respond(to: prompt, generating: AppleFMDocumentAnswer.self,
+                                                         options: GenerationOptions(sampling: .greedy, maximumResponseTokens: 200))
+                let a = response.content
+                box.result = .success(DocumentPrompt.Answer(subject: a.subject, kind: a.kind, issuer: a.issuer,
+                                                            amount: a.amount, date: a.date, confidence: a.confidence))
             } catch {
                 box.result = .failure(AppleFMNamer.Error.model((error as? LocalizedError)?.errorDescription ?? String(describing: error)))
             }

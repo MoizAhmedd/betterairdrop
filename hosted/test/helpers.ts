@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Deps } from "../src/handler";
-import { nameImage } from "../src/name";
+import { nameImage, nameText } from "../src/name";
 import { validateWithPolar } from "../src/polar";
 import { BudgetRecord, LicenseRecord, type Storage } from "../src/state";
 
@@ -110,6 +110,7 @@ export function world(over: Partial<Deps> = {}): World {
     budget: () => new BudgetRecord(budget),
     validate: (key) => validateWithPolar(key, { api: "https://api.polar.sh", organizationId: "org-uuid", fetch: net.fetch, now: () => clock.now }),
     name: (image, context, mayRetry) => nameImage(anthropic, image, context, mayRetry),
+    nameText: (context, text, mayRetry) => nameText(anthropic, context, text, mayRetry),
     log: (l) => logs.push(l),
     ...over,
   };

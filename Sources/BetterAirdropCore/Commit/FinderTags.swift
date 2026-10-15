@@ -35,7 +35,7 @@ public enum FinderTags {
     /// The tags for a renamed file: its kind, plus the city for a photo.
     public static func tags(for p: Proposal) -> [String] {
         guard let kind = p.suggestion?.kind ?? p.context?.kind else { return [] }
-        var out = [kind.rawValue.capitalized]
+        var out = [kind == .other ? "Document" : kind.rawValue.capitalized]
         if kind == .photo, let city = p.context?.place?.city, !city.isEmpty { out.append(city) }
         return out
     }

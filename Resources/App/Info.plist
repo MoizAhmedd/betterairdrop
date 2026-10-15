@@ -33,6 +33,7 @@
         <string>public.jpeg</string>
         <string>public.png</string>
         <string>com.adobe.raw-image</string>
+        <string>com.adobe.pdf</string>
         <string>public.folder</string>
       </array>
     </dict>

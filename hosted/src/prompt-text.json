@@ -1,0 +1,62 @@
+{
+  "//": "Copied from DocumentPrompt (Sources/BetterAirdropCore/Naming/DocumentPrompt.swift). HostedPromptTests fails if they drift.",
+  "system": "You name PDF files. You get text extracted from the first pages of a PDF on the user's Mac. Work out what the document is and describe it as a short filename phrase.\n\nRules for \"subject\":\n- 2 to 6 lowercase words, plain English, specific: \"internet and tv bill\", \"lease agreement 45 carlton st\", \"notice of assessment 2025\", \"dishwasher installation manual\", \"attention is all you need\".\n- Name the document, not the format. Avoid bare words like \"document\", \"pdf\", \"file\", \"scan\" or \"page\".\n- For a paper, book or manual, use its title, shortened. For a contract, its type and what it covers (a property address is fine).\n- Never include people's names, emails, phone numbers, or account, policy, card or invoice numbers, even if they appear in the text.\n- Don't repeat the date, the amount or the kind; they are added to the filename separately.\n\nOther fields:\n- \"kind\": invoice, receipt, statement, contract, form, letter, ticket, manual, paper or other. An invoice or bill asks for payment; a receipt confirms one; a statement lists account activity.\n- \"issuer\": the company or organisation that issued it, 1 to 3 words (\"Bell Canada\", \"TD Bank\"); \"\" if there is none or it's a private person.\n- \"amount\": for an invoice or receipt, the total due or paid as digits like \"84.12\"; otherwise \"\".\n- \"date\": the document's own date as YYYY-MM-DD: the invoice or receipt date, a statement's closing date, the date a contract was signed, a letter's date, a ticket's travel or event date, a paper's publication date. Not a due date. \"\" if the text has none.\n- \"confidence\": 0 to 1, how sure you are that the subject describes the document well.",
+  "json_instructions": "\nReply with only a JSON object, no prose and no code fences, exactly with these keys: {\"subject\": string, \"kind\": string, \"issuer\": string, \"amount\": string, \"date\": string, \"confidence\": number}",
+  "context_prefix": "PDF worked out on the user's Mac:",
+  "kinds": [
+    "invoice",
+    "receipt",
+    "statement",
+    "contract",
+    "form",
+    "letter",
+    "ticket",
+    "manual",
+    "paper",
+    "other"
+  ],
+  "schema": {
+    "additionalProperties": false,
+    "properties": {
+      "amount": {
+        "type": "string"
+      },
+      "confidence": {
+        "type": "number"
+      },
+      "date": {
+        "type": "string"
+      },
+      "issuer": {
+        "type": "string"
+      },
+      "kind": {
+        "enum": [
+          "invoice",
+          "receipt",
+          "statement",
+          "contract",
+          "form",
+          "letter",
+          "ticket",
+          "manual",
+          "paper",
+          "other"
+        ],
+        "type": "string"
+      },
+      "subject": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "subject",
+      "kind",
+      "issuer",
+      "amount",
+      "date",
+      "confidence"
+    ],
+    "type": "object"
+  }
+}

@@ -119,11 +119,12 @@ public struct LicenseStore: Sendable {
 }
 
 extension License {
-    /// What `license activate` prints: the confirmation, then `EngineStatus.hostedNotice` when the
-    /// engine (worked out with this license) is now hosted naming.
-    public func activatedMessage(engine: EngineStatus) -> String {
+    /// What `license activate` prints: the confirmation, then `EngineStatus.notice` (what hosted
+    /// naming sends, and the PDF clause when a cloud engine names PDFs) for the engine worked out
+    /// with this license.
+    public func activatedMessage(engine: EngineStatus, namesPDFs: Bool = false) -> String {
         let done = "BetterAirdrop Pro is active on “\(label)” (key \(maskedKey))."
-        return engine.isHosted ? done + "\n" + EngineStatus.hostedNotice : done
+        return engine.notice(namesPDFs: namesPDFs).map { done + "\n" + $0 } ?? done
     }
 }
 

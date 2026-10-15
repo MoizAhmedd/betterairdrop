@@ -29,11 +29,11 @@
 
 <article>
   <h1>Privacy</h1>
-  <p class="answer">Photos are named on your Mac. They leave it only when Claude names them: with your own Claude key, or with Pro's hosted naming.</p>
+  <p class="answer">Photos and PDFs are named on your Mac. Something leaves it only when Claude names it: with your own Claude key, or with Pro's hosted naming. For a PDF, that's a text extract, never the file.</p>
 
   <h2>On your Mac</h2>
   <ul>
-    <li>Apple Vision and Apple Intelligence name photos on the Mac. Nothing is sent.</li>
+    <li>Apple Vision and Apple Intelligence name photos on the Mac, and Apple Intelligence names PDFs there. Nothing is sent.</li>
     <li>City names come from a built-in table, so coordinates never leave the Mac.</li>
     <li>Your Claude key and Pro licence key are saved in files only your user can read.</li>
   </ul>
@@ -45,18 +45,25 @@
     <li>as text: the capture date, the city and country, the camera model, the app that created it, the detected kind, on-device labels, and up to 300 characters of text found in the image</li>
   </ul>
   <p>File names, coordinates and the original file are never sent.</p>
+  <h2>When Claude names a PDF (Pro)</h2>
+  <p>With "Name PDFs too" on, the text is read on your Mac. For each PDF it sends only:</p>
+  <ul>
+    <li>up to 4,000 characters of its text, from the first two pages (for a scan, read from page 1 with on-device OCR)</li>
+    <li>its page count and the title in its metadata</li>
+  </ul>
+  <p>Never the PDF itself, an image of a page, or its file name. Turn it off in Settings → Pro.</p>
   <ul>
     <li><strong>Your own key:</strong> straight to Anthropic, on your account.</li>
-    <li><strong>Hosted naming (Pro):</strong> to BetterAirdrop's server on Cloudflare, with your licence key. It passes the image and text to Anthropic on BetterAirdrop's account.</li>
+    <li><strong>Hosted naming (Pro):</strong> to BetterAirdrop's server on Cloudflare, with your licence key. It passes the image or text to Anthropic on BetterAirdrop's account.</li>
   </ul>
   <p>Anthropic handles API data under its <a href="https://www.anthropic.com/legal/privacy">privacy policy</a>. To keep everything on your Mac, pick Apple Vision or Apple Intelligence in Settings → Naming.</p>
 
   <h2>What the hosted-naming server keeps</h2>
-  <p>No photos, text context or names. It keeps:</p>
+  <p>No photos, PDF text, text context or names. It keeps:</p>
   <ul>
-    <li>per licence key: a SHA-256 hash of the key (not the key), Polar's last answer about it, and this month's name count</li>
+    <li>per licence key: a SHA-256 hash of the key (not the key), Polar's last answer about it, and this month's name count (photos and PDFs together)</li>
     <li>one count of today's Claude requests across everyone</li>
-    <li>one log line per request with its status and outcome, kept by Cloudflare for 3 to 7 days. No IP addresses, headers, keys or images are logged.</li>
+    <li>one log line per request with its status and outcome, kept by Cloudflare for 3 to 7 days. No IP addresses, headers, keys, images or PDF text are logged.</li>
   </ul>
   <p>Cloudflare runs the server and handles each connection under its <a href="https://www.cloudflare.com/privacypolicy/">privacy policy</a>.</p>
 

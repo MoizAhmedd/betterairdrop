@@ -1,13 +1,26 @@
-// POST /v1/name: check the request, the Pro license and the caps, then name the photo.
+// POST /v1/name (a photo) and POST /v1/name-text (a PDF's text): check the request, the Pro license
+// and the caps, then name it. Both routes share the license's monthly count and the global daily cap.
 //
-// Success: 200 with the six-field answer ClaudePrompt.parse reads, plus X-Names-Remaining and
-// X-Names-Reset. Errors: {"type":"error","error":{"type","message"[,"resets_at"]}}, the
-// Anthropic error shape, so the app's error reader works on both.
+// Success: 200 with the six-field answer the app parses (ClaudePrompt.parse for photos,
+// DocumentPrompt.parse for PDFs), plus X-Names-Remaining and X-Names-Reset. Errors:
+// {"type":"error","error":{"type","message"[,"resets_at"]}}, the Anthropic error shape, so the
+// app's error reader works on all of them.
 
 import Anthropic from "@anthropic-ai/sdk";
-import { NamingError, nameImage, type Answer } from "./name";
+import { NamingError, type Answer, type TextAnswer } from "./name";
 import type { Verdict } from "./polar";
-import { RequestError, bearerKey, parseNameRequest, plausibleKey, readLimited } from "./request";
+import {
+  MAX_BODY_BYTES,
+  MAX_TEXT_BODY_BYTES,
+  RequestError,
+  bearerKey,
+  imageTooLarge,
+  parseNameRequest,
+  parseNameTextRequest,
+  plausibleKey,
+  readLimited,
+  textTooLarge,
+} from "./request";
 import {
   dayPeriod,
   isoSeconds,
@@ -36,6 +49,8 @@ export interface Deps {
   validate: (key: string) => Promise<Verdict>;
   /** `mayRetry` takes another unit of the global budget before a second Anthropic call. */
   name: (image: string, context: string, mayRetry: () => Promise<boolean>) => Promise<Answer>;
+  /** A PDF's text (POST /v1/name-text). Same `mayRetry` budget rule. */
+  nameText: (context: string, text: string, mayRetry: () => Promise<boolean>) => Promise<TextAnswer>;
   log?: (line: Record<string, unknown>) => void;
 }
 
@@ -57,15 +72,22 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
 
 async function route(req: Request, deps: Deps): Promise<Response> {
   const path = new URL(req.url).pathname;
-  if (path !== "/v1/name") return error(404, "not_found", "No such endpoint.");
+  if (path !== "/v1/name" && path !== "/v1/name-text") return error(404, "not_found", "No such endpoint.");
   if (req.method !== "POST") return error(405, "method_not_allowed", "Use POST.", { allow: "POST" });
 
   const key = bearerKey(req);
   if (!key) return error(401, "missing_license", "Send the BetterAirdrop Pro license key as Authorization: Bearer <key>.");
 
-  let image: string, context: string;
+  // Everything is checked before the license or the caps: a bad request costs nothing.
+  let name: (mayRetry: () => Promise<boolean>) => Promise<Answer | TextAnswer>;
   try {
-    ({ image, context } = parseNameRequest(await readLimited(req)));
+    if (path === "/v1/name") {
+      const { image, context } = parseNameRequest(await readLimited(req, MAX_BODY_BYTES, imageTooLarge));
+      name = (mayRetry) => deps.name(image, context, mayRetry);
+    } else {
+      const { context, text } = parseNameTextRequest(await readLimited(req, MAX_TEXT_BODY_BYTES, textTooLarge));
+      name = (mayRetry) => deps.nameText(context, text, mayRetry);
+    }
   } catch (e) {
     if (e instanceof RequestError) return error(e.status, e.type, e.message);
     throw e;
@@ -90,9 +112,9 @@ async function route(req: Request, deps: Deps): Promise<Response> {
     return limited("daily_limit", nextDay(now), now, "Hosted naming has reached its daily limit.");
   }
 
-  let answer: Answer;
+  let answer: Answer | TextAnswer;
   try {
-    answer = await deps.name(image, context, spend);
+    answer = await name(spend);
   } catch (e) {
     // Not delivered, so not counted against the license. The global count stays: it tracks spend.
     await license.release(month);

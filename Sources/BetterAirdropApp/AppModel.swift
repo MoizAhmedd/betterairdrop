@@ -102,6 +102,9 @@ final class AppModel: ObservableObject {
     /// Pro is unlocked (active, or in the grace period after Polar said the key is invalid).
     var isPro: Bool { proStatus.isUnlocked }
 
+    /// Pro with "Name PDFs too" on: watchers, Rename Files…, drops and Services take PDFs too.
+    var namesPDFs: Bool { isPro && config.namePDFs }
+
     /// Settings' paths: `~/…` under the home folder.
     nonisolated static func expand(_ path: String) -> URL {
         URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
@@ -159,15 +162,15 @@ final class AppModel: ObservableObject {
         buildGeneration += 1
         let generation = buildGeneration
         let config = self.config, folder = self.folder, journal = self.journal
-        let paused = isPaused, pro = isPro
+        let paused = isPaused, pro = isPro, pdfs = namesPDFs
         DispatchQueue.global(qos: .userInitiated).async {
-            var planner = Self.makePlanner(config: config)
+            var planner = Self.makePlanner(config: config, pdfs: pdfs)
             // Pro: arrivals are filed by kind. Renames started by hand (preview, drops, Services) stay in place.
             if pro { planner.filing = Filing(config: config) }
             let shots = ScreenshotFolder.current()
             let plan = WatchPlan.make(main: folder, mainAirdropOnly: config.watchAirdropOnly,
                                       screenshots: pro && config.watchScreenshots ? shots : nil,
-                                      extras: pro ? config.watchExtraFolders.map(Self.expand) : [])
+                                      extras: pro ? config.watchExtraFolders.map(Self.expand) : [], pdfs: pdfs)
             let built = plan.entries.enumerated().map { i, e -> (WatchPlan.Entry, Watcher, WatchService) in
                 let committer = Committer(config: config, journal: journal)
                 committer.backend = planner.namer?.id ?? "none"
@@ -175,6 +178,8 @@ final class AppModel: ObservableObject {
                 var options = Watcher.Options(folder: e.folder)
                 options.intake = e.intake
                 options.movies = e.movies
+                options.pdfs = e.pdfs
+                options.everyPDF = e.everyPDF
                 let watcher = Watcher(options: options, planner: planner, committer: committer)
                 let monitor = FSEventsFolderMonitor(folder: e.folder.resolvingSymlinksInPath())
                 let svc = i == 0 ? WatchService(watcher: watcher, monitor: monitor) : WatchService(watcher: watcher, monitor: monitor, lockURL: nil)
@@ -268,10 +273,16 @@ final class AppModel: ObservableObject {
 
     func dismissProMention() { showProMention = false }
 
-    nonisolated static func makePlanner(config: Config, backend: String? = nil) -> Planner {
+    /// `pdfs`: Pro with "Name PDFs too" on (`namesPDFs`). PDFs then get their own engine
+    /// (`Backends.resolveDocuments`): text only, falling back to Apple Intelligence, never Vision.
+    nonisolated static func makePlanner(config: Config, backend: String? = nil, pdfs: Bool = false) -> Planner {
         var planner = Planner(config: config)
         planner.namer = (try? Backends.resolve(backend ?? config.backend, config: config, license: LicenseStore())) ?? VisionNamer()
         planner.analyzer = { VisionAnalyzer.analyze($0) }
+        if pdfs {
+            planner.pdfs = true
+            planner.documentNamer = Backends.resolveDocuments(backend ?? config.backend, config: config, license: LicenseStore())
+        }
         return planner
     }
 
@@ -504,9 +515,9 @@ final class AppModel: ObservableObject {
 
     /// Plans files off the main thread (no changes on disk).
     func plan(_ urls: [URL], backend: String? = nil, completion: @escaping ([Proposal]) -> Void) {
-        let config = self.config
+        let config = self.config, pdfs = namesPDFs
         DispatchQueue.global(qos: .userInitiated).async {
-            let proposals = Self.makePlanner(config: config, backend: backend).plan(urls)
+            let proposals = Self.makePlanner(config: config, backend: backend, pdfs: pdfs).plan(urls)
             DispatchQueue.main.async { [weak self] in self?.refreshHostedUsage(); completion(proposals) }
         }
     }
@@ -533,7 +544,7 @@ final class AppModel: ObservableObject {
             || old.template != c.template || old.kindTemplates != c.kindTemplates || old.convertHEIC != c.convertHEIC
             || old.originals != c.originals || old.placeProvider != c.placeProvider || old.stripGPSFromOutput != c.stripGPSFromOutput
             || old.watchScreenshots != c.watchScreenshots || old.watchExtraFolders != c.watchExtraFolders || old.dateFormat != c.dateFormat
-            || old.fileFolders != c.fileFolders || old.fileMonthly != c.fileMonthly {
+            || old.fileFolders != c.fileFolders || old.fileMonthly != c.fileMonthly || old.namePDFs != c.namePDFs {
             rebuildService()
         }
     }

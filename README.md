@@ -66,6 +66,11 @@ scripts/make-app.sh && open .build/app/BetterAirdrop.app
 
 City names come from a built-in table, so coordinates never leave the Mac.
 
+PDFs (Pro) are named from their text: up to 4,000 characters from the first two pages, or OCR of
+page 1 for a scan, read on the Mac. With Claude or hosted naming, only that text extract is sent,
+with the page count and the PDF's title; never the file or a page image. Apple Intelligence names
+them on the Mac. Apple Vision alone leaves PDFs as they are.
+
 ## Command line
 
 ```sh
@@ -83,6 +88,7 @@ Free does everything above. Pro, $19 once for 3 Macs, adds:
 - Any folder you choose
 - A name builder
 - Whole folders renamed at once
+- PDFs too: `document (3).pdf` → `2026-10-12_invoice_bell-canada_84-12.pdf`
 
 [Details](docs/cli.md#betterairdrop-pro).
 

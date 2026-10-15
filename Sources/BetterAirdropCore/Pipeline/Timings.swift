@@ -16,6 +16,8 @@ public struct StageTimings: Codable, Sendable, Equatable {
         case credential
         /// Apple Vision labels, OCR and document detection.
         case vision
+        /// Reading a PDF's text (and on-device OCR of page 1 for a scan).
+        case text
         /// Downscaling and re-encoding the copy sent to Claude.
         case encode
         /// The Messages API request, retries included.

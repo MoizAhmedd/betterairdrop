@@ -39,6 +39,16 @@ public struct Config: Sendable, Equatable {
         "receipt": "{date}_receipt_{merchant}_{total}",
         "document": "{date}_doc_{subject}",
         "whiteboard": "{date}_whiteboard_{subject}",
+        // PDFs (Pro). `receipt` above is shared: a PDF receipt is named like a photographed one.
+        "invoice": "{date}_invoice_{merchant}_{total}",
+        "statement": "{date}_statement_{merchant}",
+        "contract": "{date}_{subject}",
+        "form": "{date}_form_{subject}",
+        "letter": "{date}_letter_{subject}",
+        "ticket": "{date}_ticket_{subject}",
+        "manual": "{date}_manual_{subject}",
+        "paper": "{date}_paper_{subject}",
+        "other": "{date}_{subject}",
     ]
 
     public var ollamaURL = "http://127.0.0.1:11434"
@@ -48,6 +58,9 @@ public struct Config: Sendable, Equatable {
     public var claudeInAuto = true
     /// Where hosted naming (Pro) sends photos. Only changed to test another deployment of `hosted/`.
     public var hostedURL = HostedNamer.defaultBaseURL
+
+    /// Pro: also name PDFs (new ones in the watched folders, and PDFs renamed by hand) from their text.
+    public var namePDFs = true
 
     /// Pro (menu-bar app only): add Finder tags (the kind, and the city for photos) to renamed files.
     public var finderTags = false
@@ -233,6 +246,7 @@ public struct Config: Sendable, Equatable {
         case "claude.model": claudeModel = try str()
         case "claude.auto": claudeInAuto = try bool()
         case "finder_tags": finderTags = try bool()
+        case "name_pdfs": namePDFs = try bool()
         case "hosted.url":
             let s = try str()
             guard let u = URL(string: s), ["https", "http"].contains(u.scheme ?? ""), u.host != nil else {

@@ -26,10 +26,10 @@ struct LicenseCommand: ParsableCommand {
             do {
                 let l = try LicenseClient().activate(key: key)
                 AppSignal.reload.post()   // a running app turns Pro on now
-                let engine = EngineStatus.current(config: (try? global.loadConfig()) ?? Config(),
-                                                  hasCredential: ClaudeAuth.shared.resolve() != nil,
+                let config = (try? global.loadConfig()) ?? Config()
+                let engine = EngineStatus.current(config: config, hasCredential: ClaudeAuth.shared.resolve() != nil,
                                                   appleReady: AppleIntelligenceStatus.current.isAvailable, hasLicense: true)
-                print(l.activatedMessage(engine: engine))
+                print(l.activatedMessage(engine: engine, namesPDFs: namesPDFs(config)))
             } catch let f as LicenseClient.Failure {
                 stderr(f.description)
                 throw ExitCode(1)

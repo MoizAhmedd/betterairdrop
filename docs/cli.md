@@ -24,6 +24,8 @@ context, and it names the photo by itself if Claude fails for any reason (no net
 rate limit, refusal), so a rename never fails because of the network. The first time Claude is
 used, BetterAirdrop prints a one-time notice saying what gets sent.
 
+PDFs (Pro, see [Naming PDFs](#naming-pdfs-pro)) go to the same engine, as text only.
+
 To keep everything on-device, set `backend = "vision"` or turn Claude (and hosted naming) off for `auto`:
 
 ```toml
@@ -97,6 +99,7 @@ second time.
 - It waits until a file stops growing and is a complete image, then waits for a 3-second quiet
   spell, so a burst of photos becomes one batch and one notification.
 - A Live Photo's `.MOV` gets the same name as its photo. A video on its own is left alone.
+- With Pro and `name_pdfs` on, PDFs too: see [Naming PDFs](#naming-pdfs-pro).
 
 ## Config
 
@@ -110,6 +113,7 @@ originals = "trash"                     # trash | keep | delete
 convert_heic = true
 date_format = "yyyy-mm-dd"              # yyyy-mm-dd | yyyymmdd | yyyy-mm | dd-mm-yyyy | mm-dd-yyyy
 finder_tags = false                     # Pro, menu-bar app only: tag renamed files with the kind (and city for photos)
+name_pdfs = true                        # Pro: also name PDFs from their text (see "Naming PDFs")
 
 [watch]
 folder = "~/Downloads"
@@ -118,7 +122,8 @@ screenshots = false                     # Pro, menu-bar app only: also name new 
 extra_folders = []                      # Pro, menu-bar app only: e.g. ["~/Pictures/Inbox"]
 
 [file]                                  # Pro, menu-bar app only: move new arrivals by kind (undo moves them back)
-receipt = "~/Documents/Receipts"        # photo | screenshot | receipt | document | whiteboard; "" = leave in place
+receipt = "~/Documents/Receipts"        # photo | screenshot | receipt | document | whiteboard, and the PDF kinds
+                                        # (invoice statement contract form letter ticket manual paper other); "" = leave in place
 monthly = true                          # …/Receipts/2026-10/ from the photo's date
 
 [claude]
@@ -133,8 +138,10 @@ url = "https://api.betterairdrop.com"   # only to test another deployment of hos
 
 Everything above is free. Pro ($19 once, 3 Macs, lifetime updates, sold through Polar) adds to the
 menu-bar app: naming new screenshots, watching other folders (new images only, same settle rules
-and undo), the name builder (parts, order, separator, date format) and renaming whole folders
-(drop a folder on the menu-bar icon, or Finder → Services). The command-line tool is the same with or without it.
+and undo), the name builder (parts, order, separator, date format), renaming whole folders
+(drop a folder on the menu-bar icon, or Finder → Services) and naming PDFs. The command-line tool
+is the same with or without it, except that `rename`, `explain` and `watch` name PDFs too while
+this Mac has Pro and `name_pdfs` is on.
 
 ```sh
 betterairdrop license activate BA_XXXX-XXXX   # uses one of the key's 3 Macs; label = this Mac's name
@@ -149,6 +156,55 @@ reached or answers with an error.** Only an explicit "revoked/invalid" answer st
 period, after which Pro turns off until a valid key is activated.
 
 `state` is `none`, `active`, `grace` (Polar said invalid; `grace_until` says when Pro turns off) or `invalid` (Pro is off). `betterairdrop status --json` carries the same `state` and `pro` under `credentials.license`.
+
+## Naming PDFs (Pro)
+
+On by default with Pro (Settings → Pro → **Name PDFs too**, or `name_pdfs = false` to turn it
+off). Without Pro, PDFs are never touched, AirDropped or not.
+
+```
+document (3).pdf   →  2026-10-12_invoice_bell-canada_84-12.pdf
+scan0004.pdf       →  2026-09-30_lease-agreement-45-carlton-st.pdf
+```
+
+**What gets named:** new PDFs in the AirDrop folder that arrived from outside this Mac (their
+quarantine says downloaded: a browser download or AirDrop), even with `[watch] airdrop_only` off;
+every new PDF in the other folders you added; and PDFs you pass to Rename Files…, drop on the icon,
+rename with Finder → Services, or find in a folder you rename. A PDF an app on this Mac saved into
+the AirDrop folder is left alone, even a sandboxed app's. Never the screenshot folder.
+
+**Left alone:** a PDF while a browser's `name.pdf.download`, `.crdownload` or `.part` file is next to
+it; one that doesn't start with `%PDF-` and end with `%%EOF` (still being written); one whose size
+changed in the last 2 seconds; one inside an app bundle or other package; an encrypted one (even
+if it opens without a password); one already named (a date-first name or the BetterAirdrop marker);
+one that was in the folder before watching started, even after you annotate or sign it in Preview
+or another Mac app (a PDF's arrival is the date it was added to the folder, not its last change).
+The extension is kept exactly as it was. Undo works as for photos.
+
+**How:** PDFKit reads the text of the first 2 pages, up to 4,000 characters. A scan with no text
+layer has page 1 rendered and read with Vision OCR on the Mac. The engine gets **only that text**,
+the page count and the PDF's metadata title: never the file, a page image or the file name. It
+answers with a kind (invoice, receipt, statement, contract, form, letter, ticket, manual, paper,
+other), a subject, the issuer, the amount and the document's own date, which is used instead of
+the file's date.
+
+| Engine | For PDFs |
+|---|---|
+| `claude` (your key) | a text-only request to Claude; about $2 per 1,000 PDFs on Haiku 4.5 |
+| `hosted` (Pro) | `POST /v1/name-text` with the text; counts against the same 500 names a month |
+| `apple` | on the Mac; also the fallback when Claude or hosted naming fails |
+| `vision` | Apple Intelligence if it's ready (still on the Mac), otherwise the PDF is left as it is |
+
+Apple Vision alone can't tell an invoice from a lease, and a PDF's first line or metadata title is
+often a reference number or someone's name, so without a model the file keeps its name rather
+than getting a guessed one.
+
+Names come from per-kind templates, which you can change like any other (`[templates] invoice = …`):
+`invoice` and `receipt` are `{date}_<kind>_{merchant}_{total}`, `statement` is
+`{date}_statement_{merchant}`, `contract` and `other` are `{date}_{subject}`, and the rest are
+`{date}_<kind>_{subject}`. PDF receipts and invoices are in **Export Receipts as CSV…**. Filing
+uses the kind's own rule (`[file] invoice = "~/Documents/Invoices"`); PDF receipts follow the
+`receipt` rule.
 
 ## Testing
 
