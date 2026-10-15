@@ -34,7 +34,8 @@ export interface Deps {
   license: (keyHash: string) => LicenseStore;
   budget: () => BudgetStore;
   validate: (key: string) => Promise<Verdict>;
-  name: (image: string, context: string) => Promise<Answer>;
+  /** `mayRetry` takes another unit of the global budget before a second Anthropic call. */
+  name: (image: string, context: string, mayRetry: () => Promise<boolean>) => Promise<Answer>;
   log?: (line: Record<string, unknown>) => void;
 }
 
@@ -74,15 +75,16 @@ async function route(req: Request, deps: Deps): Promise<Response> {
     return limited("monthly_limit", nextMonth(now), now,
       `This license has used its ${deps.monthlyCap} hosted names for this month.`);
   }
-  const all = await deps.budget().consume(dayPeriod(now), deps.dailyCap);
-  if (!all.ok) {
+  // The global count is Anthropic calls (spend), not names: the structured retry takes a unit too.
+  const spend = async () => (await deps.budget().consume(dayPeriod(now), deps.dailyCap)).ok;
+  if (!(await spend())) {
     await license.release(month);
     return limited("daily_limit", nextDay(now), now, "Hosted naming has reached its daily limit.");
   }
 
   let answer: Answer;
   try {
-    answer = await deps.name(image, context);
+    answer = await deps.name(image, context, spend);
   } catch (e) {
     // Not delivered, so not counted against the license. The global count stays: it tracks spend.
     await license.release(month);

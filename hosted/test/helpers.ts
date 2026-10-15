@@ -109,7 +109,7 @@ export function world(over: Partial<Deps> = {}): World {
     },
     budget: () => new BudgetRecord(budget),
     validate: (key) => validateWithPolar(key, { api: "https://api.polar.sh", organizationId: "org-uuid", fetch: net.fetch, now: () => clock.now }),
-    name: (image, context) => nameImage(anthropic, image, context),
+    name: (image, context, mayRetry) => nameImage(anthropic, image, context, mayRetry),
     log: (l) => logs.push(l),
     ...over,
   };

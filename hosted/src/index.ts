@@ -41,7 +41,7 @@ export default {
           fetch: (input, init) => fetch(input, init),
           now: () => new Date(),
         }),
-      name: (image, context) => nameImage(anthropic, image, context),
+      name: (image, context, mayRetry) => nameImage(anthropic, image, context, mayRetry),
     });
   },
 } satisfies ExportedHandler<Env>;

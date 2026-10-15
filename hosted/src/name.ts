@@ -57,11 +57,15 @@ export function messageBody(image: string, context: string, structured: boolean)
 
 /**
  * JSON in the prompt first (output_config added ~2.3 s per request in docs/perf.md); an answer that
- * doesn't parse is asked for once more with output_config, as ClaudeNamer does.
+ * doesn't parse is asked for once more with output_config, as ClaudeNamer does. `mayRetry` is asked
+ * first: the second request is a second paid call, so it has to fit the global daily budget too.
  */
-export async function nameImage(client: Anthropic, image: string, context: string): Promise<Answer> {
+export async function nameImage(
+  client: Anthropic, image: string, context: string, mayRetry: () => Promise<boolean> = async () => true,
+): Promise<Answer> {
   const first = parseAnswer(await ask(client, messageBody(image, context, false)));
   if (first) return first;
+  if (!(await mayRetry())) throw new NamingError("bad_output", "Claude's answer wasn't the expected JSON object.");
   const second = parseAnswer(await ask(client, messageBody(image, context, true)));
   if (second) return second;
   throw new NamingError("bad_output", "Claude's answer wasn't the expected JSON object.");

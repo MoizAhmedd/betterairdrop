@@ -176,6 +176,22 @@ describe("limits", () => {
     expect((await handle(request(undefined, { key: other }), w.deps)).status).toBe(200);
   });
 
+  it("the global cap counts Anthropic calls: the structured retry takes a unit, and isn't made past the cap", async () => {
+    const w = world({ dailyCap: 3 });
+    w.net.polar.push(granted);
+    w.net.anthropic.push(message("Sure! It's a lamp."), message(answerText));
+    expect((await handle(request(), w.deps)).status).toBe(200);
+    expect((await w.deps.budget().consume("2026-10-15", 3)).used).toBe(3); // two calls, plus this probe
+
+    const w2 = world({ dailyCap: 1 });
+    w2.net.polar.push(granted);
+    w2.net.anthropic.push(message("Sure! It's a lamp."));
+    const res = await handle(request(), w2.deps);
+    expect(res.status).toBe(502);
+    expect((await body(res)).error.type).toBe("bad_output");
+    expect(w2.net.anthropicCalls()).toHaveLength(1);
+  });
+
   it("a name that fails isn't counted against the license", async () => {
     const w = world({ monthlyCap: 1 });
     w.net.polar.push(granted);
