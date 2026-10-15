@@ -1,4 +1,5 @@
 import BetterAirdropCore
+import BetterAirdropKit
 import ArgumentParser
 import Foundation
 
@@ -61,7 +62,4 @@ func stderr(_ s: String) {
 }
 
 /// Shortens paths under $HOME to ~/… for display.
-func tilde(_ path: String) -> String {
-    let home = FileManager.default.homeDirectoryForCurrentUser.path
-    return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
-}
+func tilde(_ path: String) -> String { StatusReport.tilde(path) }
