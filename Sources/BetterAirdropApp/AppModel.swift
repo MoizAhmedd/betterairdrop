@@ -67,7 +67,9 @@ final class AppModel: ObservableObject {
         return folder.path.hasPrefix(home) ? "~" + folder.path.dropFirst(home.count) : folder.path
     }
     var isPaused: Bool { defaults.bool(forKey: "pausedIndefinitely") || pausedUntil != nil }
-    var engine: EngineStatus { EngineStatus.current(config: config, hasCredential: credential.any) }
+    var engine: EngineStatus {
+        EngineStatus.current(config: config, hasCredential: credential.any, appleReady: AppleIntelligenceStatus.current.isAvailable)
+    }
     var needsAttention: Bool { state == .noAccess }
 
     /// "● Ready: watching Downloads"

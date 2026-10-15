@@ -24,12 +24,18 @@ final class OnboardingState: ObservableObject {
     @Published var backlogFiles: [URL] = []
 
     let fixMode: Bool
-    let appleReady: Bool
+    @Published private(set) var apple = AppleIntelligenceStatus.current
+    var appleReady: Bool { apple.isAvailable }
     var presetForSnapshot = false
     init(fixMode: Bool) {
         self.fixMode = fixMode
-        if case .ready = AppleFMNamer().availability() { appleReady = true } else { appleReady = false }
         if fixMode { step = 1 }
+    }
+
+    /// Re-reads Apple Intelligence's status (it changes when it's turned on or the model finishes downloading).
+    func refreshApple() {
+        let now = AppleIntelligenceStatus.current
+        if now != apple { apple = now }
     }
 }
 
@@ -65,7 +71,10 @@ struct OnboardingView: View {
         }
         .frame(width: 620, height: 500)
         .onAppear(perform: appear)
-        .onReceive(poll) { _ in if s.step == 1 && Permissions.didAsk && s.access != .granted { probe() } }
+        .onReceive(poll) { _ in
+            if s.step == 1 && Permissions.didAsk && s.access != .granted { probe() }
+            if s.step == 2 && !s.appleReady { s.refreshApple() }
+        }
     }
 
     // MARK: Steps
@@ -149,8 +158,14 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 EngineCard(choice: .apple, selected: $s.engine, enabled: s.appleReady,
                            title: "Apple Intelligence",
-                           detail: s.appleReady ? "On-device and private. Names are good, not great." : "Needs macOS 27 with Apple Intelligence on. This Mac runs macOS \(Self.osVersion).",
+                           detail: s.appleReady ? "On-device and private. Names are good, not great." : s.apple.message,
                            badge: ("On-device · Free", .green))
+                if let url = s.apple.settingsURL {
+                    Button("Open Apple Intelligence Settings…") { NSWorkspace.shared.open(url) }
+                        .buttonStyle(.link).font(.system(size: 12))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 42).padding(.bottom, 10)
+                }
                 Divider()
                 EngineCard(choice: .claude, selected: $s.engine, enabled: true, title: "Claude Haiku",
                            detail: "The best names: 92% of them good in our tests, against 42% for Apple Vision. About $2 per 1,000 photos, paid to Anthropic with your own key.",
@@ -409,11 +424,6 @@ struct OnboardingView: View {
         if !s.notify { model.updateConfig { $0.watchNotify = false } }
         if s.launchAtLogin != LoginItem.isEnabled { LoginItem.set(s.launchAtLogin) }
         finish(s.backlog ? s.backlogFiles : [])
-    }
-
-    static var osVersion: String {
-        let v = ProcessInfo.processInfo.operatingSystemVersion
-        return "\(v.majorVersion).\(v.minorVersion)"
     }
 }
 
