@@ -12,6 +12,9 @@ import Testing
         let on = WatchPlan.make(main: dl, mainAirdropOnly: true, screenshots: shots, extras: [inbox], pdfs: true)
         #expect(on.entries.map(\.role) == [.airdrop, .screenshots, .folder])
         #expect(on.entries.map(\.pdfs) == [true, false, true])
+        // Only the added folder takes every new PDF; the AirDrop folder keeps the downloaded-only rule, switch or not.
+        #expect(on.entries.map(\.everyPDF) == [false, false, true])
+        #expect(WatchPlan.make(main: dl, mainAirdropOnly: false, screenshots: nil, extras: [], pdfs: true).entries.map(\.everyPDF) == [false])
         let off = WatchPlan.make(main: dl, mainAirdropOnly: true, screenshots: shots, extras: [inbox])
         #expect(off.entries.allSatisfy { !$0.pdfs })
     }

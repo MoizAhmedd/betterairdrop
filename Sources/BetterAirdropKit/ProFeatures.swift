@@ -25,6 +25,8 @@ public struct WatchPlan: Equatable, Sendable {
         public var pdfs = false
         /// Live Photo videos are only picked up in the AirDrop folder.
         public var movies: Bool { role == .airdrop }
+        /// Every new PDF in the folders the user added; in the AirDrop folder only downloaded ones.
+        public var everyPDF: Bool { role == .folder }
     }
 
     public var entries: [Entry]

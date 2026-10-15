@@ -224,10 +224,12 @@ func name(_ p: Proposal) -> String? { p.target.map { ($0 as NSString).lastPathCo
 
 /// The watchers with "Name PDFs too": what they pick up, the settle wait, one batch, undo.
 @Suite(.serialized) struct PDFWatcherTests {
-    func watcher(_ s: Sandbox, _ intake: Watcher.Options.Intake = .airdrop, startedAt: Date = Date().addingTimeInterval(-60)) -> Watcher {
+    func watcher(_ s: Sandbox, _ intake: Watcher.Options.Intake = .airdrop, everyPDF: Bool = false,
+                 startedAt: Date = Date().addingTimeInterval(-60)) -> Watcher {
         var o = Watcher.Options(folder: s.downloads)
         o.intake = intake
         o.pdfs = true
+        o.everyPDF = everyPDF
         o.settleInterval = 0.2; o.pdfSettleInterval = 0.4; o.quietWindow = 0.3; o.pollInterval = 0.05; o.maxWait = 20
         var planner = pdfPlanner(s)
         planner.namer = stemNamer
@@ -245,7 +247,11 @@ func name(_ p: Proposal) -> String? { p.target.map { ($0 as NSString).lastPathCo
         AirDropSim.tag(TestPDFs.text(s.file("old.pdf"), TestPDFs.invoiceLines), agent: "com.apple.Safari", at: Date().addingTimeInterval(-3600))
         TestImages.jpeg(s.file("browser photo.jpg"))                                  // images keep the AirDrop-only rule
         #expect(watcher(s).scan().map(\.lastPathComponent) == ["airdropped.pdf", "from safari.pdf"])
+        // The AirDrop folder with "only from AirDrop" off: every image, but still only downloaded PDFs.
         #expect(watcher(s, .all).scan().map(\.lastPathComponent).sorted()
+                == ["airdropped.pdf", "browser photo.jpg", "from safari.pdf"])
+        // A folder the user added: every new PDF.
+        #expect(watcher(s, .all, everyPDF: true).scan().map(\.lastPathComponent).sorted()
                 == ["airdropped.pdf", "browser photo.jpg", "exported from preview.pdf", "from safari.pdf", "saved by an app.pdf"])
         #expect(watcher(s, .screenshots).scan().isEmpty)
         var airdropOnly = pdfPlanner(s)

@@ -168,9 +168,10 @@ scan0004.pdf       →  2026-09-30_lease-agreement-45-carlton-st.pdf
 ```
 
 **What gets named:** new PDFs in the AirDrop folder that arrived from outside this Mac (their
-quarantine flag says downloaded: a browser download or AirDrop; a PDF an app on this Mac saved there
-is left alone, even a sandboxed app's), every new PDF in the other folders you added, and PDFs you pass to Rename Files…, drop on the icon, rename with Finder → Services, or find
-in a folder you rename. Never the screenshot folder.
+quarantine says downloaded: a browser download or AirDrop), even with `[watch] airdrop_only` off;
+every new PDF in the other folders you added; and PDFs you pass to Rename Files…, drop on the icon,
+rename with Finder → Services, or find in a folder you rename. A PDF an app on this Mac saved into
+the AirDrop folder is left alone, even a sandboxed app's. Never the screenshot folder.
 
 **Left alone:** a PDF while a browser's `name.pdf.download`, `.crdownload` or `.part` file is next to
 it; one that doesn't start with `%PDF-` and end with `%%EOF` (still being written); one whose size

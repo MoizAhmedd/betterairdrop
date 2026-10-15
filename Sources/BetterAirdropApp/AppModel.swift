@@ -179,6 +179,7 @@ final class AppModel: ObservableObject {
                 options.intake = e.intake
                 options.movies = e.movies
                 options.pdfs = e.pdfs
+                options.everyPDF = e.everyPDF
                 let watcher = Watcher(options: options, planner: planner, committer: committer)
                 let monitor = FSEventsFolderMonitor(folder: e.folder.resolvingSymlinksInPath())
                 let svc = i == 0 ? WatchService(watcher: watcher, monitor: monitor) : WatchService(watcher: watcher, monitor: monitor, lockURL: nil)
