@@ -313,14 +313,20 @@ func name(_ p: Proposal) -> String? { p.target.map { ($0 as NSString).lastPathCo
     }
 }
 
-@Suite(.serialized) struct PDFEngineTests {
-    let doc = DocumentText(text: TestPDFs.invoiceLines.joined(separator: "\n"), source: .text, pages: 1, title: "Invoice 83721")
-    var ctx: PhotoContext { PhotoContext(file: "/Users/me/Downloads/document (3).pdf", metadata: PhotoMetadata(), kind: .other, document: doc) }
+/// A PDF's text as the engines get it. The Claude and hosted tests live in extensions of
+/// ClaudeNamerTests and HostedNamerTests: they share those suites' URL stubs and statics, so they
+/// must run serialized with them.
+enum PDFEngineFixture {
+    static let doc = DocumentText(text: TestPDFs.invoiceLines.joined(separator: "\n"), source: .text, pages: 1, title: "Invoice 83721")
+    static var ctx: PhotoContext { PhotoContext(file: "/Users/me/Downloads/document (3).pdf", metadata: PhotoMetadata(), kind: .other, document: doc) }
     static let answer = #"{"subject":"internet and tv bill","kind":"invoice","issuer":"Bell Canada","amount":"84.12","date":"2026-10-12","confidence":0.9}"#
+}
 
-    @Test func claudeGetsTextOnly() throws {
+extension ClaudeNamerTests {
+    @Test func pdfGetsTextOnly() throws {
+        let ctx = PDFEngineFixture.ctx
         ClaudeNamer.structuredOutput.value = true
-        StubURLProtocol.reset([.init(status: 200, body: message(Self.answer, input: 1100, output: 50))])
+        StubURLProtocol.reset([.init(status: 200, body: message(PDFEngineFixture.answer, input: 1100, output: 50))])
         var n = ClaudeNamer(auth: ClaudeAuth(environment: ["ANTHROPIC_API_KEY": "sk-ant-test-key"], storedKey: { nil }, antPath: { nil }),
                             transport: StubURLProtocol.transport)
         n.sleep = { _ in }
@@ -337,10 +343,13 @@ func name(_ p: Proposal) -> String? { p.target.map { ($0 as NSString).lastPathCo
         #expect(json["system"] as? String == DocumentPrompt.instructions + DocumentPrompt.jsonInstructions)
         #expect(!String(decoding: body, as: UTF8.self).contains("\"image\""))
     }
+}
 
-    @Test func hostedUsesNameTextAndSharesTheCount() throws {
+extension HostedNamerTests {
+    @Test func pdfUsesNameTextAndSharesTheCount() throws {
+        let (doc, ctx) = (PDFEngineFixture.doc, PDFEngineFixture.ctx)
         HostedNamer.blocks.reset(); HostedNamer.usage.reset()
-        HostedStubProtocol.reset([.init(status: 200, body: Self.answer, headers: ["x-names-remaining": "41", "x-names-reset": "2026-11-01T00:00:00Z"])])
+        HostedStubProtocol.reset([.init(status: 200, body: PDFEngineFixture.answer, headers: ["x-names-remaining": "41", "x-names-reset": "2026-11-01T00:00:00Z"])])
         var n = HostedNamer(license: FixedLicense(key: HostedNamerTests.key), transport: HostedStubProtocol.transport)
         n.sleep = { _ in }
         let s = try n.suggest(for: URL(fileURLWithPath: ctx.file), context: ctx)
@@ -354,7 +363,8 @@ func name(_ p: Proposal) -> String? { p.target.map { ($0 as NSString).lastPathCo
         #expect(json["context"] == DocumentPrompt.context(doc) && json["text"] == doc.text)
     }
 
-    @Test func hostedMonthlyLimitFallsBackToAppleIntelligence() throws {
+    @Test func pdfMonthlyLimitFallsBackToAppleIntelligence() throws {
+        let ctx = PDFEngineFixture.ctx
         HostedNamer.blocks.reset(); HostedNamer.usage.reset()
         HostedStubProtocol.reset([.init(status: 429, body: hostedError("monthly_limit", "used up", resets: "2026-11-01T00:00:00Z"))])
         var hosted = HostedNamer(license: FixedLicense(key: HostedNamerTests.key), transport: HostedStubProtocol.transport)
@@ -369,7 +379,9 @@ func name(_ p: Proposal) -> String? { p.target.map { ($0 as NSString).lastPathCo
         #expect(s.backend == "apple" && s.subject == "bell internet bill")
         #expect(s.fallbackFrom?.contains("monthly hosted limit") == true)
     }
+}
 
+@Suite struct PDFEngineTests {
     @Test func documentEngineChoice() {
         let key = ClaudeAuth(environment: ["ANTHROPIC_API_KEY": "sk-ant-x"], storedKey: { nil }, antPath: { nil })
         let noKey = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { nil })
