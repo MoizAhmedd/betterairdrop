@@ -22,6 +22,19 @@ macOS 13 or later. It opens in the menu bar and asks for Downloads access once. 
 otherwise it uses Apple Intelligence (macOS 26+, when it's on) or Apple Vision. Photos already in
 Downloads can be previewed and renamed from the menu.
 
+### Installing with an AI agent
+
+Tell Claude Code or Codex: *"Install BetterAirdrop by following
+https://github.com/MoizAhmedd/betterairdrop/blob/main/docs/install-for-agents.md"*. It runs:
+
+```sh
+curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh -s -- --yes --engine vision --launch-at-login
+betterairdrop status --json      # "ready": true, or next_steps says what's left
+```
+
+You click **Allow** on macOS's Downloads prompt (and the notifications prompt, if you want banners).
+Nothing else needs a click.
+
 Signed with the project's own certificate rather than an Apple Developer ID, so it isn't notarized.
 Both install paths leave it unquarantined, so there's no Gatekeeper dialog.
 ([Details](docs/release/README.md).)
@@ -59,7 +72,7 @@ betterairdrop rename --dry-run ~/Downloads/IMG_*.HEIC
 betterairdrop undo
 ```
 
-`brew` links it; otherwise Settings → Advanced installs it. Reference: [docs/cli.md](docs/cli.md).
+`brew` and the installer link it; Settings → Advanced can too. Reference: [docs/cli.md](docs/cli.md).
 
 ## License
 

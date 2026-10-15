@@ -42,5 +42,7 @@ cask "betterairdrop" do
 
     Open it once to start it:
       open "#{appdir}/BetterAirdrop.app"
+    Or set it up from Terminal (it opens the app when done):
+      betterairdrop setup --yes --engine auto
   EOS
 end

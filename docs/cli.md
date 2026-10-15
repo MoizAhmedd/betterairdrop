@@ -1,7 +1,7 @@
 # Command-line reference
 
-The app bundles the `betterairdrop` command (Settings → Advanced → Install puts it at
-`~/.local/bin/betterairdrop`). Everything the app does is available here too; both share the
+The app bundles the `betterairdrop` command (the installer, or Settings → Advanced → Install, puts
+it at `~/.local/bin/betterairdrop`; Homebrew links it too). Everything the app does is available here too; both share the
 same config, journal and undo.
 
 ## Naming backends
@@ -62,9 +62,19 @@ betterairdrop explain <file>                               show the context and 
 betterairdrop undo [--last | --batch ID | <file>]          put files back exactly as they were
 betterairdrop log [-n 20]                                  recent renames
 betterairdrop auth claude | status | login | logout        set up the Claude credential
-betterairdrop status                                       is the app (or a Terminal watcher) running; this month's totals
+betterairdrop setup [--engine auto|claude|vision|apple]    set up without the app's windows (scripts, AI agents)
+        [--api-key-env VAR | --api-key-stdin] [--no-verify] [--[no-]launch-at-login] [--[no-]notify] [--no-open] [--yes]
+betterairdrop status [--json]                              is anything renaming AirDrops, what's missing, this month's totals
 betterairdrop uninstall [--purge]                          remove the app, login item, key, CLI link and permission
 ```
+
+`setup` writes the same config the app's Settings do, stores the key (verified with Anthropic
+unless `--no-verify`), records that setup is done, and opens the app. The app's first launch then
+only shows macOS's Downloads prompt and, if notifications are on, the notifications prompt. A
+running app picks up the changes straight away. Without `--yes`, it asks before changing anything,
+and refuses when stdin isn't a terminal. `status --json` reports the permissions the app last saw
+and a `next_steps` list, each step marked `human` or `agent`. Both are described in
+[install-for-agents.md](install-for-agents.md).
 
 What `rename` (and each watcher batch) does, in order: it writes the new JPEG next to the
 original and syncs it to disk, records it in the journal

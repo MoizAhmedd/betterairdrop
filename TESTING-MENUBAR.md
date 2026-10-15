@@ -56,7 +56,22 @@ open ~/Applications/BetterAirdrop.app
 - If Downloads has old `IMG_…` files: a "Found N unnamed photos in Downloads…" row → the preview
   (20 at a time, with a cost estimate). Nothing is renamed until **Rename**; that first rename
   asks for notifications → **Allow**.
-- To see the first run again: `defaults delete dev.betterairdrop.app`.
+- Clicked **Don't Allow**? The access window opens by itself with **Open Privacy Settings**.
+- To see the first run again: `defaults delete dev.betterairdrop.app` (and
+  `rm ~/Library/Application\ Support/betterairdrop/setup.json` if you used `setup`).
+
+### 1c. The agent path (headless setup)
+
+Instead of `open` in 1b:
+
+```sh
+~/Applications/BetterAirdrop.app/Contents/Helpers/betterairdrop setup --yes --engine vision --launch-at-login
+```
+
+- The app opens. You see macOS's Downloads prompt → **Allow**, then straight away the
+  notifications prompt → **Allow**. No other window and no key offer.
+- `…/betterairdrop status --json` → `"ready": true` and `"next_steps": []`. Before you click, it
+  shows `"folder_access": "waiting"` and a `"who": "human"` step.
 
 Note: every rebuild of an ad-hoc app is a "new app" to macOS, so a rebuilt copy asks for
 Downloads again. The panel shows an orange **Fix…** bar when that happens.
