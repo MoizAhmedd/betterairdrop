@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy · BetterAirdrop</title>
+<meta name="description" content="What BetterAirdrop sends off your Mac, to whom, and what its hosted-naming server keeps.">
+<link rel="canonical" href="https://betterairdrop.com/privacy/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%233f7fbf'/%3E%3Cpath d='M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='14' y='38' width='36' height='11' rx='3.5' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../guides/guide.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="top">
+  <a class="brand" href="../">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="var(--accent)"/><path d="M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0" fill="none" stroke="var(--paper)" stroke-width="4" stroke-linecap="round"/><rect x="14" y="38" width="36" height="11" rx="3.5" fill="var(--paper)"/></svg>
+    BetterAirdrop
+  </a>
+  <div class="links">
+    <a href="https://github.com/MoizAhmedd/betterairdrop">GitHub</a>
+  </div>
+</nav>
+
+<article>
+  <h1>Privacy</h1>
+  <p class="answer">Photos are named on your Mac. They leave it only when Claude names them: with your own Claude key, or with Pro's hosted naming.</p>
+
+  <h2>On your Mac</h2>
+  <ul>
+    <li>Apple Vision and Apple Intelligence name photos on the Mac. Nothing is sent.</li>
+    <li>City names come from a built-in table, so coordinates never leave the Mac.</li>
+    <li>Your Claude key and Pro licence key are saved in files only your user can read.</li>
+  </ul>
+
+  <h2>When Claude names a photo</h2>
+  <p>With a Claude key or Pro, the Automatic engine uses Claude. For each photo it sends:</p>
+  <ul>
+    <li>a 768 px JPEG copy with all metadata removed (no EXIF, no GPS)</li>
+    <li>as text: the capture date, the city and country, the camera model, the app that created it, the detected kind, on-device labels, and up to 300 characters of text found in the image</li>
+  </ul>
+  <p>File names, coordinates and the original file are never sent.</p>
+  <ul>
+    <li><strong>Your own key:</strong> straight to Anthropic, on your account.</li>
+    <li><strong>Hosted naming (Pro):</strong> to BetterAirdrop's server on Cloudflare, with your licence key. It passes the image and text to Anthropic on BetterAirdrop's account.</li>
+  </ul>
+  <p>Anthropic handles API data under its <a href="https://www.anthropic.com/legal/privacy">privacy policy</a>. To keep everything on your Mac, pick Apple Vision or Apple Intelligence in Settings → Naming.</p>
+
+  <h2>What the hosted-naming server keeps</h2>
+  <p>No photos, text context or names. It keeps:</p>
+  <ul>
+    <li>per licence key: a SHA-256 hash of the key (not the key), Polar's last answer about it, and this month's name count</li>
+    <li>one count of today's Claude requests across everyone</li>
+    <li>one log line per request with its status and outcome, kept by Cloudflare for 3 to 7 days. No IP addresses, headers, keys or images are logged.</li>
+  </ul>
+  <p>Cloudflare runs the server and handles each connection under its <a href="https://www.cloudflare.com/privacypolicy/">privacy policy</a>.</p>
+
+  <h2>Payments and licence keys</h2>
+  <p><a href="https://polar.sh">Polar</a> takes payment, sends the receipt and issues your key. The app contacts Polar to activate a Mac (with the key and the Mac's name, shown in your Polar customer portal) and to check the key about once a week. The hosted-naming server checks it with Polar too.</p>
+
+  <h2>Updates</h2>
+  <p>The app checks BetterAirdrop's site for updates. Turn it off in Settings.</p>
+
+  <h2>This website</h2>
+  <ul>
+    <li>Visits are counted with PostHog: pages viewed, install-command copies and Buy clicks.</li>
+    <li>No cookies: a random ID in your browser's local storage. No recordings or heatmaps.</li>
+    <li>Not counted with Do Not Track or Global Privacy Control on, or after "Don't count me" in the footer.</li>
+    <li>Hosted on GitHub Pages; fonts load from Google Fonts.</li>
+  </ul>
+
+  <h2>Contact</h2>
+  <p>BetterAirdrop is made by Moiz Ahmed Consulting Inc. Questions: <a href="mailto:hello@betterairdrop.com">hello@betterairdrop.com</a></p>
+</article>
+
+<footer>
+  <span>BetterAirdrop · MIT licensed · by <a href="https://github.com/MoizAhmedd">Moiz Ahmed</a></span>
+  <span><a href="../">Home</a> · <a href="../terms/">Terms</a></span>
+  <span class="pnote" id="pnote"></span>
+</footer>
+</div>
+<script src="../analytics.js"></script>
+</body>
+</html>
