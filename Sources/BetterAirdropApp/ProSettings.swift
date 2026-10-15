@@ -75,7 +75,7 @@ struct ProPane: View {
                 }
                 Toggle(isOn: Binding(get: { model.config.namePDFs }, set: { v in model.updateConfig { $0.namePDFs = v } })) {
                     HStack(spacing: 6) { Text("Name PDFs too"); if !model.isPro { ProTag() } }
-                    Text("New PDFs in \(model.folderName) and your other folders, and PDFs you rename by hand, are named from their text: "
+                    Text("PDFs you download or AirDrop to \(model.folderName), new PDFs in your other folders, and PDFs you rename by hand are named from their text: "
                          + "\"document (3).pdf\" becomes \"2026-10-12_invoice_bell-canada_84-12.pdf\". With Claude or hosted naming, "
                          + "a text extract is sent, never the file. Without either, Apple Intelligence names them, or they're left alone.")
                 }
