@@ -104,7 +104,13 @@ h1 em{color:var(--accent)}
 .alt code{color:var(--ink-2);overflow-wrap:anywhere}
 .dl{display:inline-block;background:var(--accent);color:var(--paper);font-weight:600;font-size:16px;text-decoration:none;border-radius:10px;padding:12px 26px;margin-bottom:10px}
 .dl:hover{opacity:.92}
-.dl-note{margin:0 0 22px;font-size:13.5px;color:var(--muted)}
+.dl-note{margin:0 0 18px;font-size:13.5px;color:var(--muted)}
+.term{max-width:620px;margin:0 auto;text-align:center}
+.term summary{cursor:pointer;font-size:14px;color:var(--muted);list-style:none}
+.term summary::-webkit-details-marker{display:none}
+.term summary::after{content:" ›"}
+.term[open] summary{margin-bottom:12px}
+.facts a{color:inherit;text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px}
 .gh{display:inline-block;margin-top:22px;font-weight:500;text-decoration:none}
 .gh:hover{text-decoration:underline}
 
@@ -158,7 +164,7 @@ footer a{color:var(--muted)}
 
 <header class="hero">
   <h1>Your AirDrops,<br><em>named for what they&nbsp;are.</em></h1>
-  <p class="lede">AirDrop a photo from your iPhone and it lands as <code>IMG_4821.HEIC</code>. BetterAirdrop renames it from the photo's own date, city, kind and contents, converts it to JPEG, and lets you undo any of it.</p>
+  <p class="lede">AirDropped photos land as <code>IMG_4821.HEIC</code>. BetterAirdrop renames each one by date, place and what's in it.</p>
 
   <div class="stage">
   <div class="banners" id="banners" aria-live="polite">
@@ -177,15 +183,17 @@ footer a{color:var(--muted)}
 
   <div id="install">
     <a class="dl" id="download" href="https://github.com/MoizAhmedd/betterairdrop/releases/latest/download/BetterAirdrop.zip">Download for Mac</a>
-    <p class="dl-note">Unzip, drag it to Applications, open it. If macOS blocks it: System Settings → Privacy &amp; Security → Open Anyway.</p>
-    <div class="code"><span class="line"><span class="p">$ </span><span id="cmd">brew install moizahmedd/tap/betterairdrop</span></span><button class="copy" type="button" id="copy">Copy</button></div>
-    <p class="alt">No Homebrew? <code>curl -fsSL https://betterairdrop.com/install | sh</code></p>
+    <p class="dl-note">Free · macOS 13+<br>Blocked on first open? System Settings → Privacy &amp; Security → Open Anyway.</p>
+    <details class="term">
+      <summary>Or install from Terminal</summary>
+      <div class="code"><span class="line"><span class="p">$ </span><span id="cmd">brew install moizahmedd/tap/betterairdrop</span></span><button class="copy" type="button" id="copy">Copy</button></div>
+      <p class="alt">No Homebrew? <code>curl -fsSL https://betterairdrop.com/install | sh</code></p>
+    </details>
   </div>
-  <a class="gh" href="https://github.com/MoizAhmedd/betterairdrop">View on GitHub →</a>
 
   <ul class="facts">
-    <li>Open source</li>
-    <li>Works offline</li>
+    <li><a href="https://github.com/MoizAhmedd/betterairdrop">Open source</a></li>
+    <li>HEIC to JPEG</li>
     <li>Undo anything</li>
   </ul>
 </header>
@@ -193,12 +201,12 @@ footer a{color:var(--muted)}
 <section class="pro" id="pro" aria-labelledby="pro-h">
   <h2 id="pro-h">Pro <span>· $19 once</span></h2>
   <ul>
-    <li>Great names, no API key</li>
+    <li>Sharper names, no setup</li>
     <li>Names PDFs and screenshots too</li>
     <li>Any folder, any photo</li>
     <li>Your own name format</li>
   </ul>
-  <p class="terms">3 Macs · lifetime updates</p>
+  <p class="terms">3 Macs · lifetime updates · try it free on 25 photos in the app</p>
   <!-- CHECKOUT: the Polar checkout link. A link containing TODO turns the button back into "Coming soon". -->
   <a class="buy" id="buy" data-checkout="https://buy.polar.sh/polar_cl_vFxys6Ii0P1QCp70E9p0ltBeKOjoWSAdyWHzq0pCItJ" aria-disabled="true">Coming soon</a>
   <p class="free">Renaming AirDrops stays free</p>
