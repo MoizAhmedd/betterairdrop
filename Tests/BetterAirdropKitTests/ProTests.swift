@@ -83,17 +83,10 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
 
     @Test func placeholderOrganizationMeansNotOnSale() {
         let t = Temp(), polar = FakePolar { _, _ in (200, FakePolar.activated) }
-        let c = client(polar, t, org: Polar.organizationID)
+        let c = client(polar, t, org: "POLAR_ORG_ID_TODO")
         #expect(throws: LicenseClient.Failure.notAvailable) { try c.activate(key: "BA_X", label: "x") }
         #expect(polar.calls.isEmpty)
         #expect(LicenseClient.Failure.notAvailable.description.contains("isn't on sale yet"))
-    }
-
-    @Test func placeholdersAreStillInPlace() {
-        // Moiz pastes the real values; until then the app must say "Coming soon".
-        #expect(Polar.organizationID == "POLAR_ORG_ID_TODO" && !Polar.isReal(organizationID: Polar.organizationID))
-        #expect(Polar.checkoutURL == "https://buy.polar.sh/TODO" && !Polar.canBuy)
-        #expect(Polar.isReal(organizationID: realOrg))
     }
 
     @Test func reactivatingTheSameKeyDoesNotUseAnotherSlot() throws {

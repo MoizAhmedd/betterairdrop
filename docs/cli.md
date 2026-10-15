@@ -128,7 +128,7 @@ auto = true                             # let backend = "auto" use Claude when a
 Everything above is free. Pro ($19 once, 3 Macs, lifetime updates, sold through Polar) adds to the
 menu-bar app: naming new screenshots, watching other folders (new images only, same settle rules
 and undo), the name builder (parts, order, separator, date format) and renaming whole folders
-(drop a folder on the menu, or Finder → Services). The command-line tool is the same with or without it.
+(drop a folder on the menu-bar icon, or Finder → Services). The command-line tool is the same with or without it.
 
 ```sh
 betterairdrop license activate BA_XXXX-XXXX   # uses one of the key's 3 Macs; label = this Mac's name

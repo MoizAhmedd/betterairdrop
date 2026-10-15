@@ -26,7 +26,6 @@ protocol PanelActions: AnyObject {
 struct PanelView: View {
     @ObservedObject var model: AppModel
     let actions: PanelActions
-    @State private var dropTargeted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -73,31 +72,6 @@ struct PanelView: View {
         }
         .padding(6)
         .frame(width: 340)
-        // Photos (or, with Pro, folders) dropped anywhere on the open menu, like on the icon.
-        .overlay {
-            if dropTargeted {
-                RoundedRectangle(cornerRadius: 10).strokeBorder(Color.accentColor, lineWidth: 2)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.accentColor.opacity(0.08)))
-                    .overlay(Text("Drop photos to rename them").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.accentColor))
-                    .padding(3)
-            }
-        }
-        .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
-            let collected = DroppedURLs()
-            let group = DispatchGroup()
-            for p in providers {
-                group.enter()
-                _ = p.loadObject(ofClass: URL.self) { url, _ in
-                    if let url, url.isFileURL { collected.append(url) }
-                    group.leave()
-                }
-            }
-            group.notify(queue: .main) { [actions] in
-                let urls = collected.urls
-                if !urls.isEmpty { actions.renameFiles(urls) }
-            }
-            return true
-        }
     }
 
     static var monthName: String {
@@ -184,14 +158,6 @@ extension PanelView {
             }
         }
     }
-}
-
-/// URLs collected from several drag providers (their callbacks run on arbitrary queues).
-final class DroppedURLs: @unchecked Sendable {
-    private let lock = NSLock()
-    private var items: [URL] = []
-    func append(_ u: URL) { lock.lock(); items.append(u); lock.unlock() }
-    var urls: [URL] { lock.lock(); defer { lock.unlock() }; return items }
 }
 
 extension PanelView {
