@@ -13,8 +13,8 @@
 // devices, remembered; ?internal=0 forgets it); any host or path not in SITES (localhost, previews); automated browsers
 // (posthog-js drops those itself). ?analytics=test sends anyway, every event marked test: true.
 (function () {
-  // The project key: public by design, it can only send. Nothing loads while it's the placeholder.
-  var KEY = 'phc_TODO';
+  // The project key (PostHog org BetterAirdrop, project BetterAirdrop, ID 666721, US): public by design, it can only send.
+  var KEY = 'phc_DdYDiYJj4vaaYL5SLbHUwyRY4AcZ8kP4puWU2M7F5b9D';
   var HOST = 'https://us.i.posthog.com', SCRIPT = 'https://us-assets.i.posthog.com/static/array.js', MAX_EVENTS = 200;
   // The live site: hostname -> the path it's served under. moizahmedd.github.io/betterairdrop/ now redirects here.
   var SITES = { 'betterairdrop.com': '', 'www.betterairdrop.com': '' };
