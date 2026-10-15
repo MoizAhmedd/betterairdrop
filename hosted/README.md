@@ -57,7 +57,9 @@ about $1 a day, or about $30 a month.
 - **Stored:** for each license, the SHA-256 of the key, Polar's last verdict and when it was given,
   and this month's count. One global count for today.
 - **Never stored:** keys, images, context or names. Logs carry only the status and outcome of each
-  request (`{"event":"request","status":200,"outcome":"named"}`).
+  request (`{"event":"request","status":200,"outcome":"named"}`), kept by Workers Logs for 3 days
+  (7 on Workers Paid). Invocation logs are off in `wrangler.jsonc`, so request headers, IP addresses
+  and locations aren't logged; turning them on would change what the privacy page says.
 - **Polar checks:** a valid verdict is trusted for 24 h. An invalid one is remembered for 1 h. If
   Polar can't be reached, a key it called valid in the last 7 days still works; otherwise 503.
 

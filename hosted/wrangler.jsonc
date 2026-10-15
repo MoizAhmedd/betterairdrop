@@ -24,5 +24,7 @@
     ]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LicenseState", "GlobalBudget"] }],
-  "observability": { "enabled": true }
+  // Only the Worker's own count lines (status and outcome) are kept. Invocation logs are off: they'd
+  // store each request's headers, IP address and location in Workers Logs.
+  "observability": { "enabled": true, "logs": { "invocation_logs": false } }
 }
