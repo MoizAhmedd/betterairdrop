@@ -89,6 +89,23 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
         #expect(LicenseClient.Failure.notAvailable.description.contains("isn't on sale yet"))
     }
 
+    @Test func theRealPolarValuesAreIn() throws {
+        #expect(!Polar.organizationID.contains("TODO") && !Polar.checkoutURL.contains("TODO"))
+        #expect(UUID(uuidString: Polar.organizationID) != nil)
+        let url = try #require(URL(string: Polar.checkoutURL))
+        #expect(url.scheme == "https" && url.host == "buy.polar.sh" && url.path.count > 1)
+        #expect(Polar.isReal(organizationID: Polar.organizationID) && Polar.canBuy)
+    }
+
+    @Test func keysAreNotCheckedForAPrefix() throws {
+        // Polar's keys start with BA_; nothing on this side should depend on that.
+        let t = Temp(), polar = FakePolar { _, _ in (200, FakePolar.activated) }
+        for key in ["BA_1234-ABCD", "OTHER-5678", "f3b1c2d4-0000-4000-8000-000000000000"] {
+            #expect(try client(polar, t).activate(key: key, label: "Mac").key == key)
+        }
+        #expect(throws: LicenseClient.Failure.emptyKey) { try client(polar, t).activate(key: "BA_12 34", label: "Mac") }
+    }
+
     @Test func reactivatingTheSameKeyDoesNotUseAnotherSlot() throws {
         let t = Temp(), polar = FakePolar { a, _ in a == "activate" ? (200, FakePolar.activated) : (200, FakePolar.validated) }
         let c = client(polar, t)
