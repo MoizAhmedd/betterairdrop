@@ -138,13 +138,7 @@ public enum DocumentPrompt {
     /// Strict, like `ClaudePrompt.parse`: the whole text or its first `{…}` must decode, the kind must
     /// be a PDF kind, the subject non-empty.
     public static func parse(_ text: String) throws -> Answer {
-        var json = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !json.hasPrefix("{"), let a = json.firstIndex(of: "{"), let b = json.lastIndex(of: "}"), a < b {
-            json = String(json[a...b])
-        }
-        guard let answer = try? JSONDecoder().decode(Answer.self, from: Data(json.utf8)) else {
-            throw ClaudeNamer.Error.badOutput("not the expected JSON object")
-        }
+        let answer: Answer = try ClaudePrompt.decode(text)
         if let why = problem(with: answer) { throw ClaudeNamer.Error.badOutput(why) }
         return answer
     }

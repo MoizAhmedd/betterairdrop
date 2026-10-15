@@ -125,7 +125,7 @@ public enum PDFIntake {
 
     /// Browsers write next to the final name while downloading: Safari `x.pdf.download`, Chrome
     /// `x.pdf.crdownload`, Firefox `x.pdf.part` (with an empty `x.pdf` placeholder).
-    static let partialSiblings = [".download", ".crdownload", ".part", ".partial"]
+    static let partialSiblings = Planner.partialSuffixes + [".part"]
 
     /// True while a browser is still writing this PDF.
     public static func isDownloading(_ url: URL) -> Bool {

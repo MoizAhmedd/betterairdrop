@@ -352,14 +352,20 @@ public enum ClaudePrompt {
     /// Strict parsing: the whole text (or, in prompt-JSON mode, the first `{…}` object) must decode,
     /// the kind must be known, and the subject must be non-empty.
     public static func parse(_ text: String) throws -> Answer {
+        let answer: Answer = try decode(text)
+        if let why = problem(with: answer) { throw ClaudeNamer.Error.badOutput(why) }
+        return answer
+    }
+
+    /// The whole text, or its first `{…}`, decoded as `A`. Shared with `DocumentPrompt.parse`.
+    static func decode<A: Decodable>(_ text: String) throws -> A {
         var json = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !json.hasPrefix("{"), let a = json.firstIndex(of: "{"), let b = json.lastIndex(of: "}"), a < b {
             json = String(json[a...b])
         }
-        guard let answer = try? JSONDecoder().decode(Answer.self, from: Data(json.utf8)) else {
+        guard let answer = try? JSONDecoder().decode(A.self, from: Data(json.utf8)) else {
             throw ClaudeNamer.Error.badOutput("not the expected JSON object")
         }
-        if let why = problem(with: answer) { throw ClaudeNamer.Error.badOutput(why) }
         return answer
     }
 
