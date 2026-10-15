@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { handle } from "./handler";
-import { nameImage } from "./name";
+import { nameImage, nameText } from "./name";
 import { validateWithPolar } from "./polar";
 import type { GlobalBudget, LicenseState } from "./durable";
 
@@ -45,6 +45,7 @@ export default {
           now: () => new Date(),
         }),
       name: (image, context, mayRetry) => nameImage(anthropic, image, context, mayRetry),
+      nameText: (context, text, mayRetry) => nameText(anthropic, context, text, mayRetry),
     });
   },
 } satisfies ExportedHandler<Env>;

@@ -4,6 +4,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import prompt from "./prompt.json";
+import textPrompt from "./prompt-text.json";
 
 /**
  * The cheapest current Haiku with vision: $0.10 / $0.50 per million input / output tokens for
@@ -71,9 +72,27 @@ export async function nameImage(
   throw new NamingError("bad_output", "Claude's answer wasn't the expected JSON object.");
 }
 
-async function ask(client: Anthropic, body: Anthropic.MessageCreateParamsNonStreaming): Promise<string> {
+/** The whole text, or the first {…} in it, as a JSON object; null otherwise. */
+function jsonObject(text: string): Record<string, unknown> | null {
+  let json = text.trim();
+  if (!json.startsWith("{")) {
+    const a = json.indexOf("{"), b = json.lastIndexOf("}");
+    if (a >= 0 && b > a) json = json.slice(a, b + 1);
+  }
+  try {
+    const v: unknown = JSON.parse(json);
+    return typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The first `n` words, at most `max` characters. */
+const words = (v: string, n: number, max: number) => v.trim().split(/\s+/).slice(0, n).join(" ").slice(0, max);
+
+async function ask(client: Anthropic, body: Anthropic.MessageCreateParamsNonStreaming, what = "image"): Promise<string> {
   const msg = await client.messages.create(body);
-  if (msg.stop_reason === "refusal") throw new NamingError("refusal", "Claude declined to describe this image.");
+  if (msg.stop_reason === "refusal") throw new NamingError("refusal", `Claude declined to describe this ${what}.`);
   if (msg.stop_reason === "max_tokens") throw new NamingError("truncated", "Claude's answer was cut off.");
   for (const block of msg.content) if (block.type === "text") return block.text;
   return "";
@@ -86,23 +105,11 @@ async function ask(client: Anthropic, body: Anthropic.MessageCreateParamsNonStre
  * and reads merchant and total only for a receipt. Null if the answer can't be used.
  */
 export function parseAnswer(text: string): Answer | null {
-  let json = text.trim();
-  if (!json.startsWith("{")) {
-    const a = json.indexOf("{"), b = json.lastIndexOf("}");
-    if (a >= 0 && b > a) json = json.slice(a, b + 1);
-  }
-  let o: Record<string, unknown>;
-  try {
-    const v: unknown = JSON.parse(json);
-    if (typeof v !== "object" || v === null || Array.isArray(v)) return null;
-    o = v as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+  const o = jsonObject(text);
+  if (!o) return null;
   const { subject, kind, merchant, total, confidence, people_present } = o;
   if (typeof subject !== "string" || typeof kind !== "string" || !KINDS.includes(kind)) return null;
   if (typeof confidence !== "number" || !Number.isFinite(confidence)) return null;
-  const words = (v: string, n: number, max: number) => v.trim().split(/\s+/).slice(0, n).join(" ").slice(0, max);
   const subj = words(subject, 12, 120);
   if ((subj.match(/[\p{L}\p{N}]/gu) ?? []).length < 2) return null;
   const receipt = kind === "receipt";
@@ -115,5 +122,73 @@ export function parseAnswer(text: string): Answer | null {
     total: /^[0-9]{1,9}([.,][0-9]{1,2})?$/.test(t) ? t : "",
     confidence: Math.min(Math.max(confidence, 0), 1),
     people_present: people_present === true,
+  };
+}
+
+// MARK: - PDFs (POST /v1/name-text)
+
+export const TEXT_KINDS: readonly string[] = textPrompt.kinds;
+
+/** What /v1/name-text returns: DocumentPrompt.Answer's six fields. */
+export interface TextAnswer {
+  subject: string;
+  kind: string;
+  issuer: string;
+  amount: string;
+  date: string;
+  confidence: number;
+}
+
+/** The one user message, built exactly as the app's DocumentPrompt.message. */
+export function textMessage(context: string, text: string): string {
+  return `${context}\n\nText from the PDF (truncated):\n<<<\n${text}\n>>>`;
+}
+
+/** The exact Messages API body for a PDF's text: no image, the pinned PDF prompt. */
+export function textMessageBody(context: string, text: string, structured: boolean): Anthropic.MessageCreateParamsNonStreaming {
+  return {
+    model: MODEL,
+    max_tokens: MAX_TOKENS,
+    thinking: { type: "disabled" },
+    system: textPrompt.system + (structured ? "" : textPrompt.json_instructions),
+    messages: [{ role: "user", content: [{ type: "text", text: textMessage(context, text) }] }],
+    ...(structured ? { output_config: { format: { type: "json_schema" as const, schema: textPrompt.schema } } } : {}),
+  };
+}
+
+/** `nameImage` for a PDF's text: JSON in the prompt first, then once with output_config if `mayRetry`. */
+export async function nameText(
+  client: Anthropic, context: string, text: string, mayRetry: () => Promise<boolean> = async () => true,
+): Promise<TextAnswer> {
+  const first = parseTextAnswer(await ask(client, textMessageBody(context, text, false), "document"));
+  if (first) return first;
+  if (!(await mayRetry())) throw new NamingError("bad_output", "Claude's answer wasn't the expected JSON object.");
+  const second = parseTextAnswer(await ask(client, textMessageBody(context, text, true), "document"));
+  if (second) return second;
+  throw new NamingError("bad_output", "Claude's answer wasn't the expected JSON object.");
+}
+
+/**
+ * DocumentPrompt.parse's rules (known PDF kind, a real subject, a finite confidence), then each field
+ * trimmed to what a filename uses: 12 words of subject, 5 of issuer, an amount only for an invoice or
+ * receipt and only as digits, a date only as YYYY-MM-DD. Null if the answer can't be used.
+ */
+export function parseTextAnswer(text: string): TextAnswer | null {
+  const o = jsonObject(text);
+  if (!o) return null;
+  const { subject, kind, issuer, amount, date, confidence } = o;
+  if (typeof subject !== "string" || typeof kind !== "string" || !TEXT_KINDS.includes(kind)) return null;
+  if (typeof confidence !== "number" || !Number.isFinite(confidence)) return null;
+  const subj = words(subject, 12, 120);
+  if ((subj.match(/[\p{L}\p{N}]/gu) ?? []).length < 2) return null;
+  const a = (kind === "invoice" || kind === "receipt") && typeof amount === "string" ? amount.trim() : "";
+  const d = typeof date === "string" ? date.trim() : "";
+  return {
+    subject: subj,
+    kind,
+    issuer: typeof issuer === "string" ? words(issuer, 5, 60) : "",
+    amount: /^[0-9]{1,9}([.,][0-9]{1,2})?$/.test(a) ? a : "",
+    date: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "",
+    confidence: Math.min(Math.max(confidence, 0), 1),
   };
 }

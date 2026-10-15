@@ -14,13 +14,29 @@ Authorization: Bearer <Pro license key>
     X-Names-Reset: 2026-11-01T00:00:00Z
 ```
 
+PDFs (the app's "Name PDFs too") go to a second route, with text only:
+
+```
+POST https://api.betterairdrop.com/v1/name-text
+Authorization: Bearer <Pro license key>
+{"context": "<DocumentPrompt.context text>", "text": "<the PDF's text, ≤ 6,000 characters>"}
+
+200 {"subject": "internet and tv bill", "kind": "invoice", "issuer": "Bell Canada", "amount": "84.12",
+     "date": "2026-10-12", "confidence": 0.9}
+```
+
+Same headers, errors, license check and caps: a PDF uses one of the license's 500 names a month and
+one unit (two with the structured retry) of the global daily cap, exactly like a photo. `kind` is one
+of invoice, receipt, statement, contract, form, letter, ticket, manual, paper, other; `amount` is
+digits for an invoice or receipt, else `""`; `date` is `YYYY-MM-DD` or `""`.
+
 | Status | `error.type` | When |
 |---|---|---|
-| 400 | `invalid_request` | Not JSON, an unknown field, not a JPEG, or the context isn't the app's |
+| 400 | `invalid_request` | Not JSON, an unknown field, not a JPEG, empty text, or the context isn't the app's |
 | 401 | `missing_license` | No `Authorization: Bearer` |
 | 403 | `license_invalid` | Polar says the key is unknown, revoked, disabled or expired |
-| 413 | `payload_too_large` | Image over 400 KB or over 768 px |
-| 422 | `refusal` | Claude declined the image |
+| 413 | `payload_too_large` | Image over 400 KB or over 768 px; text over 6,000 characters |
+| 422 | `refusal` | Claude declined the image or document |
 | 429 | `monthly_limit` / `daily_limit` | 500 names per license per calendar month (UTC), or the global daily cap on Anthropic calls (a re-asked answer is two). `error.resets_at` and `Retry-After` say when it resets |
 | 500 | `internal_error` | Anything unexpected (a Durable Object failure). Logged by error name only |
 | 502 | `upstream_error` / `bad_output` | Anthropic failed, or answered twice with something unusable |
@@ -35,7 +51,13 @@ The client sends only the image and the context. The model (`claude-haiku-5-5`),
 fixed in `src/name.ts`. Any other field is a 400. The context must be the app's line format. Only
 the six naming fields come back, each trimmed. So the key is no use as a general Claude proxy.
 
-`HostedPromptTests` in the Swift tests fails if `prompt.json` and `ClaudePrompt` drift apart.
+`/v1/name-text` pins the same way: the PDF prompt is `src/prompt-text.json` (a copy of the app's
+`DocumentPrompt`), the user message is built by the Worker (`textMessage`), and only `context` and
+`text` are accepted. The text is free text by nature, but what comes back is six short validated
+fields (a 12-word subject, a 5-word issuer, digits, a date), so it can't be used to get anything else.
+
+`HostedPromptTests` in the Swift tests fails if `prompt.json` and `ClaudePrompt` drift apart, and
+`PDFEngineTests.workerPromptMatchesTheApp` if `prompt-text.json` and `DocumentPrompt` do.
 
 ## Cost
 
@@ -50,6 +72,14 @@ per million input / output tokens
 | Square (worst case at 768 px) | $0.00017 | **$0.17** |
 
 Budget about **$0.20 per 1,000** to cover the occasional second request (an unusable first answer).
+
+**PDFs** (estimated, not yet measured with `count_tokens`): the PDF system prompt is about 450
+tokens, the context about 40, and the text at most 4,000 characters (the app's cut), roughly 1,000
+to 1,300 tokens for English invoices and statements (numbers and addresses tokenize densely), with
+about 60 output tokens. That's at most about 1,800 input tokens: **$0.00021 per PDF, about $0.21
+per 1,000** at the cap, nearer **$0.10–0.15** for short PDFs (a one-page receipt is a few hundred
+characters). No image tokens. Budget **$0.25 per 1,000** with retries. PDFs share the photo caps,
+so the monthly and daily ceilings above don't change.
 One license at its 500-name cap costs at most $0.10 a month. The 5,000-a-day global cap is at most
 about $1 a day, or about $30 a month.
 
@@ -141,7 +171,7 @@ Deploying needs Moiz's Cloudflare and Anthropic accounts.
    ```
 
 8. **Optional hardening.** Add a Cloudflare WAF rate-limiting rule (the free plan includes one) on
-   `api.betterairdrop.com/v1/name`, for example 30 requests per 10 seconds per IP → block. Random-key
+   `api.betterairdrop.com/v1/name*` (both routes), for example 30 requests per 10 seconds per IP → block. Random-key
    floods then can't use up the Durable Object request quota.
 
 ### Changing the limits
