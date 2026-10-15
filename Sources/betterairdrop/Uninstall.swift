@@ -51,34 +51,3 @@ struct Uninstall: ParsableCommand {
         return nil
     }
 }
-
-struct Status: ParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Show whether the app (or a Terminal watcher) is renaming AirDrops, and this month's totals.")
-
-    @OptionGroup var global: GlobalOptions
-
-    func run() throws {
-        let config = try global.loadConfig()
-        if let owner = ProcessLock.holder() {
-            let who = owner.kind == .app ? "The BetterAirdrop app" : "`betterairdrop watch` (pid \(owner.pid))"
-            print("\(who) is watching \(tilde(owner.folder.isEmpty ? config.watchFolder : owner.folder)).")
-        } else if Self.appRunning() {
-            print("The BetterAirdrop app is running but not watching (paused, or waiting for folder access).")
-        } else {
-            print("Nothing is watching for AirDrops. Open BetterAirdrop, or run `betterairdrop watch --foreground`.")
-        }
-        let journal = Journal()
-        let month = Calendar.current.dateInterval(of: .month, for: Date())?.start ?? Date()
-        let stats = journal.stats(since: month)
-        print("This month: \(stats.photos) photo\(stats.photos == 1 ? "" : "s") renamed" + (stats.costUSD > 0 ? String(format: ", Claude ≈ $%.2f", stats.costUSD) : "") + ".")
-        if let last = journal.recentBatches(limit: 1).first {
-            print("Last batch: \(last.id) (\(last.entries.count) file\(last.entries.count == 1 ? "" : "s")). Undo with `betterairdrop undo`.")
-        }
-        print("Backend: \(config.backend). Config: \(tilde(Config.defaultPath.path)).")
-    }
-
-    static func appRunning() -> Bool {
-        let out = ClaudeAuth.run("/bin/ps", ["-axo", "comm"], timeout: 5) ?? ""
-        return out.split(separator: "\n").contains { $0.hasSuffix("BetterAirdrop.app/Contents/MacOS/BetterAirdrop") }
-    }
-}
