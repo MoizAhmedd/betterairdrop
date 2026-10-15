@@ -113,6 +113,10 @@ notify = true
 screenshots = false                     # Pro, menu-bar app only: also name new screenshots
 extra_folders = []                      # Pro, menu-bar app only: e.g. ["~/Pictures/Inbox"]
 
+[file]                                  # Pro, menu-bar app only: move new arrivals by kind (undo moves them back)
+receipt = "~/Documents/Receipts"        # photo | screenshot | receipt | document | whiteboard; "" = leave in place
+monthly = true                          # …/Receipts/2026-10/ from the photo's date
+
 [claude]
 model = "claude-haiku-4-5"              # any Messages API model id
 auto = true                             # let backend = "auto" use Claude when a credential exists

@@ -29,6 +29,9 @@ extension Config {
             ("claude.auto", "\(claudeInAuto)"),
         ]
         for (kind, t) in kindTemplates.sorted(by: { $0.key < $1.key }) { out.append(("templates.\(kind)", Self.quote(t))) }
+        out.append(("file.monthly", "\(fileMonthly)"))
+        // A kind with no folder is written as "" (so turning a rule off edits the line in place).
+        for kind in Kind.allCases.map(\.rawValue) { out.append(("file.\(kind)", Self.quote(fileFolders[kind] ?? ""))) }
         return out
     }
 

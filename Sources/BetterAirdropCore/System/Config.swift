@@ -25,6 +25,12 @@ public struct Config: Sendable, Equatable {
     /// How `{date}` is written.
     public var dateFormat = DateFormat.iso
 
+    /// Pro (menu-bar app only): file new arrivals of a kind into a folder, e.g.
+    /// `[file] receipt = "~/Documents/Receipts"`. Keys are kinds (photo, screenshot, receipt, document, whiteboard).
+    public var fileFolders: [String: String] = [:]
+    /// Put filed photos in a `YYYY-MM` subfolder.
+    public var fileMonthly = true
+
     public var placeProvider = PlaceProvider.offline
     public var stripGPSFromOutput = false
 
@@ -214,6 +220,7 @@ public struct Config: Sendable, Equatable {
             guard case .strings(let a) = v else { throw ParseError(line: line, message: "\(key) must be an array of strings") }
             watchExtraFolders = a.filter { !$0.isEmpty }
         case "date_format": dateFormat = try oneOf(DateFormat.self)
+        case "file.monthly": fileMonthly = try bool()
         case "place.provider": placeProvider = try oneOf(PlaceProvider.self)
         case "place.strip_gps_from_output": stripGPSFromOutput = try bool()
         case "ollama.url": ollamaURL = try str()
@@ -226,6 +233,13 @@ public struct Config: Sendable, Equatable {
                 let s = try str()
                 do { _ = try Template(s) } catch { throw ParseError(line: line, message: "\(error)") }
                 kindTemplates[kind] = s
+            } else if key.hasPrefix("file.") {
+                let kind = String(key.dropFirst("file.".count))
+                guard Kind(rawValue: kind) != nil else {
+                    throw ParseError(line: line, message: "\(key): file rules are per kind (\(Kind.allCases.map(\.rawValue).joined(separator: ", ")))")
+                }
+                let s = try str()
+                fileFolders[kind] = s.isEmpty ? nil : s   // "" = leave this kind where it arrived
             } else {
                 unknownKeys.append(key)
             }

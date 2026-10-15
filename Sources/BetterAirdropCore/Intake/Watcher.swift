@@ -301,7 +301,8 @@ public final class Watcher {
                 continue
             }
             let newStem = URL(fileURLWithPath: target).deletingPathExtension().lastPathComponent
-            let movTarget = CollisionResolver.resolve(directory: mov.deletingLastPathComponent(), stem: newStem,
+            // Next to the still's new name (the same folder, unless filing moved the still).
+            let movTarget = CollisionResolver.resolve(directory: URL(fileURLWithPath: target).deletingLastPathComponent(), stem: newStem,
                                                       ext: mov.pathExtension.lowercased(), reserved: reserved, ignoring: mov)
             reserved.insert(movTarget.path.lowercased())
             var mp = Proposal(source: mov.path, action: .rename, target: movTarget.path)

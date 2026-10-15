@@ -101,6 +101,11 @@ public final class Committer {
         let source = URL(fileURLWithPath: p.source)
         let sourceSHA1 = try FileOps.sha1(source)
         var prep = Prepared(sourceSHA1: sourceSHA1, outputSHA1: sourceSHA1)
+        // Filing by kind (Pro) can target a folder that doesn't exist yet (Receipts/2026-10).
+        if let target = p.target {
+            let dir = URL(fileURLWithPath: target).deletingLastPathComponent()
+            if !FileOps.exists(dir) { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
+        }
         guard p.action == .convert, let target = p.target else { return prep }
         let t = URL(fileURLWithPath: target).deletingLastPathComponent().appendingPathComponent(".betterairdrop-\(UUID().uuidString).jpg.tmp")
         do {

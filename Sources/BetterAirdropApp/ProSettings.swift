@@ -84,6 +84,7 @@ struct ProPane: View {
             } footer: {
                 if !model.isPro { ProLine() }
             }
+            FilingSection(model: model)
         }
         .formStyle(.grouped)
         .fixedSize(horizontal: false, vertical: true)
@@ -205,6 +206,66 @@ struct ProLine: View {
             }
         }
         .font(.system(size: 11)).foregroundStyle(.secondary)
+    }
+}
+
+// MARK: - Settings → Pro → File by kind
+
+/// One rule per kind: a folder, or "stays where it arrived". Off by default.
+struct FilingSection: View {
+    @ObservedObject var model: AppModel
+    static let kinds: [(Kind, String)] = [(.photo, "Photos"), (.screenshot, "Screenshots"), (.receipt, "Receipts"),
+                                          (.document, "Documents"), (.whiteboard, "Whiteboards")]
+    static var thisMonth: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM"
+        return f.string(from: Date())
+    }
+
+    var body: some View {
+        Section {
+            ForEach(Self.kinds, id: \.0) { kind, title in
+                LabeledContent {
+                    HStack(spacing: 6) {
+                        if model.config.fileFolders[kind.rawValue] != nil {
+                            Button("Don't Move") { model.updateConfig { $0.fileFolders[kind.rawValue] = nil } }
+                        }
+                        Button("Choose…") { choose(kind, title) }
+                    }
+                } label: {
+                    Text(title)
+                    Text(model.config.fileFolders[kind.rawValue].map { "→ \($0)\(model.config.fileMonthly ? "/\(Self.thisMonth)" : "")" } ?? "Stay where they arrive")
+                }
+            }
+            Toggle(isOn: Binding(get: { model.config.fileMonthly }, set: { v in model.updateConfig { $0.fileMonthly = v } })) {
+                Text("A folder for each month")
+                Text("Receipts/\(Self.thisMonth)/…, from the photo's date.")
+            }
+        } header: {
+            HStack(spacing: 6) { Text("File by kind"); if !model.isPro { ProTag() } }
+        } footer: {
+            if model.isPro {
+                Text("New arrivals are moved as they're renamed, and Undo puts them back. Photos you rename by hand stay where they are.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            } else {
+                ProLine()
+            }
+        }
+        .disabled(!model.isPro)
+    }
+
+    func choose(_ kind: Kind, _ title: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        let panel = NSOpenPanel()
+        panel.message = "Choose where new \(title.lowercased()) go."
+        panel.prompt = "Choose"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url?.standardizedFileURL else { return }
+        let path = AppModel.tilde(url)
+        model.updateConfig { $0.fileFolders[kind.rawValue] = path }
     }
 }
 

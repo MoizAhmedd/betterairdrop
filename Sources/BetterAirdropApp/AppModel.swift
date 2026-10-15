@@ -154,7 +154,9 @@ final class AppModel: ObservableObject {
         let config = self.config, folder = self.folder, journal = self.journal
         let paused = isPaused, pro = isPro
         DispatchQueue.global(qos: .userInitiated).async {
-            let planner = Self.makePlanner(config: config)
+            var planner = Self.makePlanner(config: config)
+            // Pro: arrivals are filed by kind. Renames started by hand (preview, drops, Services) stay in place.
+            if pro { planner.filing = Filing(config: config) }
             let shots = ScreenshotFolder.current()
             let plan = WatchPlan.make(main: folder, mainAirdropOnly: config.watchAirdropOnly,
                                       screenshots: pro && config.watchScreenshots ? shots : nil,
@@ -510,7 +512,8 @@ final class AppModel: ObservableObject {
             || old.claudeInAuto != c.claudeInAuto || old.watchAirdropOnly != c.watchAirdropOnly
             || old.template != c.template || old.kindTemplates != c.kindTemplates || old.convertHEIC != c.convertHEIC
             || old.originals != c.originals || old.placeProvider != c.placeProvider || old.stripGPSFromOutput != c.stripGPSFromOutput
-            || old.watchScreenshots != c.watchScreenshots || old.watchExtraFolders != c.watchExtraFolders || old.dateFormat != c.dateFormat {
+            || old.watchScreenshots != c.watchScreenshots || old.watchExtraFolders != c.watchExtraFolders || old.dateFormat != c.dateFormat
+            || old.fileFolders != c.fileFolders || old.fileMonthly != c.fileMonthly {
             rebuildService()
         }
     }

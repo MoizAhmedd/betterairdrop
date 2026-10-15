@@ -13,6 +13,8 @@ public struct Planner: Sendable {
     public var analyzer: (@Sendable (URL) -> VisionResult?)?
     public var templateOverride: String?
     public var airdropOnly = false
+    /// Pro: move each file into its kind's folder as it's renamed (the app's watchers set this).
+    public var filing: Filing?
 
     public init(config: Config, places: Places? = Places.shared, namer: (any Namer)? = nil) {
         self.config = config
@@ -157,7 +159,8 @@ public struct Planner: Sendable {
         let (stem, template, tokens) = try compose(url: url, context: ctx, suggestion: suggestion)
         let convert = willConvert(url)
         let ext = convert ? "jpg" : Self.normalizedExtension(url.pathExtension)
-        let dir = url.deletingLastPathComponent()
+        let kind = suggestion?.kind ?? ctx.kind
+        let dir = filing?.directory(for: kind, date: ctx.metadata.date) ?? url.deletingLastPathComponent()
         let target = CollisionResolver.resolve(directory: dir, stem: stem, ext: ext, reserved: reserved, ignoring: url)
         if target.path == url.path { return .skip(url, "name unchanged") }
         reserved.insert(target.path.lowercased())
