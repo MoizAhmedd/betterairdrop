@@ -180,6 +180,14 @@ import Testing
         #expect(try #require(Quarantine("0281;6ab583f5;;FF4E730C")).isAirDrop == false)
         #expect(Quarantine("") == nil)
     }
+
+    @Test func downloadFlag() throws {
+        #expect(try #require(Quarantine("0081;6ab3687b;sharingd;")).isDownload)
+        #expect(try #require(Quarantine("0083;69790e6c;Arc;")).isDownload)
+        #expect(try #require(Quarantine("0281;6ab583f5;Chrome;")).isDownload)
+        // Saved by a sandboxed app on this Mac.
+        #expect(try #require(Quarantine("0082;6ab583f5;Preview;")).isDownload == false)
+    }
 }
 
 @Suite struct LegacyMigrationTests {

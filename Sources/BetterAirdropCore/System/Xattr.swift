@@ -55,6 +55,10 @@ public struct Quarantine: Sendable, Equatable {
 
     public var isAirDrop: Bool { agent == "sharingd" }
 
+    /// The download flag (0x0001): the file came from outside this Mac (a browser download, AirDrop).
+    /// A file a sandboxed app saves (Preview, Pages, Messages) is quarantined too, as `0082`, without it.
+    public var isDownload: Bool { (UInt32(flags, radix: 16) ?? 0) & 0x1 != 0 }
+
     public init?(_ raw: String) {
         let f = raw.split(separator: ";", omittingEmptySubsequences: false).map(String.init)
         guard f.count >= 3, !f[0].isEmpty else { return nil }

@@ -48,9 +48,10 @@ public struct Planner: Sendable {
         } else if !ImageIntegrity.isComplete(url) { return "incomplete image file" }
         if name.range(of: #"^\d{4}-\d{2}-\d{2}_"#, options: .regularExpression) != nil { return "already has a date-first name" }
         if airdropOnly {
-            // In the AirDrop folder a PDF only has to have arrived from outside this Mac (a download,
-            // AirDrop, Mail): the quarantine flag. One a local app saved there is left alone.
-            if pdf { if Quarantine.of(url) == nil { return "not downloaded or AirDropped" } }
+            // In the AirDrop folder a PDF only has to have arrived from outside this Mac (a download or
+            // AirDrop): the quarantine's download flag. One a local app saved there is left alone, even
+            // a sandboxed app's, which is quarantined without that flag.
+            if pdf { if !(Quarantine.of(url)?.isDownload ?? false) { return "not downloaded or AirDropped" } }
             else if !(Quarantine.of(url)?.isAirDrop ?? false) { return "not from AirDrop" }
         }
         return nil

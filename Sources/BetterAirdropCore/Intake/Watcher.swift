@@ -14,8 +14,8 @@ import Foundation
 ///   is named and nothing new has appeared for `quietWindow`
 /// - Live Photos: `IMG_1.HEIC` + `IMG_1.MOV` in the same batch; the MOV gets the still's new name.
 ///   An orphan MOV is left alone.
-/// - PDFs (Pro, `pdfs`): in the AirDrop folder, any PDF that arrived from outside this Mac (it has a
-///   quarantine flag: a download, AirDrop, Mail); in other folders, any new PDF; never in the
+/// - PDFs (Pro, `pdfs`): in the AirDrop folder, any PDF that arrived from outside this Mac (its
+///   quarantine has the download flag: a browser download, AirDrop); in other folders, any new PDF; never in the
 ///   screenshot folder. Not while a browser's `.download`/`.crdownload`/`.part` file sits next to it,
 ///   only once it ends in `%%EOF`, and only after `pdfSettleInterval` unchanged.
 public final class Watcher {
@@ -157,7 +157,7 @@ public final class Watcher {
             let q = Quarantine.of(url)
             let isScreenshot = options.isScreenshot
             if pdf {
-                if !Self.admitsPDF(options.intake, quarantined: q != nil) || PDFIntake.isDownloading(url) { continue }
+                if !Self.admitsPDF(options.intake, downloaded: q?.isDownload ?? false) || PDFIntake.isDownloading(url) { continue }
             } else if !Self.admits(options.intake, isAirDrop: q?.isAirDrop ?? false, isScreenshot: { isScreenshot(url) }) { continue }
             if Marker.read(url) != nil || Marker.isUndone(url) { continue }
             if !options.backlog, let t = Self.arrival(url, quarantine: q), t < startedAt { continue }
@@ -177,11 +177,11 @@ public final class Watcher {
     }
 
     /// PDFs: in the AirDrop folder, ones that arrived from outside this Mac; in other folders, all;
-    /// never in the screenshot folder.
-    static func admitsPDF(_ intake: Options.Intake, quarantined: Bool) -> Bool {
+    /// never in the screenshot folder. `downloaded` is `Quarantine.isDownload`.
+    static func admitsPDF(_ intake: Options.Intake, downloaded: Bool) -> Bool {
         switch intake {
         case .all: true
-        case .airdrop, .airdropAndScreenshots: quarantined
+        case .airdrop, .airdropAndScreenshots: downloaded
         case .screenshots: false
         }
     }

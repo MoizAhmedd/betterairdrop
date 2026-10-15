@@ -239,12 +239,19 @@ func name(_ p: Proposal) -> String? { p.target.map { ($0 as NSString).lastPathCo
         AirDropSim.tag(TestPDFs.text(s.file("from safari.pdf"), TestPDFs.invoiceLines), agent: "com.apple.Safari")
         AirDropSim.tag(TestPDFs.text(s.file("airdropped.pdf"), TestPDFs.invoiceLines))
         TestPDFs.text(s.file("saved by an app.pdf"), TestPDFs.invoiceLines)        // no quarantine: made on this Mac
+        // A sandboxed app's export is quarantined too, but without the download flag (seen on real files).
+        let exported = TestPDFs.text(s.file("exported from preview.pdf"), TestPDFs.invoiceLines)
+        try! Xattr.set(exported, "com.apple.quarantine", Data(AirDropSim.quarantine(agent: "Preview", flags: "0082").utf8))
         AirDropSim.tag(TestPDFs.text(s.file("old.pdf"), TestPDFs.invoiceLines), agent: "com.apple.Safari", at: Date().addingTimeInterval(-3600))
         TestImages.jpeg(s.file("browser photo.jpg"))                                  // images keep the AirDrop-only rule
         #expect(watcher(s).scan().map(\.lastPathComponent) == ["airdropped.pdf", "from safari.pdf"])
         #expect(watcher(s, .all).scan().map(\.lastPathComponent).sorted()
-                == ["airdropped.pdf", "browser photo.jpg", "from safari.pdf", "saved by an app.pdf"])
+                == ["airdropped.pdf", "browser photo.jpg", "exported from preview.pdf", "from safari.pdf", "saved by an app.pdf"])
         #expect(watcher(s, .screenshots).scan().isEmpty)
+        var airdropOnly = pdfPlanner(s)
+        airdropOnly.airdropOnly = true
+        #expect(airdropOnly.skipReason(exported) == "not downloaded or AirDropped")
+        #expect(airdropOnly.skipReason(s.file("from safari.pdf")) == nil)
     }
 
     @Test func waitsForTheDownloadThenNamesAndUndoes() throws {
