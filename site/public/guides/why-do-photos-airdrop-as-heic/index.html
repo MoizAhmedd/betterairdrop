@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why do photos AirDrop as HEIC? · BetterAirdrop</title>
+<meta name="description" content="Your iPhone shoots HEIC, and AirDrop converts only when the receiving device can't read it. Macs can, so the HEIC arrives as is. What HEIC is and how to get JPG.">
+<link rel="canonical" href="https://moizahmedd.github.io/betterairdrop/guides/why-do-photos-airdrop-as-heic/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="BetterAirdrop">
+<meta property="og:title" content="Why do photos AirDrop as HEIC?">
+<meta property="og:description" content="AirDrop converts only when the receiving device can't read HEIC. Macs can.">
+<meta property="og:url" content="https://moizahmedd.github.io/betterairdrop/guides/why-do-photos-airdrop-as-heic/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%233f7fbf'/%3E%3Cpath d='M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='14' y='38' width='36' height='11' rx='3.5' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../guide.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Why do photos AirDrop as HEIC?",
+     "acceptedAnswer": {"@type": "Answer", "text": "iPhones shoot HEIC unless the camera is set to Most Compatible, and AirDrop only converts to a more compatible format such as JPEG when the receiving device doesn't support HEIC. Macs on macOS High Sierra or later support it, so the photo arrives as HEIC."}},
+    {"@type": "Question", "name": "What is HEIC?",
+     "acceptedAnswer": {"@type": "Answer", "text": "A photo in HEIF, the High Efficiency Image File Format. Apple says it compresses better than JPEG, so it uses less storage at the same visual quality."}},
+    {"@type": "Question", "name": "Is HEIC worse than JPG?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Not in quality. JPEG is more broadly compatible with other devices and operating systems, which is why some apps and sites still want it."}},
+    {"@type": "Question", "name": "How do I get JPG instead?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Tap Options in the iPhone share sheet and choose Most Compatible before you AirDrop, or set Settings > Camera > Formats > Most Compatible to shoot JPEG."}}
+  ]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+<nav class="top">
+  <a class="brand" href="../../">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="var(--accent)"/><path d="M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0" fill="none" stroke="var(--paper)" stroke-width="4" stroke-linecap="round"/><rect x="14" y="38" width="36" height="11" rx="3.5" fill="var(--paper)"/></svg>
+    BetterAirdrop
+  </a>
+  <div class="links">
+    <a href="../">Guides</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/MoizAhmedd/betterairdrop">GitHub</a>
+  </div>
+</nav>
+
+<article>
+  <p class="crumb"><a href="../">Guides</a></p>
+  <h1>Why do my photos AirDrop as HEIC?</h1>
+  <p class="answer">Your iPhone shoots HEIC unless its camera is set to Most Compatible, and AirDrop only converts when the receiving device can't read HEIC. Every Mac on macOS High Sierra or later can, so the file arrives as is.</p>
+
+  <h2>What is HEIC?</h2>
+  <ul>
+    <li>A photo in HEIF, the High Efficiency Image File Format.</li>
+    <li>Better compression than JPEG.</li>
+    <li>Less storage, same visual quality.</li>
+  </ul>
+
+  <h2>Is it worse than JPG?</h2>
+  <p>Not in quality. JPEG is more broadly compatible, so some apps and sites still want it.</p>
+
+  <h2>When does AirDrop convert?</h2>
+  <p>Only when the other device doesn't support HEIC. Then it <em>might</em> send JPEG instead.</p>
+  <p class="src">Source: <a href="https://support.apple.com/en-us/116944">Using HEIF or HEVC media on Apple devices</a></p>
+
+  <h2>How do I get JPG?</h2>
+  <ul>
+    <li>One share: <span class="path">Options → Most Compatible</span></li>
+    <li>Every photo: <span class="path">Settings → Camera → Formats → Most Compatible</span></li>
+  </ul>
+  <p><a href="../airdrop-photos-as-jpg/">Step by step, plus the Mac fixes</a>.</p>
+
+  <section class="cta" id="install">
+    <h2>Or have it done automatically</h2>
+    <p>BetterAirdrop turns each AirDropped HEIC into a JPEG as it lands in Downloads, and names it for what's in it. Undo anything.</p>
+    <div class="rename"><span class="from">IMG_4821.HEIC</span> → 2026-09-21_toronto_walnut-lamp-on-oak-sideboard.jpg</div>
+    <div class="code"><span class="line"><span class="p">$ </span><span id="cmd">brew install moizahmedd/tap/betterairdrop</span></span><button class="copy" type="button" id="copy">Copy</button></div>
+    <p class="alt">No Homebrew? <code>curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh</code></p>
+    <a class="gh" href="https://github.com/MoizAhmedd/betterairdrop">View on GitHub →</a>
+  </section>
+
+  <div class="more">
+    <h3>More guides</h3>
+    <ul>
+      <li><a href="../where-do-airdropped-photos-go-mac/">Where do AirDropped photos go on a Mac?</a></li>
+      <li><a href="../rename-photos-by-content-mac/">Rename photos by what's in them on a Mac</a></li>
+    </ul>
+  </div>
+</article>
+
+<footer>
+  <span>BetterAirdrop · MIT licensed · by <a href="https://github.com/MoizAhmedd">Moiz Ahmed</a></span>
+  <span><a href="../">Guides</a></span>
+</footer>
+</div>
+<script src="../guide.js"></script>
+</body>
+</html>

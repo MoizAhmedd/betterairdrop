@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rename photos by what's in them on a Mac, free and on-device · BetterAirdrop</title>
+<meta name="description" content="Four ways to rename photos by their contents on a Mac: by hand, Finder's batch rename, a Shortcuts quick action with Apple Intelligence, and BetterAirdrop with Apple Vision. What each one can and can't do.">
+<link rel="canonical" href="https://moizahmedd.github.io/betterairdrop/guides/rename-photos-by-content-mac/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="BetterAirdrop">
+<meta property="og:title" content="Rename photos by what's in them on a Mac">
+<meta property="og:description" content="By hand, Finder, Shortcuts or Apple Vision: what each one can and can't do.">
+<meta property="og:url" content="https://moizahmedd.github.io/betterairdrop/guides/rename-photos-by-content-mac/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%233f7fbf'/%3E%3Cpath d='M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='14' y='38' width='36' height='11' rx='3.5' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../guide.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Can Finder rename photos by what's in them?",
+     "acceptedAnswer": {"@type": "Answer", "text": "No. Finder's Rename for several items replaces text, adds text, or applies a name with an index, counter or date. It doesn't look at the photo. On macOS 27 with Apple Intelligence, Finder can suggest file names when you create or rename documents."}},
+    {"@type": "Question", "name": "Can Shortcuts rename photos by what's in them?",
+     "acceptedAnswer": {"@type": "Answer", "text": "You can build one on a Mac with Apple Intelligence: a Quick Action shortcut that passes the photo to the Use Model action, with the On-Device model, and renames the file with its reply. You write and maintain the shortcut yourself."}},
+    {"@type": "Question", "name": "Is there a free app that renames photos by content on a Mac?",
+     "acceptedAnswer": {"@type": "Answer", "text": "BetterAirdrop is free and open source. It names photos with Apple Vision on your Mac, adding the date and city from the photo itself, and renames AirDropped photos as they arrive."}}
+  ]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+<nav class="top">
+  <a class="brand" href="../../">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="var(--accent)"/><path d="M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0" fill="none" stroke="var(--paper)" stroke-width="4" stroke-linecap="round"/><rect x="14" y="38" width="36" height="11" rx="3.5" fill="var(--paper)"/></svg>
+    BetterAirdrop
+  </a>
+  <div class="links">
+    <a href="../">Guides</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/MoizAhmedd/betterairdrop">GitHub</a>
+  </div>
+</nav>
+
+<article>
+  <p class="crumb"><a href="../">Guides</a></p>
+  <h1>Rename photos by what's in them on a Mac</h1>
+  <p class="answer">Finder renames by text and numbers, not by what's in a photo. For names from the contents, free and on your Mac: a Shortcuts quick action with Apple Intelligence, or BetterAirdrop with Apple Vision.</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th></th><th>Looks at the photo</th><th>Many at once</th><th>Stays on your Mac</th><th>Setup</th></tr></thead>
+    <tbody>
+      <tr><td>By hand</td><td>You do</td><td>No</td><td>Yes</td><td>None</td></tr>
+      <tr><td>Finder Rename</td><td>No</td><td>Yes</td><td>Yes</td><td>None</td></tr>
+      <tr><td>Shortcuts + Use Model</td><td>Yes</td><td>What you select</td><td>With On-Device</td><td>Build it; Apple Intelligence Mac</td></tr>
+      <tr><td>BetterAirdrop</td><td>Yes, Apple Vision</td><td>Yes, as they arrive</td><td>Yes, with Vision</td><td>One install</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>By hand</h2>
+  <p>Select the photo, press Return, type. The best names, one photo at a time.</p>
+
+  <h2>Can Finder do it?</h2>
+  <p>Select the photos, Control-click, choose <b>Rename</b>. Three modes:</p>
+  <ul>
+    <li>Replace text</li>
+    <li>Add text</li>
+    <li>Format: a name plus index, counter or date</li>
+  </ul>
+  <p>Fast, but every photo gets the same words plus a number.</p>
+  <p>macOS 27 with Apple Intelligence adds <span class="path">Finder → Settings → Suggest File Names</span>. Apple describes it for documents you create or rename.</p>
+  <p class="src">Source: <a href="https://support.apple.com/guide/mac-help/mchlp1144/mac">Rename files, folders, and disks on Mac</a></p>
+
+  <h2>Can Shortcuts do it?</h2>
+  <p>Yes, if you build it. Needs macOS 26 or later with Apple Intelligence (a Mac with M1 or later).</p>
+  <ol>
+    <li>New shortcut → Details → <b>Use as Quick Action</b>.</li>
+    <li>Add <b>Use Model</b>, choose <b>On-Device</b>. Prompt: <em>“Describe this photo in 3 to 5 words for a filename.”</em></li>
+    <li>Add an action that renames the file to the reply.</li>
+    <li>Turn it on: <span class="path">System Settings → Privacy &amp; Security → Extensions → Finder</span>.</li>
+    <li>Control-click photos → Quick Actions → your shortcut.</li>
+  </ol>
+  <ul>
+    <li>Apple says Use Model's input can include photos.</li>
+    <li>The On-Device model is meant for simple requests.</li>
+    <li>Dates, places and name clashes are yours to handle.</li>
+  </ul>
+  <p class="src">Sources: <a href="https://support.apple.com/guide/shortcuts-mac/mchl91750563/mac">Use Apple Intelligence in Shortcuts on Mac</a> · <a href="https://support.apple.com/guide/shortcuts-mac/apd163eb9f95/mac">Run a shortcut while working on your Mac</a> · <a href="https://support.apple.com/en-us/121115">How to get Apple Intelligence</a></p>
+
+  <h2>Or BetterAirdrop</h2>
+  <ul>
+    <li>Apple Vision on your Mac: labels, plus any text in the photo</li>
+    <li>Date and city from the photo itself</li>
+    <li>Runs on every AirDrop, or on photos you pick</li>
+    <li>Undo anything</li>
+  </ul>
+  <div class="rename"><span class="from">IMG_5310.HEIC</span> → 2026-09-21_toronto_window-brick.jpg</div>
+  <p>Vision's names are short, like tags. For fuller ones, add your own Claude API key. It gets a downsized copy, with no location or camera data.</p>
+  <div class="code"><span class="line"><span class="p">$ </span>betterairdrop rename --dry-run ~/Pictures/IMG_*.HEIC</span></div>
+
+  <section class="cta" id="install">
+    <h2>Install</h2>
+    <p>Free and open source. macOS 13 or later.</p>
+    <div class="code"><span class="line"><span class="p">$ </span><span id="cmd">brew install moizahmedd/tap/betterairdrop</span></span><button class="copy" type="button" id="copy">Copy</button></div>
+    <p class="alt">No Homebrew? <code>curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh</code></p>
+    <a class="gh" href="https://github.com/MoizAhmedd/betterairdrop">View on GitHub →</a>
+  </section>
+
+  <div class="more">
+    <h3>More guides</h3>
+    <ul>
+      <li><a href="../airdrop-photos-as-jpg/">How to AirDrop photos as JPG, not HEIC</a></li>
+      <li><a href="../where-do-airdropped-photos-go-mac/">Where do AirDropped photos go on a Mac?</a></li>
+    </ul>
+  </div>
+</article>
+
+<footer>
+  <span>BetterAirdrop · MIT licensed · by <a href="https://github.com/MoizAhmedd">Moiz Ahmed</a></span>
+  <span><a href="../">Guides</a></span>
+</footer>
+</div>
+<script src="../guide.js"></script>
+</body>
+</html>
