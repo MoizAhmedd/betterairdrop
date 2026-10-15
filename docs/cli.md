@@ -8,8 +8,8 @@ same config, journal and undo.
 
 | Backend | Where it runs | What it sends | Names look like |
 |---|---|---|---|
-| `claude` (Claude Haiku 4.5) | Anthropic's API | a 1024 px JPEG re-encoded **with all metadata removed** (no EXIF, no GPS), plus text: the date, the city name, the detected kind, a short OCR snippet and a device hint | `cinema-seating-in-empty-theatre` |
-| `hosted` (Pro: Claude with no API key) | BetterAirdrop's server, then Anthropic's API | what `claude` sends, plus your Pro license key. The server keeps no photos or names. 500 names a month | like `claude` |
+| `claude` (Claude Haiku 4.5) | Anthropic's API | a 768 px JPEG re-encoded **with all metadata removed** (no EXIF, no GPS), plus text: the date, the city name, the camera model, the detected kind, on-device labels, a short OCR snippet and a device hint | `cinema-seating-in-empty-theatre` |
+| `hosted` (Pro: Claude with no API key) | BetterAirdrop's server, then Anthropic's API | what `claude` sends, plus your Pro license key. The server keeps no photos, context or names. 500 names a month | like `claude` |
 | `vision` (Apple Vision) | on your Mac | nothing | `auditorium`, `window-brick` |
 | `apple` (Apple Intelligence, Foundation Models) | on your Mac, macOS 26+ with Apple Intelligence on | nothing | named from Vision's labels and text (the on-device model reads text, not pixels) |
 
