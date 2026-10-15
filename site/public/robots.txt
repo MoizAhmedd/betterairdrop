@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://moizahmedd.github.io/betterairdrop/sitemap.xml
