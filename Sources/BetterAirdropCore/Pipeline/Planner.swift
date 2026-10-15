@@ -15,6 +15,13 @@ public struct Planner: Sendable {
     public var airdropOnly = false
     /// Pro: move each file into its kind's folder as it's renamed (the app's watchers set this).
     public var filing: Filing?
+    /// Pro, "Name PDFs too": PDFs are candidates, named from their text by `documentNamer`. Off (the
+    /// default, and always for free) a PDF is "not a supported image", exactly as before.
+    public var pdfs = false
+    /// Names PDFs (`Backends.resolveDocuments`). Nil = no engine can, so PDFs are left as they are.
+    public var documentNamer: (any Namer)?
+    /// Reads a PDF's text (injectable for tests).
+    public var readPDF: @Sendable (URL) throws -> DocumentText = { try PDFText.extract($0) }
 
     public init(config: Config, places: Places? = Places.shared, namer: (any Namer)? = nil) {
         self.config = config
@@ -30,13 +37,27 @@ public struct Planner: Sendable {
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { return "no such file" }
         if isDir.boolValue { return "is a directory" }
-        guard Self.imageExtensions.contains(url.pathExtension.lowercased()) else { return "not a supported image" }
+        let pdf = isPDF(url)
+        guard Self.imageExtensions.contains(url.pathExtension.lowercased()) || pdf else { return "not a supported image" }
         if Marker.read(url) != nil { return "already named by BetterAirdrop" }
-        if !ImageIntegrity.isComplete(url) { return "incomplete image file" }
+        if pdf {
+            if PDFIntake.isInsidePackage(url) { return "inside an app bundle or package" }
+            if PDFIntake.isDownloading(url) { return "still downloading" }
+            if !PDFIntake.isComplete(url) { return "incomplete PDF" }
+            if PDFIntake.isEncrypted(url) { return "encrypted PDF" }
+        } else if !ImageIntegrity.isComplete(url) { return "incomplete image file" }
         if name.range(of: #"^\d{4}-\d{2}-\d{2}_"#, options: .regularExpression) != nil { return "already has a date-first name" }
-        if airdropOnly && !(Quarantine.of(url)?.isAirDrop ?? false) { return "not from AirDrop" }
+        if airdropOnly {
+            // In the AirDrop folder a PDF only has to have arrived from outside this Mac (a download,
+            // AirDrop, Mail): the quarantine flag. One a local app saved there is left alone.
+            if pdf { if Quarantine.of(url) == nil { return "not downloaded or AirDropped" } }
+            else if !(Quarantine.of(url)?.isAirDrop ?? false) { return "not from AirDrop" }
+        }
         return nil
     }
+
+    /// A PDF this planner names (Pro with "Name PDFs too" on).
+    public func isPDF(_ url: URL) -> Bool { pdfs && PDFIntake.isPDF(url) }
 
     public func context(for url: URL) throws -> PhotoContext {
         var t = StageTimings()
@@ -129,10 +150,42 @@ public struct Planner: Sendable {
         public var context: PhotoContext
         public var suggestion: NameSuggestion?
         public var timings: StageTimings
+        /// Why no engine named it (PDFs, which are then left alone).
+        public var note: String?
+    }
+
+    /// A PDF: its text (OCR for a scan), then the document namer. Only the text is passed on.
+    /// The document's own date, when the namer read one, replaces the file's.
+    func analysePDF(_ url: URL) throws -> Analysis {
+        var t = StageTimings()
+        let doc = try t.time(.text) { try readPDF(url) }
+        var meta = PhotoMetadata()
+        meta.uti = "com.adobe.pdf"
+        if let d = doc.created {
+            meta.date = d; meta.dateSource = "pdf"
+        } else if let created = try? url.resourceValues(forKeys: [.creationDateKey]).creationDate {
+            meta.date = PDFText.isoDay(created); meta.dateSource = "file"
+        }
+        let q = Quarantine.of(url)
+        var ctx = PhotoContext(file: url.path, metadata: meta, airdrop: q?.isAirDrop ?? false, kind: .other,
+                               kindReason: "a PDF (the engine reads its text and picks the kind)", document: doc)
+        var suggestion: NameSuggestion?
+        var note: String?
+        if let namer = documentNamer {
+            do { suggestion = try namer.suggest(for: url, context: ctx) } catch { note = "\(error)" }
+        } else {
+            note = "no engine on this Mac can name a PDF (Apple Vision can't tell what a document is; Claude, hosted naming or Apple Intelligence can)"
+        }
+        t.merge(suggestion?.timings)
+        if let d = suggestion?.documentDate {
+            ctx.metadata.date = d; ctx.metadata.dateSource = "document"
+        }
+        return Analysis(context: ctx, suggestion: suggestion, timings: t, note: note)
     }
 
     /// The slow, parallelisable part: local context, then the namer.
     public func analyse(_ url: URL) throws -> Analysis {
+        if isPDF(url) { return try analysePDF(url) }
         var t = StageTimings()
         var ctx = try context(for: url, timings: &t, vision: false)
         if needsVision(ctx) { addVision(&ctx, url: url, timings: &t) }
@@ -151,14 +204,23 @@ public struct Planner: Sendable {
                 suggestion = s
             }
         }
-        return Analysis(context: ctx, suggestion: suggestion, timings: t)
+        return Analysis(context: ctx, suggestion: suggestion, timings: t, note: nil)
     }
 
     func finish(_ url: URL, analysis a: Analysis, reserved: inout Set<String>) throws -> Proposal {
         let ctx = a.context, suggestion = a.suggestion
+        if ctx.document != nil {
+            // A PDF keeps its name unless an engine really named it: no date-and-original-name fallback.
+            guard let s = suggestion, s.confidence >= 0.3, !Slug.make(s.subject).isEmpty else {
+                var p = Proposal.skip(url, "left as it is: " + (a.note ?? "the engine wasn't sure what this PDF is"))
+                p.context = ctx; p.suggestion = suggestion; p.timings = a.timings
+                return p
+            }
+        }
         let (stem, template, tokens) = try compose(url: url, context: ctx, suggestion: suggestion)
         let convert = willConvert(url)
-        let ext = convert ? "jpg" : Self.normalizedExtension(url.pathExtension)
+        // A PDF keeps its extension exactly as it was (`.PDF` stays `.PDF`).
+        let ext = convert ? "jpg" : ctx.document != nil ? url.pathExtension : Self.normalizedExtension(url.pathExtension)
         let kind = suggestion?.kind ?? ctx.kind
         let here = url.deletingLastPathComponent()
         let dir = filing?.directory(for: kind, date: ctx.metadata.date).flatMap { Filing.sameVolume($0, as: here) ? $0 : nil } ?? here

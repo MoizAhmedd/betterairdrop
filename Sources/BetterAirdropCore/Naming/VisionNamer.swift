@@ -25,7 +25,17 @@ public struct VisionNamer: Namer {
     static let statusNoise = try! NSRegularExpression(pattern: #"^[\d:.\s%()+•?|/<>=-]*$|^\d{1,2}:\d{2}"#)
     static let amount = try! NSRegularExpression(pattern: #"(?:[$€£]\s?)?(\d{1,5})[.,](\d{2})(?!\d)"#)
 
+    public enum Error: Swift.Error, CustomStringConvertible, Equatable {
+        case noDocuments
+        public var description: String {
+            "Apple Vision can't tell what a document is, so the PDF was left as it is (Claude, hosted naming or Apple Intelligence can name it)"
+        }
+    }
+
     public func suggest(for url: URL, context ctx: PhotoContext) throws -> NameSuggestion {
+        // A first line or a metadata title makes a poor PDF name (and can hold an account number or a
+        // person's name), so a PDF without a model is left alone rather than guessed at.
+        if ctx.document != nil { throw Error.noDocuments }
         var why: [String] = []
         let v = ctx.vision ?? VisionResult()
         let kind = ctx.kind

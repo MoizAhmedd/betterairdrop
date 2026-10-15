@@ -14,6 +14,10 @@ import Foundation
 ///   is named and nothing new has appeared for `quietWindow`
 /// - Live Photos: `IMG_1.HEIC` + `IMG_1.MOV` in the same batch; the MOV gets the still's new name.
 ///   An orphan MOV is left alone.
+/// - PDFs (Pro, `pdfs`): in the AirDrop folder, any PDF that arrived from outside this Mac (it has a
+///   quarantine flag: a download, AirDrop, Mail); in other folders, any new PDF; never in the
+///   screenshot folder. Not while a browser's `.download`/`.crdownload`/`.part` file sits next to it,
+///   only once it ends in `%%EOF`, and only after `pdfSettleInterval` unchanged.
 public final class Watcher {
     public struct Options: Sendable {
         /// Which files in the folder are the watcher's to name.
@@ -37,6 +41,11 @@ public final class Watcher {
         }
         /// Live Photo `.mov` partners are candidates too. Off for the Pro watchers, which name images only.
         public var movies = true
+        /// Pro, "Name PDFs too": PDFs are candidates as well (see the intake rules above).
+        public var pdfs = false
+        /// A PDF must hold its size and mtime this long (a download written in bursts pauses longer
+        /// than a photo's AirDrop transfer does).
+        public var pdfSettleInterval: TimeInterval = 2
         /// How a screenshot is recognised (injectable for tests).
         public var isScreenshot: @Sendable (URL) -> Bool = { ScreenCapture.isScreenCapture($0) }
         public var backlog = false
@@ -59,7 +68,8 @@ public final class Watcher {
         public var id: String
         public var proposals: [Proposal]
         public var outcomes: [Committer.Outcome]
-        public var photos: Int { outcomes.filter { $0.status == .done && !Watcher.isMovie($0.source) }.count }
+        public var photos: Int { outcomes.filter { $0.status == .done && !Watcher.isMovie($0.source) && !PDFIntake.isPDF(URL(fileURLWithPath: $0.source)) }.count }
+        public var pdfs: Int { outcomes.filter { $0.status == .done && PDFIntake.isPDF(URL(fileURLWithPath: $0.source)) }.count }
         public var videos: Int { outcomes.filter { $0.status == .done && Watcher.isMovie($0.source) }.count }
         public var failed: Int { outcomes.filter { $0.status == .failed }.count }
         public init(id: String, proposals: [Proposal], outcomes: [Committer.Outcome]) {
@@ -91,6 +101,7 @@ public final class Watcher {
         self.options = options
         self.planner = planner
         self.planner.airdropOnly = options.airdropOnly
+        self.planner.pdfs = options.pdfs && options.intake != .screenshots
         self.committer = committer
         // Quarantine timestamps have 1 s resolution; allow a little slack.
         self.startedAt = startedAt.addingTimeInterval(-2)
@@ -138,13 +149,16 @@ public final class Watcher {
         for name in names.sorted() {
             if name.hasPrefix(".") || Planner.partialSuffixes.contains(where: { name.hasSuffix($0) }) { continue }
             let ext = (name as NSString).pathExtension.lowercased()
-            guard Planner.imageExtensions.contains(ext) || (options.movies && Self.movieExtensions.contains(ext)) else { continue }
+            let pdf = planner.pdfs && PDFIntake.extensions.contains(ext)
+            guard Planner.imageExtensions.contains(ext) || pdf || (options.movies && Self.movieExtensions.contains(ext)) else { continue }
             let url = folder.appendingPathComponent(name)
             guard let fp = Self.fingerprint(url) else { continue }
             if let old = ignored[url.path], old == fp { continue }
             let q = Quarantine.of(url)
             let isScreenshot = options.isScreenshot
-            if !Self.admits(options.intake, isAirDrop: q?.isAirDrop ?? false, isScreenshot: { isScreenshot(url) }) { continue }
+            if pdf {
+                if !Self.admitsPDF(options.intake, quarantined: q != nil) || PDFIntake.isDownloading(url) { continue }
+            } else if !Self.admits(options.intake, isAirDrop: q?.isAirDrop ?? false, isScreenshot: { isScreenshot(url) }) { continue }
             if Marker.read(url) != nil || Marker.isUndone(url) { continue }
             if !options.backlog, let t = Self.arrival(url, quarantine: q), t < startedAt { continue }
             out.append(url)
@@ -162,8 +176,24 @@ public final class Watcher {
         }
     }
 
+    /// PDFs: in the AirDrop folder, ones that arrived from outside this Mac; in other folders, all;
+    /// never in the screenshot folder.
+    static func admitsPDF(_ intake: Options.Intake, quarantined: Bool) -> Bool {
+        switch intake {
+        case .all: true
+        case .airdrop, .airdropAndScreenshots: quarantined
+        case .screenshots: false
+        }
+    }
+
     func isComplete(_ url: URL) -> Bool {
-        Self.isMovie(url.path) ? true : ImageIntegrity.isComplete(url)
+        if Self.isMovie(url.path) { return true }
+        if planner.isPDF(url) { return PDFIntake.isComplete(url) && !PDFIntake.isDownloading(url) }
+        return ImageIntegrity.isComplete(url)
+    }
+
+    func settleInterval(_ url: URL) -> TimeInterval {
+        planner.isPDF(url) ? max(options.settleInterval, options.pdfSettleInterval) : options.settleInterval
     }
 
     /// Waits for a burst of arrivals to settle and go quiet, naming each photo as soon as it has
@@ -196,7 +226,7 @@ public final class Watcher {
             if seen.isEmpty { return nil }
             let settled = candidates.filter { u in
                 guard let s = seen[u.path] else { return false }
-                return now.timeIntervalSince(s.since) >= options.settleInterval && isComplete(u)
+                return now.timeIntervalSince(s.since) >= settleInterval(u) && isComplete(u)
             }
             // Name each still as soon as it has settled. A file that changed since its naming
             // started is named again; the stale result is dropped.
@@ -332,7 +362,7 @@ public final class Watcher {
             ignore(URL(fileURLWithPath: o.source), o.message ?? o.status.rawValue)
         }
         let batch = Batch(id: id, proposals: proposals, outcomes: outcomes)
-        if batch.photos + batch.videos + batch.failed > 0 {
+        if batch.photos + batch.pdfs + batch.videos + batch.failed > 0 {
             onBatch(batch)
             notifier?.notify(batch)
         }
@@ -353,7 +383,8 @@ public final class Watcher {
 
     /// The notification text for a batch, e.g. "Renamed 6 photos (1 Live Photo video)".
     public static func summary(_ b: Batch) -> String {
-        var s = "Renamed \(b.photos) photo\(b.photos == 1 ? "" : "s")"
+        var s = b.pdfs > 0 && b.photos == 0 ? "Renamed \(b.pdfs) PDF\(b.pdfs == 1 ? "" : "s")" : "Renamed \(b.photos) photo\(b.photos == 1 ? "" : "s")"
+        if b.pdfs > 0 && b.photos > 0 { s += " and \(b.pdfs) PDF\(b.pdfs == 1 ? "" : "s")" }
         if b.videos > 0 { s += " (+\(b.videos) Live Photo video\(b.videos == 1 ? "" : "s"))" }
         if b.failed > 0 { s += ", \(b.failed) failed" }
         return s

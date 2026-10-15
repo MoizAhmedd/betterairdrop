@@ -62,31 +62,54 @@ public struct ClaudeNamer: Namer {
     /// 2.3 s to every request (docs/perf.md). An answer that doesn't parse is asked for again
     /// once with `output_config`, whose schema guarantees the shape.
     public func suggest(for url: URL, context ctx: PhotoContext) throws -> NameSuggestion {
+        if let doc = ctx.document { return try suggestDocument(doc) }
         var timings = StageTimings()
         let upload = try CloudUpload(url, context: ctx, maxPixelSize: imageSize, timings: &timings)
         let (image, prompt) = (upload.image, upload.context)
         var usage = TokenUsage(model: model, inputTokens: 0, outputTokens: 0)
         var why = ["sent \(upload.summary) to \(model)"]
+        let answer = try ask(ClaudePrompt.parse, why: &why, usage: &usage, timings: &timings) { structured in
+            ClaudePrompt.body(model: model, maxTokens: maxTokens, image: image, context: prompt, structured: structured)
+        }
+        return upload.suggestion(answer, context: ctx, backend: id, why: why, timings: timings, usage: usage)
+    }
 
-        let answer: ClaudePrompt.Answer
+    /// A PDF: its extracted text and a few facts about it, as text only. No image, no file.
+    func suggestDocument(_ doc: DocumentText) throws -> NameSuggestion {
+        var timings = StageTimings()
+        var usage = TokenUsage(model: model, inputTokens: 0, outputTokens: 0)
+        let context = DocumentPrompt.context(doc)
+        var why = ["sent \(doc.text.count) characters of the PDF's text (\(doc.source == .ocr ? "OCR of page 1" : "text layer")), no file or image, to \(model)"]
+        let answer = try ask(DocumentPrompt.parse, why: &why, usage: &usage, timings: &timings) { structured in
+            DocumentPrompt.body(model: model, maxTokens: maxTokens, context: context, text: doc.text, structured: structured)
+        }
+        var s = answer.suggestion(backend: id, maxWords: 6, source: "Claude")
+        s.usage = usage
+        s.timings = timings
+        s.why = why + s.why
+        return s
+    }
+
+    /// JSON in the prompt first; an answer that doesn't parse is asked for once more with `output_config`.
+    func ask<A>(_ parse: (String) throws -> A, why: inout [String], usage: inout TokenUsage, timings: inout StageTimings,
+                body: (Bool) -> [String: Any]) throws -> A {
         do {
-            answer = try ClaudePrompt.parse(call(image: image, prompt: prompt, structured: false, usage: &usage, timings: &timings))
+            return try parse(call(body: body(false), usage: &usage, timings: &timings))
         } catch let first as Error where first.isBadOutput && Self.structuredOutput.value {
             do {
-                answer = try ClaudePrompt.parse(call(image: image, prompt: prompt, structured: true, usage: &usage, timings: &timings))
+                let a = try parse(call(body: body(true), usage: &usage, timings: &timings))
                 why.append("the first answer wasn't usable (\(first)), so it was asked again with output_config")
+                return a
             } catch Error.http(400, let msg) where ClaudePrompt.looksLikeOutputConfigRejection(msg) {
                 Self.structuredOutput.value = false
                 throw first
             }
         }
-        return upload.suggestion(answer, context: ctx, backend: id, why: why, timings: timings, usage: usage)
     }
 
     /// One logical request, with retries for 429/5xx/network errors. Returns the first text block.
-    func call(image: Data, prompt: String, structured: Bool, usage: inout TokenUsage, timings: inout StageTimings) throws -> String {
-        let body = try JSONSerialization.data(withJSONObject: ClaudePrompt.body(model: model, maxTokens: maxTokens, image: image,
-                                                                                  context: prompt, structured: structured))
+    func call(body json: [String: Any], usage: inout TokenUsage, timings: inout StageTimings) throws -> String {
+        let body = try JSONSerialization.data(withJSONObject: json)
         var refreshedAuth = false
         var attempt = 0
         while true {
@@ -311,7 +334,8 @@ public enum ClaudePrompt {
         /// `source` names the model in the `explain` trail.
         func suggestion(context ctx: PhotoContext, backend: String, maxWords: Int, source: String = "Claude") -> NameSuggestion {
             var why: [String] = []
-            let theirs = Kind(rawValue: kind) ?? .photo
+            // An image is one of the image kinds; "other" (or a PDF kind) is a photo, as it always was.
+            let theirs = Kind(rawValue: kind).flatMap { Kind.imageKinds.contains($0) ? $0 : nil } ?? .photo
             let finalKind: Kind = ctx.metadata.isScreenshotByMetadata ? .screenshot : theirs
             if finalKind != theirs { why.append("kind: kept screenshot from the metadata (\(source) said \(kind))") }
             else if finalKind != ctx.kind { why.append("kind: \(source) says \(kind) (local rules said \(ctx.kind.rawValue))") }

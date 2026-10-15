@@ -150,7 +150,8 @@ public final class Committer {
                                     originals: p.action == .convert ? config.originals.rawValue : nil,
                                     backend: p.suggestion?.backend ?? backend, summary: summary,
                                     costUSD: p.suggestion?.usage?.cost())
-            if let s = p.suggestion, s.kind == .receipt, !Watcher.isMovie(source.path) {
+            // Receipts (photos and PDFs) and PDF invoices, for "Export Receipts as CSV".
+            if let s = p.suggestion, s.kind == .receipt || s.kind == .invoice, !Watcher.isMovie(source.path) {
                 rec.receipt = .init(date: p.context?.metadata.date, merchant: s.merchant, total: s.total)
             }
             try journal.append(rec)

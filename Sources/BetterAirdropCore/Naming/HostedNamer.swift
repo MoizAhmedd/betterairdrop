@@ -130,22 +130,38 @@ public struct HostedNamer: Namer {
         guard let key = license.licenseKey() else { throw Error.noLicense }
         if let blocked = Self.blocks.reason(key: key, now: now()) { throw blocked }
         var timings = StageTimings()
+        if let doc = ctx.document { return try suggestDocument(doc, key: key, timings: &timings) }
         let upload = try CloudUpload(url, context: ctx, maxPixelSize: imageSize, timings: &timings)
-        let (data, remaining) = try call(upload, key: key, timings: &timings)
+        let (data, remaining) = try call("v1/name", ["image": upload.image.base64EncodedString(), "context": upload.context],
+                                         key: key, timings: &timings)
         let answer = try ClaudePrompt.parse(String(decoding: data, as: UTF8.self))
         var why = ["sent \(upload.summary) to BetterAirdrop's hosted naming (Claude, with this Mac's Pro license)"]
         if let remaining { why.append("\(remaining) hosted name\(remaining == 1 ? "" : "s") left this month") }
         return upload.suggestion(answer, context: ctx, backend: id, why: why, timings: timings, usage: nil)
     }
 
+    /// A PDF: `POST /v1/name-text` with the extracted text and a few facts about the PDF. No file,
+    /// no image. It counts against the same monthly names and daily cap as photos.
+    func suggestDocument(_ doc: DocumentText, key: String, timings: inout StageTimings) throws -> NameSuggestion {
+        let (data, remaining) = try call("v1/name-text", ["context": DocumentPrompt.context(doc), "text": doc.text],
+                                         key: key, timings: &timings)
+        let answer = try DocumentPrompt.parse(String(decoding: data, as: UTF8.self))
+        var s = answer.suggestion(backend: id, maxWords: 6, source: "Claude", now: now())
+        var why = ["sent \(doc.text.count) characters of the PDF's text (no file or image) to BetterAirdrop's hosted naming (Claude, with this Mac's Pro license)"]
+        if let remaining { why.append("\(remaining) hosted name\(remaining == 1 ? "" : "s") left this month") }
+        s.why = why + s.why
+        s.timings = timings
+        return s
+    }
+
     /// One logical request, with a retry for network errors and 500/502/504. Returns the 200 body
     /// and the names left this month.
-    func call(_ upload: CloudUpload, key: String, timings: inout StageTimings) throws -> (Data, Int?) {
-        var req = URLRequest(url: baseURL.appendingPathComponent("v1/name"), timeoutInterval: timeout)
+    func call(_ path: String, _ body: [String: String], key: String, timings: inout StageTimings) throws -> (Data, Int?) {
+        var req = URLRequest(url: baseURL.appendingPathComponent(path), timeoutInterval: timeout)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "content-type")
         req.setValue("Bearer \(key)", forHTTPHeaderField: "authorization")
-        req.httpBody = try JSONSerialization.data(withJSONObject: ["image": upload.image.base64EncodedString(), "context": upload.context])
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         var attempt = 0
         while true {
