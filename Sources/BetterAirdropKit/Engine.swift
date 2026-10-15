@@ -22,15 +22,23 @@ public struct EngineStatus: Equatable, Sendable {
     public var detail: String?
 
     /// `hasCredential`: a Claude credential resolves (key, env or `ant`). `appleReady`: Foundation Models is usable.
-    public static func current(config: Config, hasCredential: Bool, appleReady: Bool = false) -> EngineStatus {
+    /// `hasLicense`: a Pro license key is on this Mac (hosted naming). `hostedProblem`: why hosted
+    /// naming is being skipped right now (`HostedNamer.currentProblem`), e.g. its monthly limit.
+    /// `auto` follows `Backends.resolve`: Claude, hosted, Apple Intelligence, Vision.
+    public static func current(config: Config, hasCredential: Bool, appleReady: Bool = false,
+                               hasLicense: Bool = false, hostedProblem: String? = nil) -> EngineStatus {
         let claude = EngineStatus(name: modelName(config.claudeModel), detail: "Vision if offline")
+        let hosted = hostedProblem.map { EngineStatus(name: "Apple Vision", detail: $0) }
+            ?? EngineStatus(name: "Hosted Claude", detail: "Pro, Vision if offline")
         switch config.backend {
         case "claude": return hasCredential ? claude : EngineStatus(name: "Apple Vision", detail: "Claude has no key")
+        case "hosted": return hasLicense ? hosted : EngineStatus(name: "Apple Vision", detail: "no Pro license")
         case "vision": return EngineStatus(name: "Apple Vision", detail: nil)
         case "apple": return appleReady ? EngineStatus(name: "Apple Intelligence", detail: nil) : EngineStatus(name: "Apple Vision", detail: "Apple Intelligence unavailable")
         default:
-            if appleReady { return EngineStatus(name: "Apple Intelligence", detail: nil) }
             if config.claudeInAuto && hasCredential { return claude }
+            if config.claudeInAuto && hasLicense { return hosted }
+            if appleReady { return EngineStatus(name: "Apple Intelligence", detail: nil) }
             return EngineStatus(name: "Apple Vision", detail: nil)
         }
     }

@@ -70,9 +70,11 @@ import Testing
 
     @Test func autoAndExplicitApple() throws {
         let key = ClaudeAuth(environment: ["ANTHROPIC_API_KEY": "sk-ant-test-key"], storedKey: { nil }, antPath: { nil })
-        // Ready: auto picks it over Claude, wrapped so Vision names what it can't.
-        let auto = try Backends.resolve("auto", auth: key, apple: namer(.available))
+        // Ready: auto picks it when there's no Claude credential or Pro license (those come first,
+        // since they see the pixels), wrapped so Vision names what it can't.
+        let auto = try Backends.resolve("auto", auth: .none, apple: namer(.available), license: FixedLicense(key: nil))
         #expect(auto.id == "apple" && (auto as? FallbackNamer)?.fallback.id == "vision")
+        #expect(try Backends.resolve("auto", auth: key, apple: namer(.available)).id == "claude")
         #expect(try Backends.resolve("apple", auth: .none, apple: namer(.available)) is FallbackNamer)
         // Not ready: auto moves on; an explicit choice says why.
         #expect(try Backends.resolve("auto", auth: key, apple: namer(.notEnabled)).id == "claude")

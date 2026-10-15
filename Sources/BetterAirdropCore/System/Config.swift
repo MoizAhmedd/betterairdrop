@@ -46,6 +46,8 @@ public struct Config: Sendable, Equatable {
     public var claudeModel = ClaudeNamer.defaultModel
     /// Whether `backend = "auto"` may use Claude when a credential is found. Off = auto stays on-device.
     public var claudeInAuto = true
+    /// Where hosted naming (Pro) sends photos. Only changed to test another deployment of `hosted/`.
+    public var hostedURL = HostedNamer.defaultBaseURL
 
     /// Pro (menu-bar app only): add Finder tags (the kind, and the city for photos) to renamed files.
     public var finderTags = false
@@ -195,8 +197,8 @@ public struct Config: Sendable, Equatable {
         switch key {
         case "backend":
             let s = try str()
-            guard ["auto", "apple", "vision", "ollama", "claude"].contains(s) else {
-                throw ParseError(line: line, message: "backend must be auto, apple, vision, ollama or claude")
+            guard ["auto", "apple", "vision", "ollama", "claude", "hosted"].contains(s) else {
+                throw ParseError(line: line, message: "backend must be auto, apple, vision, ollama, claude or hosted")
             }
             backend = s
         case "template":
@@ -231,6 +233,12 @@ public struct Config: Sendable, Equatable {
         case "claude.model": claudeModel = try str()
         case "claude.auto": claudeInAuto = try bool()
         case "finder_tags": finderTags = try bool()
+        case "hosted.url":
+            let s = try str()
+            guard let u = URL(string: s), ["https", "http"].contains(u.scheme ?? ""), u.host != nil else {
+                throw ParseError(line: line, message: "hosted.url must be an http(s) URL")
+            }
+            hostedURL = u
         default:
             if key.hasPrefix("templates.") {
                 let kind = String(key.dropFirst("templates.".count))

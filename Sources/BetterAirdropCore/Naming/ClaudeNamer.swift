@@ -429,6 +429,8 @@ public struct FallbackNamer: Namer {
         let firstError: any Error
         if case .ready = primary.availability() {
             do { return try primary.suggest(for: url, context: context) } catch { firstError = error }
+        } else if case .unavailable(let why) = primary.availability() {
+            firstError = BackendError.unavailable(primary.id, reason: why)   // e.g. "monthly hosted limit reached; resets …"
         } else {
             firstError = BackendError.unavailable(primary.id, reason: "not available")
         }

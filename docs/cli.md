@@ -9,11 +9,14 @@ same config, journal and undo.
 | Backend | Where it runs | What it sends | Names look like |
 |---|---|---|---|
 | `claude` (Claude Haiku 4.5) | Anthropic's API | a 1024 px JPEG re-encoded **with all metadata removed** (no EXIF, no GPS), plus text: the date, the city name, the detected kind, a short OCR snippet and a device hint | `cinema-seating-in-empty-theatre` |
+| `hosted` (Pro: Claude with no API key) | BetterAirdrop's server, then Anthropic's API | what `claude` sends, plus your Pro license key. The server keeps no photos or names. 500 names a month | like `claude` |
 | `vision` (Apple Vision) | on your Mac | nothing | `auditorium`, `window-brick` |
 | `apple` (Apple Intelligence, Foundation Models) | on your Mac, macOS 26+ with Apple Intelligence on | nothing | named from Vision's labels and text (the on-device model reads text, not pixels) |
 
-`backend = "auto"` (the default) uses **Apple Intelligence when it's ready, else Claude when a
-credential is found, otherwise Vision**. If Apple Intelligence isn't available, `--backend apple`
+`backend = "auto"` (the default) uses **Claude when a credential is found, else hosted naming when
+this Mac has a Pro license, else Apple Intelligence when it's ready, otherwise Vision**. Hosted
+naming falls back to Vision for a photo when the license is invalid, the month's 500 names are used,
+or the server can't be reached. If Apple Intelligence isn't available, `--backend apple`
 says why (off in System Settings → Apple Intelligence & Siri, model still downloading, Mac not
 supported, macOS older than 26). Like Claude, it falls back to Vision for any photo it can't name.
 Vision always runs anyway: it supplies the OCR text, kind hints and labels that go into Claude's
@@ -21,7 +24,7 @@ context, and it names the photo by itself if Claude fails for any reason (no net
 rate limit, refusal), so a rename never fails because of the network. The first time Claude is
 used, BetterAirdrop prints a one-time notice saying what gets sent.
 
-To keep everything on-device, set `backend = "vision"` or turn Claude off for `auto`:
+To keep everything on-device, set `backend = "vision"` or turn Claude (and hosted naming) off for `auto`:
 
 ```toml
 [claude]
@@ -101,7 +104,7 @@ second time.
 `Sources/BetterAirdropCore/System/Config.swift`. For example:
 
 ```toml
-backend = "auto"                        # auto | claude | vision | apple
+backend = "auto"                        # auto | claude | hosted | vision | apple
 template = "{date}_{place}_{subject}"   # tokens: date time place country subject kind device merchant total orig
 originals = "trash"                     # trash | keep | delete
 convert_heic = true
@@ -120,7 +123,10 @@ monthly = true                          # …/Receipts/2026-10/ from the photo's
 
 [claude]
 model = "claude-haiku-4-5"              # any Messages API model id
-auto = true                             # let backend = "auto" use Claude when a credential exists
+auto = true                             # let backend = "auto" use Claude (or hosted naming) when a credential (or Pro license) exists
+
+[hosted]
+url = "https://api.betterairdrop.com"   # only to test another deployment of hosted/
 ```
 
 ## BetterAirdrop Pro

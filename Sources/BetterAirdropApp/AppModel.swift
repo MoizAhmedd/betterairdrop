@@ -54,6 +54,8 @@ final class AppModel: ObservableObject {
         var environmentKey = false
         var antPath: String?
         var antLoggedIn = false
+        /// A Pro license key is on this Mac (hosted naming). Not part of `any`, which is Claude only.
+        var proLicense = false
         var any: Bool { storedKey || environmentKey || antLoggedIn }
     }
 
@@ -91,7 +93,8 @@ final class AppModel: ObservableObject {
     }
     var isPaused: Bool { defaults.bool(forKey: "pausedIndefinitely") || pausedUntil != nil }
     var engine: EngineStatus {
-        EngineStatus.current(config: config, hasCredential: credential.any, appleReady: AppleIntelligenceStatus.current.isAvailable)
+        EngineStatus.current(config: config, hasCredential: credential.any, appleReady: AppleIntelligenceStatus.current.isAvailable,
+                             hasLicense: credential.proLicense, hostedProblem: credential.proLicense ? HostedNamer.currentProblem() : nil)
     }
     var needsAttention: Bool { state == .noAccess }
 
@@ -380,6 +383,7 @@ final class AppModel: ObservableObject {
             let auth = ClaudeAuth()
             c.antPath = auth.antExecutable
             if c.antPath != nil { c.antLoggedIn = auth.antToken() != nil }
+            c.proLicense = LicenseFileKeySource().licenseKey() != nil
             DispatchQueue.main.async { [weak self] in self?.credential = c; then?() }
         }
     }
