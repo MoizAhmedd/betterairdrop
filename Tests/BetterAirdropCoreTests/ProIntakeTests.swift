@@ -160,6 +160,28 @@ import Testing
     }
 }
 
+/// Undo while a watcher runs: the restored original arrived after the watcher started (quarantine
+/// time, or the undo's own inode change), so without the undone mark it would be renamed straight back.
+@Suite struct UndoIsNotRenamedBackTests {
+    @Test(arguments: [Watcher.Options.Intake.airdrop, .screenshots, .all])
+    func undoneFileStaysUndone(_ intake: Watcher.Options.Intake) throws {
+        let s = Sandbox()
+        var o = Watcher.Options(folder: s.downloads)
+        o.intake = intake
+        o.settleInterval = 0.1; o.quietWindow = 0.2; o.pollInterval = 0.05
+        o.isScreenshot = { _ in true }
+        var planner = s.planner()
+        planner.namer = stemNamer
+        let w = Watcher(options: o, planner: planner, committer: s.committer(), startedAt: Date().addingTimeInterval(-5))
+        AirDropSim.tag(TestImages.png(s.file("Shot.png")))
+        let b = try #require(w.runOnce())
+        _ = try s.undoer().undo(.batch(b.id))
+        #expect(w.runOnce() == nil)
+        #expect(s.listing() == ["Shot.png"])
+        #expect(planner.skipReason(s.file("Shot.png")) == nil)   // renaming it by hand still works
+    }
+}
+
 @Suite struct DateFormatTests {
     @Test func formats() {
         #expect(DateFormat.iso.apply("2026-09-24") == "2026-09-24")

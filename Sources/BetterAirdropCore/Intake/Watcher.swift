@@ -5,7 +5,7 @@ import Foundation
 /// Intake rules (PLAN.md §5, D4):
 /// - top level only; images (`heic heif jpg jpeg png dng`) plus `.mov` Live Photo partners
 /// - `com.apple.quarantine` agent must be `sharingd` (unless `airdropOnly` is off)
-/// - no `dev.betterairdrop.done` marker, no dotfiles, no `.download`/`.partial`/`.crdownload`
+/// - no `dev.betterairdrop.done` marker (or `.undone`, set by undo), no dotfiles, no `.download`/`.partial`/`.crdownload`
 /// - arrived after the watcher started (quarantine time), unless `backlog` is on, so starting the
 ///   watcher never renames a folder's worth of old AirDrops by surprise
 /// - settled: size and mtime unchanged for `settleInterval`, and the image container is complete
@@ -145,7 +145,7 @@ public final class Watcher {
             let q = Quarantine.of(url)
             let isScreenshot = options.isScreenshot
             if !Self.admits(options.intake, isAirDrop: q?.isAirDrop ?? false, isScreenshot: { isScreenshot(url) }) { continue }
-            if Marker.read(url) != nil { continue }
+            if Marker.read(url) != nil || Marker.isUndone(url) { continue }
             if !options.backlog, let t = Self.arrival(url, quarantine: q), t < startedAt { continue }
             out.append(url)
         }
