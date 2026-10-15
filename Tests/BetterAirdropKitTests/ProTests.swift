@@ -321,6 +321,20 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
         try store.write(License(key: "BA_1234", activationID: "act", label: "Mac", activatedAt: Date()))
         #expect(try Backends.resolve("auto", auth: .none, apple: apple, license: store).id == "hosted")
     }
+
+    /// `license activate` says what hosted naming sends when Automatic now picks it, and only then.
+    @Test func activationSaysWhatHostedSends() {
+        let l = License(key: "BA_1234ABCD", activationID: "act", label: "Studio Mac", activatedAt: Date())
+        let done = "BetterAirdrop Pro is active on “Studio Mac” (key …ABCD)."
+        let hosted = EngineStatus.current(config: Config(), hasCredential: false, hasLicense: true)
+        #expect(l.activatedMessage(engine: hosted) == done + "\n" + EngineStatus.hostedNotice)
+        #expect(EngineStatus.hostedNotice.contains("768 px") && EngineStatus.hostedNotice.contains("Apple Vision in Settings → Naming"))
+
+        // Your own Claude key, or claude.auto off: hosted isn't the engine, so no notice.
+        #expect(l.activatedMessage(engine: EngineStatus.current(config: Config(), hasCredential: true, hasLicense: true)) == done)
+        var local = Config(); local.claudeInAuto = false
+        #expect(l.activatedMessage(engine: EngineStatus.current(config: local, hasCredential: false, hasLicense: true)) == done)
+    }
 }
 
 /// `betterairdrop status --json` → credentials.hosted: available with Pro, and what the app last heard.

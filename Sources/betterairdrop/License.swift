@@ -20,11 +20,16 @@ struct LicenseCommand: ParsableCommand {
         @Argument(help: "The license key from your Polar receipt.")
         var key: String
 
+        @OptionGroup var global: GlobalOptions
+
         func run() throws {
             do {
                 let l = try LicenseClient().activate(key: key)
                 AppSignal.reload.post()   // a running app turns Pro on now
-                print("BetterAirdrop Pro is active on “\(l.label)” (key \(l.maskedKey)).")
+                let engine = EngineStatus.current(config: (try? global.loadConfig()) ?? Config(),
+                                                  hasCredential: ClaudeAuth.shared.resolve() != nil,
+                                                  appleReady: AppleIntelligenceStatus.current.isAvailable, hasLicense: true)
+                print(l.activatedMessage(engine: engine))
             } catch let f as LicenseClient.Failure {
                 stderr(f.description)
                 throw ExitCode(1)

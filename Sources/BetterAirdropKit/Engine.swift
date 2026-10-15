@@ -49,6 +49,15 @@ public struct EngineStatus: Equatable, Sendable {
 
     public static let hostedName = "Hosted (Pro)"
 
+    /// Hosted naming is what names the next photo.
+    public var isHosted: Bool { name == Self.hostedName }
+
+    /// What hosted naming sends and keeps, in one line (site/public/privacy/ says the same). Shown
+    /// when activating Pro turns it on (Settings → Pro, `license activate`) and under "Now using".
+    public static let hostedNotice = "Pro names photos with hosted Claude: a 768 px copy without GPS or EXIF, "
+        + "plus its date, city and any text in it, goes to BetterAirdrop's server, then Anthropic. The server "
+        + "keeps no photos or names. To keep everything on this Mac, set Engine to Apple Vision in Settings → Naming."
+
     /// "claude-haiku-4-5" → "Claude Haiku 4.5". Unknown IDs are shown as they are.
     public static func modelName(_ id: String) -> String {
         let parts = id.split(separator: "-").map(String.init)

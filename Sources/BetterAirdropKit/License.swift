@@ -118,6 +118,15 @@ public struct LicenseStore: Sendable {
     public func delete() -> Bool { (try? FileManager.default.removeItem(at: file)) != nil }
 }
 
+extension License {
+    /// What `license activate` prints: the confirmation, then `EngineStatus.hostedNotice` when the
+    /// engine (worked out with this license) is now hosted naming.
+    public func activatedMessage(engine: EngineStatus) -> String {
+        let done = "BetterAirdrop Pro is active on “\(label)” (key \(maskedKey))."
+        return engine.isHosted ? done + "\n" + EngineStatus.hostedNotice : done
+    }
+}
+
 /// Hosted naming's key: only while Pro is active or in its grace period.
 extension LicenseStore: LicenseKeySource {
     public func licenseKey() -> String? { read().flatMap { ProGate.status($0).isUnlocked ? $0.key : nil } }

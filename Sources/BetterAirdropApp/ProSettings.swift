@@ -123,7 +123,7 @@ struct ProPane: View {
             working = false
             if let error { message = (error, true) } else {
                 key = ""
-                message = ("Pro is on. Thank you!", false)
+                message = ("Pro is on. Thank you!" + (model.engine.isHosted ? "\n" + EngineStatus.hostedNotice : ""), false)
             }
         }
     }

@@ -189,12 +189,15 @@ struct NamingPane: View {
                         Text(apple.message)
                     }
                 }
-                LabeledContent("Now using") {
+                LabeledContent {
                     HStack(spacing: 5) {
                         Circle().fill(Color.green).frame(width: 7, height: 7)
                         Text(model.engine.name)
                         if let d = model.engine.detail { Text("· \(d)").foregroundStyle(.secondary) }
                     }
+                } label: {
+                    Text("Now using")
+                    if model.engine.isHosted { Text(EngineStatus.hostedNotice) }
                 }
                 if !model.isPro { ProLine(text: "Pro: great names without an API key.") }
             }
