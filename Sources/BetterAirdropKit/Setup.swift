@@ -132,7 +132,7 @@ public struct SetupPlan: Equatable {
             if config.backend != e { changes.append("Naming engine: \(config.backend) → \(e)") }
             config.backend = e
         }
-        if config.backend == "auto" && !appHasCredential {
+        if config.backend == "auto" && !appHasCredential && c.appleUnavailable != nil {
             notes.append("Photos will be named with Apple Vision (on this Mac) until a Claude key is stored." + envKeyHint)
         }
 

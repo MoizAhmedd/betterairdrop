@@ -157,12 +157,14 @@ extension StatusReport {
         public var antLoggedIn: Bool
         /// Who holds the watch lock.
         public var lockHolder: ProcessLock.Owner?
+        /// Apple Intelligence can name photos (then `auto` uses it).
+        public var appleReady: Bool
 
         public init(cliVersion: String, appPath: String?, appVersion: String?, appRunning: Bool, appState: AppState?,
-                    setup: SetupRecord?, config: Config, storedKey: Bool, antLoggedIn: Bool, lockHolder: ProcessLock.Owner?) {
+                    setup: SetupRecord?, config: Config, storedKey: Bool, antLoggedIn: Bool, lockHolder: ProcessLock.Owner?, appleReady: Bool = false) {
             self.cliVersion = cliVersion; self.appPath = appPath; self.appVersion = appVersion; self.appRunning = appRunning
             self.appState = appState; self.setup = setup; self.config = config; self.storedKey = storedKey
-            self.antLoggedIn = antLoggedIn; self.lockHolder = lockHolder
+            self.antLoggedIn = antLoggedIn; self.lockHolder = lockHolder; self.appleReady = appleReady
         }
     }
 
@@ -172,7 +174,7 @@ extension StatusReport {
 
     public static func make(_ i: Inputs) -> StatusReport {
         let hasCredential = i.storedKey || i.antLoggedIn
-        let engine = EngineStatus.current(config: i.config, hasCredential: hasCredential)
+        let engine = EngineStatus.current(config: i.config, hasCredential: hasCredential, appleReady: i.appleReady)
         let state = i.appRunning ? i.appState : nil
         let folderName = Self.folderName(i.appState?.folder ?? i.config.watchFolder)
 

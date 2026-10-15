@@ -65,6 +65,7 @@ private func error(_ r: SetupRequest, _ c: SetupContext) -> String? {
         #expect(p.notes[0].contains("--api-key-env ANTHROPIC_API_KEY"))
         #expect(try SetupPlan.make(SetupRequest(engine: "auto"), context(stored: true)).notes.isEmpty)
         #expect(try SetupPlan.make(SetupRequest(engine: "vision"), context()).notes.isEmpty)
+        #expect(try SetupPlan.make(SetupRequest(engine: "auto"), context(apple: nil)).notes.isEmpty)   // auto uses Apple Intelligence
     }
 
     @Test func appleOnlyWhenReady() throws {
@@ -221,6 +222,12 @@ private func error(_ r: SetupRequest, _ c: SetupContext) -> String? {
         #expect(r.nextSteps[0].required == false)
         var c = Config(); c.backend = "vision"
         #expect(StatusReport.make(inputs(state: state(), config: c, stored: false)).nextSteps.isEmpty)   // chose Vision
+        // With Apple Intelligence ready, auto names on-device without a key: no nudge.
+        var i = inputs(state: state(), stored: false)
+        i.appleReady = true
+        let r2 = StatusReport.make(i)
+        #expect(r2.engine.active == "Apple Intelligence")
+        #expect(r2.nextSteps.isEmpty)
     }
 
     @Test func appStateRoundTrip() throws {

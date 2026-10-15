@@ -68,7 +68,7 @@ struct Status: ParsableCommand {
             cliVersion: BetterAirdropVersion.current, appPath: app?.path, appVersion: version, appRunning: running,
             appState: state, setup: SetupRecord.load(), config: config,
             storedKey: CredentialStore().hasAPIKey(), antLoggedIn: ClaudeAuth.shared.antToken() != nil,
-            lockHolder: ProcessLock.holder()))
+            lockHolder: ProcessLock.holder(), appleReady: AppleIntelligenceStatus.current.isAvailable))
     }
 
     static func isApp(pid: Int32) -> Bool {
