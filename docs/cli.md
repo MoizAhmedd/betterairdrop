@@ -176,7 +176,9 @@ the AirDrop folder is left alone, even a sandboxed app's. Never the screenshot f
 **Left alone:** a PDF while a browser's `name.pdf.download`, `.crdownload` or `.part` file is next to
 it; one that doesn't start with `%PDF-` and end with `%%EOF` (still being written); one whose size
 changed in the last 2 seconds; one inside an app bundle or other package; an encrypted one (even
-if it opens without a password); one already named (a date-first name or the BetterAirdrop marker).
+if it opens without a password); one already named (a date-first name or the BetterAirdrop marker);
+one that was in the folder before watching started, even after you annotate or sign it in Preview
+or another Mac app (a PDF's arrival is the date it was added to the folder, not its last change).
 The extension is kept exactly as it was. Undo works as for photos.
 
 **How:** PDFKit reads the text of the first 2 pages, up to 4,000 characters. A scan with no text

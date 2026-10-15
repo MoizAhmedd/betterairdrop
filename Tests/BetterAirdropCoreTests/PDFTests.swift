@@ -238,26 +238,52 @@ func name(_ p: Proposal) -> String? { p.target.map { ($0 as NSString).lastPathCo
 
     @Test func airdropFolderTakesDownloadedPDFsOnly() {
         let s = Sandbox()
+        // Downloaded before the watcher started (a PDF's arrival is the date it was added to the folder).
+        AirDropSim.tag(TestPDFs.text(s.file("old.pdf"), TestPDFs.invoiceLines), agent: "com.apple.Safari", at: Date().addingTimeInterval(-3600))
+        Thread.sleep(forTimeInterval: 2.5)   // older than the watcher's 2 s of slack
+        let start = Date()
         AirDropSim.tag(TestPDFs.text(s.file("from safari.pdf"), TestPDFs.invoiceLines), agent: "com.apple.Safari")
         AirDropSim.tag(TestPDFs.text(s.file("airdropped.pdf"), TestPDFs.invoiceLines))
         TestPDFs.text(s.file("saved by an app.pdf"), TestPDFs.invoiceLines)        // no quarantine: made on this Mac
         // A sandboxed app's export is quarantined too, but without the download flag (seen on real files).
         let exported = TestPDFs.text(s.file("exported from preview.pdf"), TestPDFs.invoiceLines)
         try! Xattr.set(exported, "com.apple.quarantine", Data(AirDropSim.quarantine(agent: "Preview", flags: "0082").utf8))
-        AirDropSim.tag(TestPDFs.text(s.file("old.pdf"), TestPDFs.invoiceLines), agent: "com.apple.Safari", at: Date().addingTimeInterval(-3600))
         TestImages.jpeg(s.file("browser photo.jpg"))                                  // images keep the AirDrop-only rule
-        #expect(watcher(s).scan().map(\.lastPathComponent) == ["airdropped.pdf", "from safari.pdf"])
+        #expect(watcher(s, startedAt: start).scan().map(\.lastPathComponent) == ["airdropped.pdf", "from safari.pdf"])
         // The AirDrop folder with "only from AirDrop" off: every image, but still only downloaded PDFs.
-        #expect(watcher(s, .all).scan().map(\.lastPathComponent).sorted()
+        #expect(watcher(s, .all, startedAt: start).scan().map(\.lastPathComponent).sorted()
                 == ["airdropped.pdf", "browser photo.jpg", "from safari.pdf"])
         // A folder the user added: every new PDF.
-        #expect(watcher(s, .all, everyPDF: true).scan().map(\.lastPathComponent).sorted()
+        #expect(watcher(s, .all, everyPDF: true, startedAt: start).scan().map(\.lastPathComponent).sorted()
                 == ["airdropped.pdf", "browser photo.jpg", "exported from preview.pdf", "from safari.pdf", "saved by an app.pdf"])
-        #expect(watcher(s, .screenshots).scan().isEmpty)
+        #expect(watcher(s, .screenshots, startedAt: start).scan().isEmpty)
         var airdropOnly = pdfPlanner(s)
         airdropOnly.airdropOnly = true
         #expect(airdropOnly.skipReason(exported) == "not downloaded or AirDropped")
         #expect(airdropOnly.skipReason(s.file("from safari.pdf")) == nil)
+    }
+
+    @Test func anOldPDFThatGetsEditedIsNotRenamed() throws {
+        let s = Sandbox()
+        let edited = TestPDFs.text(s.file("signed lease.pdf"), TestPDFs.leaseLines)
+        let saved = TestPDFs.text(s.file("annotated invoice.pdf"), TestPDFs.invoiceLines)
+        Thread.sleep(forTimeInterval: 2.5)   // older than the watcher's 2 s of slack
+        let w = watcher(s, .all, everyPDF: true, startedAt: Date())
+        // Signed in place, and saved the way Preview (NSDocument) does: both bump ctime.
+        let h = try FileHandle(forWritingTo: edited)
+        try h.seekToEnd(); try h.write(contentsOf: Data("\n% signature\n%%EOF\n".utf8)); try h.close()
+        let replacement = try FileManager.default.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: saved, create: true)
+            .appendingPathComponent("annotated invoice.pdf")
+        try Data(contentsOf: saved).write(to: replacement)
+        _ = try FileManager.default.replaceItemAt(saved, withItemAt: replacement)
+        var st = stat()
+        #expect(lstat(edited.path, &st) == 0 && Double(st.st_ctimespec.tv_sec) >= w.startedAt.timeIntervalSince1970)
+        #expect(w.scan().isEmpty)
+        #expect(w.runOnce() == nil)
+        // A PDF that really is new in the folder still is.
+        TestPDFs.text(s.file("new.pdf"), TestPDFs.invoiceLines)
+        #expect(w.scan().map(\.lastPathComponent) == ["new.pdf"])
+        #expect(s.listing().contains("signed lease.pdf") && s.listing().contains("annotated invoice.pdf"))
     }
 
     @Test func waitsForTheDownloadThenNamesAndUndoes() throws {

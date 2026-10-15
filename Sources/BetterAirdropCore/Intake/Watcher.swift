@@ -164,7 +164,7 @@ public final class Watcher {
                 if !Self.admitsPDF(options.intake, downloaded: q?.isDownload ?? false, every: options.everyPDF) || PDFIntake.isDownloading(url) { continue }
             } else if !Self.admits(options.intake, isAirDrop: q?.isAirDrop ?? false, isScreenshot: { isScreenshot(url) }) { continue }
             if Marker.read(url) != nil || Marker.isUndone(url) { continue }
-            if !options.backlog, let t = Self.arrival(url, quarantine: q), t < startedAt { continue }
+            if !options.backlog, let t = pdf ? Self.pdfArrival(url) : Self.arrival(url, quarantine: q), t < startedAt { continue }
             out.append(url)
         }
         return out
@@ -178,6 +178,17 @@ public final class Watcher {
         case .screenshots: isScreenshot()
         case .airdropAndScreenshots: isAirDrop || isScreenshot()
         }
+    }
+
+    /// When a PDF arrived in this folder: the date it was added to it, else its creation date, else
+    /// the inode's birth time. Never ctime: annotating or signing an old PDF in place, or saving it
+    /// the way NSDocument apps do (Preview), changes ctime but keeps the added and creation dates.
+    static func pdfArrival(_ url: URL) -> Date? {
+        let v = try? url.resourceValues(forKeys: [.addedToDirectoryDateKey, .creationDateKey])
+        if let d = v?.addedToDirectoryDate ?? v?.creationDate { return d }
+        var st = stat()
+        guard lstat(url.path, &st) == 0 else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(st.st_birthtimespec.tv_sec))
     }
 
     /// PDFs: in the AirDrop folder, ones that arrived from outside this Mac (`downloaded`, from
