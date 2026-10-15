@@ -75,12 +75,14 @@ public enum Backends {
 /// The one-time notice shown the first time a cloud backend runs on this Mac.
 public enum CloudNotice {
     public static let text = """
-    BetterAirdrop is naming photos with Claude (Anthropic's API, with your key or through BetterAirdrop
-    Pro's hosted naming, which keeps no photos or names). For each photo it sends a 768 px JPEG
-    with all metadata removed (no EXIF, no GPS), plus the capture date, the city name, the detected
-    kind and a short snippet of text found in the image. Coordinates and file names stay on this Mac.
-    To keep everything on-device, set `backend = "vision"` (or `[claude] auto = false`) in
-    ~/.config/betterairdrop/config.toml. If Claude can't be reached, BetterAirdrop names the photo with Apple Vision.
+    BetterAirdrop is naming photos with Claude (Anthropic's API): with your own key, or with
+    BetterAirdrop Pro through BetterAirdrop's hosted-naming server, which also gets your Pro license
+    key and keeps no photos, context or names. For each photo it sends a 768 px JPEG with all
+    metadata removed (no EXIF, no GPS), plus text: the capture date, the city name, the camera model,
+    the app that created it, the detected kind, on-device labels and a short snippet of text found
+    in the image. Coordinates and file names stay on this Mac. To keep everything on-device, set
+    `backend = "vision"` (or `[claude] auto = false`) in ~/.config/betterairdrop/config.toml. A photo
+    Claude can't name is named on this Mac (Apple Vision; for hosted naming, Apple Intelligence if it's on).
     """
 
     static var marker: URL { Paths.supportDirectory.appendingPathComponent("cloud-notice-shown") }
