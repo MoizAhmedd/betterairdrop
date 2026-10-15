@@ -22,7 +22,7 @@ struct Watch: ParsableCommand {
     @Option(help: "Folder to watch (default: watch.folder in the config, ~/Downloads).", completion: .directory)
     var dir: String?
 
-    @Option(help: "Naming backend: auto, claude, vision, apple (Apple Intelligence, macOS 26+).")
+    @Option(help: "Naming backend: auto, claude (your API key), hosted (Pro naming), apple (Apple Intelligence, macOS 26+) or vision (basic, on this Mac).")
     var backend: String?
 
     @Flag(help: "Also name AirDrops that arrived before the watcher started.")

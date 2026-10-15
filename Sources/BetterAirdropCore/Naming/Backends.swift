@@ -104,7 +104,7 @@ public enum Backends {
 public enum CloudNotice {
     public static let text = """
     BetterAirdrop is naming photos with Claude (Anthropic's API): with your own key, or with
-    BetterAirdrop Pro through BetterAirdrop's hosted-naming server, which also gets your Pro license
+    Pro naming (BetterAirdrop Pro) through BetterAirdrop's server, which also gets your Pro license
     key and keeps no photos, context or names. For each photo it sends a 768 px JPEG with all
     metadata removed (no EXIF, no GPS), plus text: the capture date, the city name, the camera model,
     the app that created it, the detected kind, on-device labels and a short snippet of text found
@@ -112,7 +112,7 @@ public enum CloudNotice {
     from its first two pages (or OCR'd from page 1 of a scan), its page count and its metadata title;
     never the file or a page image. Coordinates and file names stay on this Mac. To keep everything
     on-device, set `backend = "vision"` (or `[claude] auto = false`) in ~/.config/betterairdrop/config.toml.
-    A photo Claude can't name is named on this Mac (Apple Vision; for hosted naming, Apple Intelligence
+    A photo Claude can't name is named on this Mac (Apple Vision; for Pro naming, Apple Intelligence
     if it's on); a PDF by Apple Intelligence if it's on, or left as it is.
     """
 

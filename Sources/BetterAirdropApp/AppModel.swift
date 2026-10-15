@@ -126,8 +126,9 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// "Naming with Claude Haiku 4.5 · your key"
+    /// "Naming with Claude Haiku 4.5 · your key", or "Pro naming · 312 names left this month"
     var engineLine: String {
+        if engine.isHosted { return [engine.title, engine.subtitle].compactMap { $0 }.joined(separator: " · ") }
         var s = "Naming with \(engine.name)"
         if engine.name.hasPrefix("Claude") {
             if credential.storedKey || credential.environmentKey { s += " · your key" } else if credential.antLoggedIn { s += " · ant login" }

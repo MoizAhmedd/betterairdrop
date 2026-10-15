@@ -68,7 +68,8 @@ struct HistoryView: View {
     static func header(_ b: Journal.BatchSummary) -> String {
         let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short
         var s = "\(f.string(from: b.time)) · \(b.entries.count) file\(b.entries.count == 1 ? "" : "s")"
-        if let be = b.backend { s += " · \(be == "claude" ? "Claude" : be == "vision" ? "Apple Vision" : be)" }
+        let names = ["claude": "Claude", "hosted": EngineStatus.hostedTitle, "apple": "Apple Intelligence", "vision": "Apple Vision"]
+        if let be = b.backend { s += " · \(names[be] ?? be)" }
         if b.costUSD > 0 { s += String(format: " · $%.4f", b.costUSD) }
         return s
     }

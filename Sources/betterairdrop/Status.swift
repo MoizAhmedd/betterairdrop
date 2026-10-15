@@ -43,7 +43,7 @@ struct Status: ParsableCommand {
         if let last = journal.recentBatches(limit: 1).first {
             print("Last batch: \(last.id) (\(last.entries.count) file\(last.entries.count == 1 ? "" : "s")). Undo with `betterairdrop undo`.")
         }
-        print("Backend: \(config.backend) (\(report.engine.active)). Config: \(tilde(Config.defaultPath.path)).")
+        print("Backend: \(config.backend) (\(EngineStatus.title(report.engine.active))). Config: \(tilde(Config.defaultPath.path)).")
         for s in report.nextSteps {
             print("\(s.who == "human" ? "Needs you" : "To do")\(s.required ? "" : " (optional)"): \(s.text)\(s.command.map { "  → \($0)" } ?? "")")
         }

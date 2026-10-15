@@ -107,6 +107,8 @@ import Testing
         #expect(PreviewCost.text(count: 1, claude: true) == "under $0.01")
         #expect(PreviewCost.text(count: 20, claude: true) == "~$0.04")
         #expect(PreviewCost.text(count: 12, claude: false) == "free, on this Mac")
+        // Pro naming sends the photos out, so the preview never says "on this Mac" for it.
+        #expect(PreviewCost.text(count: 12, claude: false, hosted: true) == "uses 12 of this month's Pro names")
     }
 
     @Test func batches() {

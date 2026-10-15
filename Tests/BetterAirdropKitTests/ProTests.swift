@@ -328,7 +328,9 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
         let done = "BetterAirdrop Pro is active on “Studio Mac” (key …ABCD)."
         let hosted = EngineStatus.current(config: Config(), hasCredential: false, hasLicense: true)
         #expect(l.activatedMessage(engine: hosted) == done + "\n" + EngineStatus.hostedNotice)
-        #expect(EngineStatus.hostedNotice.contains("768 px") && EngineStatus.hostedNotice.contains("Apple Vision in Settings → Naming"))
+        // It says where photos go (our server, then Anthropic) and how to keep them on the Mac.
+        #expect(EngineStatus.hostedNotice.contains("BetterAirdrop's server and on to Anthropic")
+                && EngineStatus.hostedNotice.contains("Apple Vision in Settings → Naming"))
 
         // Your own Claude key, or claude.auto off: hosted isn't the engine, so no notice.
         #expect(l.activatedMessage(engine: EngineStatus.current(config: Config(), hasCredential: true, hasLicense: true)) == done)

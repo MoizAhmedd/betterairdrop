@@ -60,14 +60,14 @@ scripts/make-app.sh && open .build/app/BetterAirdrop.app
 | Engine | Runs on | Sends |
 |---|---|---|
 | Claude Haiku (your API key) | Anthropic | a 768 px copy with GPS and EXIF stripped; the date, city name, camera model, kind and a short text snippet go as text |
-| Hosted naming (Pro) | BetterAirdrop's server, then Anthropic | the same, plus your Pro license key; the server keeps no photos, context or names |
+| Pro naming (no API key) | BetterAirdrop's server, then Anthropic | the same, plus your Pro license key; the server keeps no photos, context or names |
 | Apple Vision | your Mac | nothing |
 | Apple Intelligence (macOS 26+) | your Mac | nothing |
 
 City names come from a built-in table, so coordinates never leave the Mac.
 
 PDFs (Pro) are named from their text: up to 4,000 characters from the first two pages, or OCR of
-page 1 for a scan, read on the Mac. With Claude or hosted naming, only that text extract is sent,
+page 1 for a scan, read on the Mac. With Claude or Pro naming, only that text extract is sent,
 with the page count and the PDF's title; never the file or a page image. Apple Intelligence names
 them on the Mac. Apple Vision alone leaves PDFs as they are.
 

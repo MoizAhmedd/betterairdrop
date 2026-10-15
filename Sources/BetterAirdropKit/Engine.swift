@@ -1,7 +1,7 @@
 import BetterAirdropCore
 import Foundation
 
-/// What the app shows about the naming engine ("Claude Haiku", "Apple Vision"…).
+/// What the app shows about the naming engine ("Claude (your API key)", "Apple Vision (basic)"…).
 public enum EngineChoice: String, CaseIterable, Sendable {
     case auto, apple, claude, vision
 
@@ -9,19 +9,27 @@ public enum EngineChoice: String, CaseIterable, Sendable {
         switch self {
         case .auto: "Automatic (recommended)"
         case .apple: "Apple Intelligence"
-        case .claude: "Claude Haiku"
-        case .vision: "Apple Vision"
+        case .claude: "Claude (your API key)"
+        case .vision: "Apple Vision (basic)"
         }
     }
 }
 
 public struct EngineStatus: Equatable, Sendable {
-    /// The engine that will name the next photo.
+    /// The engine that will name the next photo. `status --json`'s `engine.active`, so it stays as
+    /// it was ("Hosted (Pro)"); people see `title`.
     public var name: String
-    /// e.g. "Vision if offline".
+    /// e.g. "Vision if offline". `status --json`'s `engine.detail`; people see `subtitle`.
     public var detail: String?
     /// Claude with the user's own credential names the next photo.
     public var isClaude = false
+    /// What people see instead of `detail`, when the two differ.
+    var shownDetail: String?
+
+    /// The engine's name as people see it: hosted naming is "Pro naming".
+    public var title: String { Self.title(name) }
+    /// The line next to `title`, e.g. "Apple Vision if offline".
+    public var subtitle: String? { shownDetail ?? detail }
 
     /// `hasCredential`: a Claude credential resolves (key, env or `ant`). `appleReady`: Foundation Models is usable.
     /// `hasLicense`: Pro is active or in grace on this Mac (hosted naming). `hostedProblem`: why
@@ -30,12 +38,13 @@ public struct EngineStatus: Equatable, Sendable {
     /// `auto` follows `Backends.resolve`: Claude, hosted, Apple Intelligence, Vision.
     public static func current(config: Config, hasCredential: Bool, appleReady: Bool = false,
                                hasLicense: Bool = false, hostedProblem: String? = nil, hostedRemaining: Int? = nil) -> EngineStatus {
-        let claude = EngineStatus(name: modelName(config.claudeModel), detail: "Vision if offline", isClaude: true)
+        let claude = EngineStatus(name: modelName(config.claudeModel), detail: "Vision if offline", isClaude: true,
+                                  shownDetail: "Apple Vision if offline")
         // Hosted falls back to Apple Intelligence when it's ready, else Vision (Backends.onDevice).
         let onDevice = appleReady ? "Apple Intelligence" : "Apple Vision"
+        let left = hostedRemaining.map { "\($0) name\($0 == 1 ? "" : "s") left this month" }
         let hosted = hostedProblem.map { EngineStatus(name: onDevice, detail: $0) }
-            ?? EngineStatus(name: hostedName, detail: hostedRemaining.map { "\($0) name\($0 == 1 ? "" : "s") left this month" }
-                                                ?? "Pro, \(onDevice) if offline")
+            ?? EngineStatus(name: hostedName, detail: left ?? "Pro, \(onDevice) if offline", shownDetail: left ?? "\(onDevice) if offline")
         switch config.backend {
         case "claude": return hasCredential ? claude : EngineStatus(name: "Apple Vision", detail: "Claude has no key")
         case "hosted": return hasLicense ? hosted : EngineStatus(name: "Apple Vision", detail: "no Pro license")
@@ -49,7 +58,12 @@ public struct EngineStatus: Equatable, Sendable {
         }
     }
 
+    /// Hosted naming's `name`, kept for `status --json`. People see `hostedTitle`.
     public static let hostedName = "Hosted (Pro)"
+    public static let hostedTitle = "Pro naming"
+
+    /// An engine `name` (or `status --json`'s `engine.active`) as people see it.
+    public static func title(_ name: String) -> String { name == hostedName ? hostedTitle : name }
 
     /// Hosted naming is what names the next photo.
     public var isHosted: Bool { name == Self.hostedName }
@@ -58,14 +72,14 @@ public struct EngineStatus: Equatable, Sendable {
     /// (`Backends.resolveDocuments` picks the same one).
     public var isCloud: Bool { isHosted || isClaude }
 
-    /// What hosted naming sends and keeps, in one line (site/public/privacy/ says the same). Shown
+    /// What hosted naming sends and keeps (site/public/privacy/ says the same, in full). Shown
     /// when activating Pro turns it on (Settings → Pro, `license activate`) and under "Now using".
-    public static let hostedNotice = "Pro names photos with hosted Claude: a 768 px copy without GPS or EXIF, "
-        + "plus its date, city and any text in it, goes to BetterAirdrop's server, then Anthropic. The server "
-        + "keeps no photos or names. To keep everything on this Mac, set Engine to Apple Vision in Settings → Naming."
+    public static let hostedNotice = "Pro naming sends a smaller copy of each photo, with GPS and other hidden data removed, "
+        + "to BetterAirdrop's server and on to Anthropic's Claude. Its date, city, camera model and any text in it go too. "
+        + "The server keeps no photos or names. To keep photos on this Mac, choose Apple Vision in Settings → Naming."
 
     /// Added to the notice when a cloud engine names PDFs too (Pro, "Name PDFs too").
-    public static let pdfNotice = "PDFs: a text extract, never the file."
+    public static let pdfNotice = "For PDFs, only some of the text is sent, never the file."
 
     /// What to show under "Now using" and when Pro is activated: `hostedNotice` for hosted naming,
     /// plus `pdfNotice` when `namesPDFs` and the engine is a cloud one. Nil when there's nothing to say.
