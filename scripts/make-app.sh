@@ -14,7 +14,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-CONF=release; UNIVERSAL=0; IDENTITY="-"; OUT=".build/app"; VERSION="0.3.1-dev"; BUILD="1"
+CONF=release; UNIVERSAL=0; IDENTITY="-"; OUT=".build/app"; VERSION="0.4.0-dev"; BUILD="1"
 while [ $# -gt 0 ]; do
   case "$1" in
     --debug) CONF=debug ;;
@@ -63,7 +63,7 @@ grep -q "@executable_path/../Frameworks" <(otool -l "$C/MacOS/BetterAirdrop") \
 # install_name_tool invalidates the linker's signature; re-sign so the binary can run below.
 codesign --force -s - "$C/MacOS/BetterAirdrop" 2>/dev/null
 
-FEED="${SPARKLE_FEED_URL-https://moizahmedd.github.io/betterairdrop/appcast.xml}"
+FEED="${SPARKLE_FEED_URL-https://betterairdrop.com/appcast.xml}"
 [ "$IDENTITY" = - ] && [ -z "${SPARKLE_FEED_URL:-}" ] && FEED=""
 sed -e "s|__VERSION__|$VERSION|" -e "s|__BUILD__|$BUILD|" -e "s|__SU_FEED_URL__|$FEED|" \
     Resources/App/Info.plist > "$C/Info.plist"

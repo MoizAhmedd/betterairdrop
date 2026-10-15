@@ -8,7 +8,7 @@ cat <<'HEAD'
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>BetterAirdrop</title>
-    <link>https://moizahmedd.github.io/betterairdrop/appcast.xml</link>
+    <link>https://betterairdrop.com/appcast.xml</link>
 HEAD
 gh release list -R "$REPO" --limit 100 --exclude-drafts --json tagName,createdAt \
   --jq 'sort_by(.createdAt) | reverse | .[].tagName' |

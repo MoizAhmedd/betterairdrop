@@ -98,7 +98,7 @@ struct Setup: ParsableCommand {
         AppSignal.reload.post()   // a running app picks up the new config and key
 
         guard let app else {
-            print("Done. Install the app next: curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh")
+            print("Done. Install the app next: curl -fsSL https://betterairdrop.com/install | sh")
             return
         }
         if let s = AppState.load(), Status.isApp(pid: s.pid) {

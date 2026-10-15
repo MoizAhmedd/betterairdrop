@@ -267,7 +267,7 @@ extension StatusReport {
         var steps: [Step] = []
         if i.appPath == nil {
             steps.append(Step(who: "agent", required: true, text: "Install the app.",
-                              command: "curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh"))
+                              command: "curl -fsSL https://betterairdrop.com/install | sh"))
         } else if !i.appRunning {
             steps.append(Step(who: "agent", required: true, text: "Open the app.", command: "open '\(i.appPath!)'"))
         }

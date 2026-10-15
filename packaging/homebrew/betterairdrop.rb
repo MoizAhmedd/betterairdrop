@@ -7,7 +7,7 @@ cask "betterairdrop" do
   url "https://github.com/MoizAhmedd/betterairdrop/releases/download/v#{version}/BetterAirdrop.zip"
   name "BetterAirdrop"
   desc "Menu bar app that names AirDropped photos by what's in them"
-  homepage "https://moizahmedd.github.io/betterairdrop/"
+  homepage "https://betterairdrop.com/"
 
   livecheck do
     url :url
