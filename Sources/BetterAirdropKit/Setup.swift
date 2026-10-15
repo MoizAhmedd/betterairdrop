@@ -150,7 +150,6 @@ public struct SetupPlan: Equatable {
 /// choices are already made: no shell lookup, launch at login as chosen, and notifications are
 /// asked for right after Downloads, while the person the agent told is at the Mac.
 public struct FirstRunPlan: Equatable, Sendable {
-    public var headless: Bool
     public var lookForShellKey: Bool
     public var registerLoginItem: Bool
     public var askNotificationsAfterAccess: Bool
@@ -159,9 +158,9 @@ public struct FirstRunPlan: Equatable, Sendable {
     public static func make(onboardingDone: Bool, setup: SetupRecord?, notify: Bool) -> FirstRunPlan? {
         guard !onboardingDone else { return nil }
         guard let setup else {
-            return FirstRunPlan(headless: false, lookForShellKey: true, registerLoginItem: true, askNotificationsAfterAccess: false)
+            return FirstRunPlan(lookForShellKey: true, registerLoginItem: true, askNotificationsAfterAccess: false)
         }
-        return FirstRunPlan(headless: true, lookForShellKey: false, registerLoginItem: setup.launchAtLogin ?? true,
+        return FirstRunPlan(lookForShellKey: false, registerLoginItem: setup.launchAtLogin ?? true,
                             askNotificationsAfterAccess: notify)
     }
 }

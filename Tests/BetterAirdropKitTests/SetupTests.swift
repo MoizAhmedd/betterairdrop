@@ -91,12 +91,12 @@ private func error(_ r: SetupRequest, _ c: SetupContext) -> String? {
 
     @Test func withoutSetupItsTheZeroWizardFirstRun() {
         let p = FirstRunPlan.make(onboardingDone: false, setup: nil, notify: true)
-        #expect(p == FirstRunPlan(headless: false, lookForShellKey: true, registerLoginItem: true, askNotificationsAfterAccess: false))
+        #expect(p == FirstRunPlan(lookForShellKey: true, registerLoginItem: true, askNotificationsAfterAccess: false))
     }
 
     @Test func afterSetupOnlyThePermissionsAreLeft() {
         let p = FirstRunPlan.make(onboardingDone: false, setup: SetupRecord(launchAtLogin: nil), notify: true)
-        #expect(p == FirstRunPlan(headless: true, lookForShellKey: false, registerLoginItem: true, askNotificationsAfterAccess: true))
+        #expect(p == FirstRunPlan(lookForShellKey: false, registerLoginItem: true, askNotificationsAfterAccess: true))
         #expect(FirstRunPlan.make(onboardingDone: false, setup: SetupRecord(launchAtLogin: false), notify: true)?.registerLoginItem == false)
         #expect(FirstRunPlan.make(onboardingDone: false, setup: SetupRecord(), notify: false)?.askNotificationsAfterAccess == false)
     }
