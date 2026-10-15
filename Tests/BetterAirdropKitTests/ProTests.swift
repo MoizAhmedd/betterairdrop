@@ -295,6 +295,85 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
     }
 }
 
+/// Hosted naming gets the key from Pro's store, only while Pro is unlocked.
+@Suite struct HostedLicenseTests {
+    @Test func keyOnlyWhileActiveOrInGrace() throws {
+        let t = Temp()
+        let store = LicenseStore(directory: t.url)
+        #expect(store.licenseKey() == nil, "free")
+        var l = License(key: "BA_1234", activationID: "act", label: "Mac", activatedAt: Date().addingTimeInterval(-30 * 86_400))
+        try store.write(l)
+        #expect(store.licenseKey() == "BA_1234", "active")
+        l.invalidSince = Date().addingTimeInterval(-3 * 86_400)
+        try store.write(l)
+        #expect(store.licenseKey() == "BA_1234", "grace")
+        l.invalidSince = Date().addingTimeInterval(-15 * 86_400)
+        try store.write(l)
+        #expect(store.licenseKey() == nil, "lapsed")
+        #expect(LicenseStore().file == Paths.supportDirectory.appendingPathComponent("license"))
+    }
+
+    @Test func autoUsesHostedOnlyWithPro() throws {
+        let t = Temp()
+        let store = LicenseStore(directory: t.url)
+        var apple = AppleFMNamer(); apple.status = { .notEnabled }
+        #expect(try Backends.resolve("auto", auth: .none, apple: apple, license: store).id == "vision")
+        try store.write(License(key: "BA_1234", activationID: "act", label: "Mac", activatedAt: Date()))
+        #expect(try Backends.resolve("auto", auth: .none, apple: apple, license: store).id == "hosted")
+    }
+}
+
+/// `betterairdrop status --json` → credentials.hosted: available with Pro, and what the app last heard.
+@Suite struct StatusReportHostedTests {
+    let now = at("2026-10-15T12:00:00Z")
+
+    func report(pro: Bool, hosted: HostedUsage? = nil) -> StatusReport {
+        let state = AppState(version: "0.4.0", pid: 42, updatedAt: now, folder: "~/Downloads", folderAccess: .granted,
+                             notifications: .allowed, loginItem: .enabled, watch: .watching, hosted: hosted)
+        let license = pro ? License(key: "BA_1", activationID: "act", label: "Mac", activatedAt: now) : nil
+        return StatusReport.make(.init(cliVersion: "0.4.0", appPath: "/Applications/BetterAirdrop.app", appVersion: "0.4.0",
+                                       appRunning: true, appState: state, setup: SetupRecord(), config: Config(), storedKey: false,
+                                       antLoggedIn: false, lockHolder: nil, license: license, now: now))
+    }
+
+    @Test func freeProAndLastHeard() throws {
+        #expect(report(pro: false).credentials.hosted == .init(available: false))
+        #expect(report(pro: true).credentials.hosted == .init(available: true))
+        #expect(report(pro: true).engine.active == "Hosted (Pro)")
+        let resets = at("2026-11-01T00:00:00Z")
+        let heard = HostedUsage(remaining: 47, resetsAt: resets, lastError: "network error: offline", updatedAt: now)
+        #expect(report(pro: true, hosted: heard).credentials.hosted
+                == .init(available: true, remaining: 47, resetsAt: resets, lastError: "network error: offline"))
+        #expect(report(pro: true, hosted: heard).engine.detail == "47 names left this month")
+        // After the month resets the old count is dropped.
+        let old = HostedUsage(remaining: 0, resetsAt: at("2026-10-01T00:00:00Z"), lastError: "monthly hosted limit reached", updatedAt: now)
+        #expect(report(pro: true, hosted: old).credentials.hosted == .init(available: true))
+    }
+
+    @Test func jsonShape() throws {
+        let obj = try JSONSerialization.jsonObject(with: Data(report(pro: false).json().utf8)) as! [String: Any]
+        let hosted = (obj["credentials"] as! [String: Any])["hosted"] as! [String: Any]
+        #expect(Set(hosted.keys) == ["available", "remaining", "resets_at", "last_error"], "always all four keys")
+        #expect(hosted["available"] as? Bool == false && hosted["remaining"] is NSNull)
+        let heard = HostedUsage(remaining: 3, resetsAt: at("2026-11-01T00:00:00Z"), updatedAt: now)
+        let pro = try JSONSerialization.jsonObject(with: Data(report(pro: true, hosted: heard).json().utf8)) as! [String: Any]
+        let h = (pro["credentials"] as! [String: Any])["hosted"] as! [String: Any]
+        #expect(h["remaining"] as? Int == 3 && h["resets_at"] as? String == "2026-11-01T00:00:00Z")
+    }
+
+    @Test func appStateRoundTripsAndOldFilesStillRead() throws {
+        let t = Temp()
+        let url = t.url.appendingPathComponent("app-state.json")
+        let heard = HostedUsage(remaining: 3, resetsAt: at("2026-11-01T00:00:00Z"), lastError: nil, updatedAt: now)
+        let s = AppState(version: "0.4.0", pid: 42, updatedAt: now, folder: "~/Downloads", folderAccess: .granted,
+                         notifications: .allowed, loginItem: .enabled, watch: .watching, hosted: heard)
+        try s.save(to: url)
+        #expect(AppState.load(from: url)?.hosted == heard)
+        try Data(#"{"schema":1,"version":"0.3.9","pid":1,"updated_at":"2026-10-15T12:00:00Z","folder":"~/Downloads","folder_access":"granted","notifications":"allowed","login_item":"enabled","watch":"watching"}"#.utf8).write(to: url)
+        #expect(AppState.load(from: url)?.hosted == nil && AppState.load(from: url)?.version == "0.3.9")
+    }
+}
+
 /// `betterairdrop status --json` → credentials.license, beside credentials.claude.
 @Suite struct StatusReportLicenseTests {
     let now = at("2026-10-15T12:00:00Z")

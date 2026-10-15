@@ -94,6 +94,7 @@ shows a window explaining how to turn access on, and the step's `command` opens
 | `engine` | `backend` (configured), `active` (what names the next photo), `detail` |
 | `credentials.claude` | `present` (a key the app can use), `source`: `stored`, `ant` or null |
 | `credentials.license` | BetterAirdrop Pro: `state` `none`, `active`, `grace` (Polar rejected the key; Pro stays on until `grace_until`) or `invalid`; `pro` (features unlocked); `key` (masked). Activate with `betterairdrop license activate <key>` |
+| `credentials.hosted` | Hosted naming (Pro: Claude with no API key): `available` (Pro is active or in grace); `remaining` names this month, `resets_at` and `last_error`, as the app last heard from the server (null until it has used hosted naming, and after the month resets) |
 | `permissions` | `folder_access`: granted, denied, waiting, unknown. `notifications`: allowed, denied, not_asked, unknown. `login_item`: enabled, requires_approval, disabled, unknown. As last reported by the app (`reported_at`). |
 | `watching` | `state`: watching, paused, no_access, standing_by, starting, not_running, unknown. `folder`. `by`: app, cli or null. |
 | `next_steps[]` | `who`, `required`, `text`, `command` (optional) |

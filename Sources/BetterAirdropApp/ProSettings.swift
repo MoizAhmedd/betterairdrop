@@ -194,11 +194,12 @@ struct BuyButton: View {
     }
 }
 
-/// The one line under gated controls.
+/// The one line under gated controls (and, with its own text, the free tier's hosted-naming line).
 struct ProLine: View {
+    var text = "Part of BetterAirdrop Pro, $19 once."
     var body: some View {
         HStack(spacing: 4) {
-            Text("Part of BetterAirdrop Pro, $19 once.")
+            Text(text)
             if Polar.canBuy, let url = URL(string: Polar.checkoutURL) {
                 Link("Buy Pro ›", destination: url)
             } else {

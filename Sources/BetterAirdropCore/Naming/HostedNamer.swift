@@ -1,30 +1,39 @@
 import Foundation
 
-/// Where hosted naming gets the BetterAirdrop Pro license key. The Pro code supplies the real
-/// source (a key only while Pro is active or in its grace period) with a one-line conformance;
-/// `LicenseFileKeySource` stands in until then.
+/// Where hosted naming gets the BetterAirdrop Pro license key. BetterAirdropKit's `LicenseStore`
+/// is the real source: a key only while Pro is active or in its grace period.
 public protocol LicenseKeySource: Sendable {
     /// The key to send, or nil when this Mac has no usable Pro license.
     func licenseKey() -> String?
 }
 
-/// Reads `license` in the support directory (`~/Library/Application Support/betterairdrop/license`):
-/// the Pro license file (JSON with a `key`) or, for testing, a file holding just the key.
-public struct LicenseFileKeySource: LicenseKeySource {
-    public var url: URL
+/// No license: hosted naming is never used. The default where no Pro license is passed in.
+public struct NoLicenseKey: LicenseKeySource {
+    public init() {}
+    public func licenseKey() -> String? { nil }
+}
 
-    public init(url: URL = Paths.supportDirectory.appendingPathComponent("license")) { self.url = url }
+/// What hosted naming last heard from the server, for the engine status and `status --json`:
+/// names left this month (the `X-Names-Remaining` / `X-Names-Reset` headers) and the last error.
+public struct HostedUsage: Codable, Equatable, Sendable {
+    public var remaining: Int?
+    public var resetsAt: Date?
+    public var lastError: String?
+    public var updatedAt: Date
 
-    public func licenseKey() -> String? {
-        guard let data = try? Data(contentsOf: url), data.count < 64 * 1024 else { return nil }
-        let raw: String?
-        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            raw = obj["key"] as? String
-        } else {
-            raw = String(data: data, encoding: .utf8)
-        }
-        let key = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return key.isEmpty || key.contains(where: \.isWhitespace) ? nil : key
+    public init(remaining: Int? = nil, resetsAt: Date? = nil, lastError: String? = nil, updatedAt: Date) {
+        self.remaining = remaining; self.resetsAt = resetsAt; self.lastError = lastError; self.updatedAt = updatedAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case remaining
+        case resetsAt = "resets_at", lastError = "last_error", updatedAt = "updated_at"
+    }
+
+    /// Once the month has reset, the count and any error from before are out of date.
+    public func current(now: Date) -> HostedUsage {
+        guard let r = resetsAt, now >= r else { return self }
+        return HostedUsage(updatedAt: updatedAt)
     }
 }
 
@@ -51,7 +60,7 @@ public struct HostedNamer: Namer {
     public var sleep: @Sendable (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }
     public var now: @Sendable () -> Date = { Date() }
 
-    public init(baseURL: URL = HostedNamer.defaultBaseURL, license: any LicenseKeySource = LicenseFileKeySource(),
+    public init(baseURL: URL = HostedNamer.defaultBaseURL, license: any LicenseKeySource = NoLicenseKey(),
                 transport: any HTTPTransport = URLSessionTransport()) {
         self.baseURL = baseURL; self.license = license; self.transport = transport
     }
@@ -104,10 +113,18 @@ public struct HostedNamer: Namer {
         return .ready
     }
 
-    /// Why hosted naming is skipped right now (license invalid, a limit), for the engine status. Nil if it isn't.
-    public static func currentProblem(license: any LicenseKeySource = LicenseFileKeySource(), now: Date = Date()) -> String? {
-        license.licenseKey().flatMap { blocks.reason(key: $0, now: now)?.description }
+    /// Why hosted naming is skipped right now for this key (license invalid, a limit), for the
+    /// engine status. Nil if it isn't.
+    public static func currentProblem(key: String?, now: Date = Date()) -> String? {
+        key.flatMap { blocks.reason(key: $0, now: now)?.description }
     }
+
+    /// What the server last said in this process (nil before the first request).
+    public static func lastUsage(now: Date = Date()) -> HostedUsage? { usage.get()?.current(now: now) }
+
+    /// Starts from what an earlier run saw (the app's last report), so the count shows before the
+    /// first photo. Never overwrites something this process heard itself.
+    public static func seedUsage(_ u: HostedUsage) { usage.seed(u) }
 
     public func suggest(for url: URL, context ctx: PhotoContext) throws -> NameSuggestion {
         guard let key = license.licenseKey() else { throw Error.noLicense }
@@ -138,11 +155,16 @@ public struct HostedNamer: Namer {
                 (response, data) = try timings.time(.hosted) { try transport.send(req) }
             } catch {
                 if attempt < maxAttempts { timings.time(.hosted) { sleep(CloudUpload.backoff(attempt, retryAfter: nil)) }; continue }
-                throw Error.network((error as NSError).localizedDescription)
+                let failure = Error.network((error as NSError).localizedDescription)
+                Self.usage.record(error: failure.description, now: now())
+                throw failure
             }
             let status = response.statusCode
             if status == 200 {
-                return (data, response.value(forHTTPHeaderField: "x-names-remaining").flatMap { Int($0) })
+                let remaining = response.value(forHTTPHeaderField: "x-names-remaining").flatMap { Int($0) }
+                let resets = response.value(forHTTPHeaderField: "x-names-reset").flatMap { ISO8601DateFormatter().date(from: $0) }
+                Self.usage.record(remaining: remaining, resets: resets, error: nil, now: now())
+                return (data, remaining)
             }
             let (type, message, resets) = Self.errorBody(data)
             let failure: Error
@@ -157,6 +179,11 @@ public struct HostedNamer: Namer {
             default: failure = .http(status, message)
             }
             Self.blocks.record(failure, key: key)
+            if case .monthlyLimit(let d) = failure {
+                Self.usage.record(remaining: 0, resets: d, error: failure.description, now: now())
+            } else {
+                Self.usage.record(error: failure.description, now: now())
+            }
             throw failure
         }
     }
@@ -168,7 +195,32 @@ public struct HostedNamer: Namer {
         return (e?["type"] as? String, e?["message"] as? String ?? ClaudeNamer.errorMessage(data), resets)
     }
 
-    // MARK: - Remembered refusals
+    // MARK: - Remembered usage and refusals
+
+    static let usage = UsageBox()
+
+    final class UsageBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: HostedUsage?
+        private var heard = false
+
+        func get() -> HostedUsage? { lock.lock(); defer { lock.unlock() }; return value }
+
+        func seed(_ u: HostedUsage) { lock.lock(); if !heard { value = u }; lock.unlock() }
+
+        /// A success (`error` nil) sets the count; an error keeps the last count unless it carries one.
+        func record(remaining: Int? = nil, resets: Date? = nil, error: String?, now: Date) {
+            lock.lock(); defer { lock.unlock() }
+            heard = true
+            var u = value ?? HostedUsage(updatedAt: now)
+            if remaining != nil || error == nil { u.remaining = remaining; u.resetsAt = resets ?? u.resetsAt }
+            u.lastError = error
+            u.updatedAt = now
+            value = u
+        }
+
+        func reset() { lock.lock(); value = nil; heard = false; lock.unlock() }
+    }
 
     /// What the Worker last refused, for this process: later photos skip the request (and go
     /// straight to the fallback) until it could have changed. A 403 holds until the key changes;

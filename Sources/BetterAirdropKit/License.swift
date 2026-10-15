@@ -117,3 +117,8 @@ public struct LicenseStore: Sendable {
     @discardableResult
     public func delete() -> Bool { (try? FileManager.default.removeItem(at: file)) != nil }
 }
+
+/// Hosted naming's key: only while Pro is active or in its grace period.
+extension LicenseStore: LicenseKeySource {
+    public func licenseKey() -> String? { read().flatMap { ProGate.status($0).isUnlocked ? $0.key : nil } }
+}

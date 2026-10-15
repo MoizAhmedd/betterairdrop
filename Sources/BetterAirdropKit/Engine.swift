@@ -22,14 +22,18 @@ public struct EngineStatus: Equatable, Sendable {
     public var detail: String?
 
     /// `hasCredential`: a Claude credential resolves (key, env or `ant`). `appleReady`: Foundation Models is usable.
-    /// `hasLicense`: a Pro license key is on this Mac (hosted naming). `hostedProblem`: why hosted
-    /// naming is being skipped right now (`HostedNamer.currentProblem`), e.g. its monthly limit.
+    /// `hasLicense`: Pro is active or in grace on this Mac (hosted naming). `hostedProblem`: why
+    /// hosted naming is being skipped right now (`HostedNamer.currentProblem`), e.g. its monthly
+    /// limit. `hostedRemaining`: names left this month, as the server last said.
     /// `auto` follows `Backends.resolve`: Claude, hosted, Apple Intelligence, Vision.
     public static func current(config: Config, hasCredential: Bool, appleReady: Bool = false,
-                               hasLicense: Bool = false, hostedProblem: String? = nil) -> EngineStatus {
+                               hasLicense: Bool = false, hostedProblem: String? = nil, hostedRemaining: Int? = nil) -> EngineStatus {
         let claude = EngineStatus(name: modelName(config.claudeModel), detail: "Vision if offline")
-        let hosted = hostedProblem.map { EngineStatus(name: "Apple Vision", detail: $0) }
-            ?? EngineStatus(name: "Hosted Claude", detail: "Pro, Vision if offline")
+        // Hosted falls back to Apple Intelligence when it's ready, else Vision (Backends.onDevice).
+        let onDevice = appleReady ? "Apple Intelligence" : "Apple Vision"
+        let hosted = hostedProblem.map { EngineStatus(name: onDevice, detail: $0) }
+            ?? EngineStatus(name: hostedName, detail: hostedRemaining.map { "\($0) name\($0 == 1 ? "" : "s") left this month" }
+                                                ?? "Pro, \(onDevice) if offline")
         switch config.backend {
         case "claude": return hasCredential ? claude : EngineStatus(name: "Apple Vision", detail: "Claude has no key")
         case "hosted": return hasLicense ? hosted : EngineStatus(name: "Apple Vision", detail: "no Pro license")
@@ -42,6 +46,8 @@ public struct EngineStatus: Equatable, Sendable {
             return EngineStatus(name: "Apple Vision", detail: nil)
         }
     }
+
+    public static let hostedName = "Hosted (Pro)"
 
     /// "claude-haiku-4-5" → "Claude Haiku 4.5". Unknown IDs are shown as they are.
     public static func modelName(_ id: String) -> String {

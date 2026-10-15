@@ -23,7 +23,7 @@ public enum Backends {
     public static let ids = ["apple", "vision", "ollama", "claude", "hosted"]
 
     public static func make(_ id: String, config: Config = Config(), auth: ClaudeAuth = .shared,
-                            license: any LicenseKeySource = LicenseFileKeySource()) throws -> any Namer {
+                            license: any LicenseKeySource = NoLicenseKey()) throws -> any Namer {
         switch id {
         case "apple": AppleFMNamer()
         case "vision": VisionNamer()
@@ -36,25 +36,36 @@ public enum Backends {
 
     /// `auto` = Claude with the user's own credential, else hosted naming if this Mac has a Pro
     /// license (both only while `claude.auto` is on), else Apple Intelligence if it's ready, else
-    /// Vision. Claude, hosted and Apple Intelligence always fall back to Vision per photo on any
-    /// failure, so a rename never fails because of the network or the model. An explicit backend
-    /// that isn't available is an error.
+    /// Vision. Each falls back per photo on any failure, so a rename never fails because of the
+    /// network or the model: Claude and Apple Intelligence to Vision; hosted (Pro) to Apple
+    /// Intelligence when it's ready, else Vision. Hosted is chosen whenever the license is there,
+    /// even while it's over a limit, so it picks up again after the reset without a rebuild.
+    /// An explicit backend that isn't available is an error. `license` is BetterAirdropKit's
+    /// `LicenseStore` in the app and the CLI; without it there's no hosted naming.
     public static func resolve(_ id: String, config: Config = Config(), auth: ClaudeAuth = .shared,
                                apple: AppleFMNamer = AppleFMNamer(),
-                               license: any LicenseKeySource = LicenseFileKeySource()) throws -> any Namer {
+                               license: any LicenseKeySource = NoLicenseKey()) throws -> any Namer {
         if id == "auto" {
             if config.claudeInAuto, auth.resolve() != nil {
                 return FallbackNamer(primary: ClaudeNamer(model: config.claudeModel, auth: auth), fallback: VisionNamer())
             }
-            let hosted = HostedNamer(baseURL: config.hostedURL, license: license)
-            if config.claudeInAuto, case .ready = hosted.availability() { return FallbackNamer(primary: hosted, fallback: VisionNamer()) }
+            if config.claudeInAuto, license.licenseKey() != nil {
+                return FallbackNamer(primary: HostedNamer(baseURL: config.hostedURL, license: license), fallback: onDevice(apple))
+            }
             if case .ready = apple.availability() { return FallbackNamer(primary: apple, fallback: VisionNamer()) }
             return VisionNamer()
         }
         let namer = id == "apple" ? apple : try make(id, config: config, auth: auth, license: license)
         if case .unavailable(let why) = namer.availability() { throw BackendError.unavailable(id, reason: why) }
-        if ["claude", "hosted", "apple"].contains(id) { return FallbackNamer(primary: namer, fallback: VisionNamer()) }
+        if id == "hosted" { return FallbackNamer(primary: namer, fallback: onDevice(apple)) }
+        if id == "claude" || id == "apple" { return FallbackNamer(primary: namer, fallback: VisionNamer()) }
         return namer
+    }
+
+    /// Hosted naming's fallback: Apple Intelligence (itself falling back to Vision) when it's ready, else Vision.
+    static func onDevice(_ apple: AppleFMNamer) -> any Namer {
+        if case .ready = apple.availability() { return FallbackNamer(primary: apple, fallback: VisionNamer()) }
+        return VisionNamer()
     }
 
     /// True if this namer sends anything off the Mac.

@@ -37,6 +37,8 @@ final class AppModel: ObservableObject {
     // MARK: Pro
     @Published private(set) var license: License?
     @Published private(set) var proStatus: ProStatus = .free
+    /// What hosted naming last heard from the server: names left this month, the last error.
+    @Published private(set) var hostedUsage: HostedUsage?
     /// The Pro watchers (screenshots, other folders) by folder path, and what each is doing.
     @Published private(set) var proWatchStates: [String: WatchService.State] = [:]
     /// The folder screenshots are saved to (re-read whenever the watchers are rebuilt).
@@ -54,8 +56,6 @@ final class AppModel: ObservableObject {
         var environmentKey = false
         var antPath: String?
         var antLoggedIn = false
-        /// A Pro license key is on this Mac (hosted naming). Not part of `any`, which is Claude only.
-        var proLicense = false
         var any: Bool { storedKey || environmentKey || antLoggedIn }
     }
 
@@ -94,7 +94,8 @@ final class AppModel: ObservableObject {
     var isPaused: Bool { defaults.bool(forKey: "pausedIndefinitely") || pausedUntil != nil }
     var engine: EngineStatus {
         EngineStatus.current(config: config, hasCredential: credential.any, appleReady: AppleIntelligenceStatus.current.isAvailable,
-                             hasLicense: credential.proLicense, hostedProblem: credential.proLicense ? HostedNamer.currentProblem() : nil)
+                             hasLicense: isPro, hostedProblem: isPro ? HostedNamer.currentProblem(key: license?.key) : nil,
+                             hostedRemaining: isPro ? hostedUsage?.remaining : nil)
     }
     var needsAttention: Bool { state == .noAccess }
 
@@ -136,6 +137,9 @@ final class AppModel: ObservableObject {
     // MARK: - Lifecycle
 
     func start() {
+        // The names-left count from the last run, until this run's first hosted request.
+        if let last = AppState.load()?.hosted { HostedNamer.seedUsage(last) }
+        hostedUsage = HostedNamer.lastUsage()
         refreshCredential()
         rebuildService()
         refreshRecent()
@@ -266,7 +270,7 @@ final class AppModel: ObservableObject {
 
     nonisolated static func makePlanner(config: Config, backend: String? = nil) -> Planner {
         var planner = Planner(config: config)
-        planner.namer = (try? Backends.resolve(backend ?? config.backend, config: config)) ?? VisionNamer()
+        planner.namer = (try? Backends.resolve(backend ?? config.backend, config: config, license: LicenseStore())) ?? VisionNamer()
         planner.analyzer = { VisionAnalyzer.analyze($0) }
         return planner
     }
@@ -308,7 +312,17 @@ final class AppModel: ObservableObject {
 
     private func handle(_ batch: Watcher.Batch) {
         refreshRecent()
+        refreshHostedUsage()
         onBatch?(batch)
+    }
+
+    /// Picks up what hosted naming last heard (after a batch or a manual rename) for Settings and
+    /// `status --json` (via app-state.json).
+    func refreshHostedUsage() {
+        let u = HostedNamer.lastUsage()
+        guard u != hostedUsage else { return }
+        hostedUsage = u
+        writeAppState()
     }
 
     /// Re-checks folder access and the lock now (menu opened, onboarding saw a grant, Retry).
@@ -383,7 +397,6 @@ final class AppModel: ObservableObject {
             let auth = ClaudeAuth()
             c.antPath = auth.antExecutable
             if c.antPath != nil { c.antLoggedIn = auth.antToken() != nil }
-            c.proLicense = LicenseFileKeySource().licenseKey() != nil
             DispatchQueue.main.async { [weak self] in self?.credential = c; then?() }
         }
     }
@@ -494,7 +507,7 @@ final class AppModel: ObservableObject {
         let config = self.config
         DispatchQueue.global(qos: .userInitiated).async {
             let proposals = Self.makePlanner(config: config, backend: backend).plan(urls)
-            DispatchQueue.main.async { completion(proposals) }
+            DispatchQueue.main.async { [weak self] in self?.refreshHostedUsage(); completion(proposals) }
         }
     }
 

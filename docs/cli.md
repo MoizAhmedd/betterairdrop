@@ -14,9 +14,9 @@ same config, journal and undo.
 | `apple` (Apple Intelligence, Foundation Models) | on your Mac, macOS 26+ with Apple Intelligence on | nothing | named from Vision's labels and text (the on-device model reads text, not pixels) |
 
 `backend = "auto"` (the default) uses **Claude when a credential is found, else hosted naming when
-this Mac has a Pro license, else Apple Intelligence when it's ready, otherwise Vision**. Hosted
-naming falls back to Vision for a photo when the license is invalid, the month's 500 names are used,
-or the server can't be reached. If Apple Intelligence isn't available, `--backend apple`
+this Mac has an active Pro license, else Apple Intelligence when it's ready, otherwise Vision**.
+When hosted naming can't name a photo (the license is invalid, the month's 500 names are used, or
+the server can't be reached), Apple Intelligence names it if it's ready, otherwise Vision. If Apple Intelligence isn't available, `--backend apple`
 says why (off in System Settings → Apple Intelligence & Siri, model still downloading, Mac not
 supported, macOS older than 26). Like Claude, it falls back to Vision for any photo it can't name.
 Vision always runs anyway: it supplies the OCR text, kind hints and labels that go into Claude's
