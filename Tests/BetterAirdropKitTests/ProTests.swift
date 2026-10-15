@@ -109,9 +109,18 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
         let c = client(polar, t)
         try c.activate(key: "BA_1", label: "Mac")
         try c.activate(key: "BA_2", label: "Mac")
-        #expect(polar.calls.map(\.action) == ["activate", "deactivate", "activate"])
-        #expect(polar.calls[1].body["key"] == "BA_1" && polar.calls[1].body["activation_id"] == "act-1")
+        #expect(polar.calls.map(\.action) == ["activate", "activate", "deactivate"])
+        #expect(polar.calls[2].body["key"] == "BA_1" && polar.calls[2].body["activation_id"] == "act-1")
         #expect(c.store.read()?.key == "BA_2")
+    }
+
+    @Test func aMistypedSecondKeyKeepsTheWorkingOne() throws {
+        let t = Temp(), polar = FakePolar { a, b in a == "activate" && b["key"] == "BA_TYPO" ? (404, FakePolar.notFound) : (200, FakePolar.activated) }
+        let c = client(polar, t)
+        try c.activate(key: "BA_1", label: "Mac")
+        #expect(throws: LicenseClient.Failure.invalidKey) { try c.activate(key: "BA_TYPO", label: "Mac") }
+        #expect(!polar.calls.contains { $0.action == "deactivate" })
+        #expect(c.store.read()?.key == "BA_1" && c.status == .active)
     }
 
     @Test func deactivateFreesTheSlotAndForgetsTheKey() throws {
@@ -218,6 +227,32 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
         clock.advance(days: 7); _ = c.revalidateIfDue()
         clock.advance(days: 7.1)
         #expect(c.status == .lapsed)   // offline doesn't extend the grace either
+    }
+
+    /// `license deactivate` (or activating another key) from the CLI while the app's weekly check
+    /// is waiting on Polar: the check's answer must not write the old license back.
+    @Test func aCheckInFlightDoesNotUndoTheCLI() throws {
+        for cliAction in ["deactivate", "activate other"] {
+            let t = Temp(), clock = TestClock()
+            var c: LicenseClient!
+            let polar = FakePolar { a, _ in
+                if a == "validate" {
+                    if cliAction == "deactivate" { c.store.delete() }
+                    else { try c.store.write(License(key: "BA_2", activationID: "act-2", label: "Mac", activatedAt: clock.now)) }
+                    return (404, FakePolar.notFound)
+                }
+                return (200, FakePolar.activated)
+            }
+            c = client(polar, t, clock)
+            try c.activate(key: "BA_1", label: "Mac")
+            clock.advance(days: 7)
+            _ = c.revalidateIfDue()
+            if cliAction == "deactivate" {
+                #expect(c.store.read() == nil && c.status == .free)
+            } else {
+                #expect(c.store.read()?.key == "BA_2" && c.store.read()?.invalidSince == nil)
+            }
+        }
     }
 
     @Test func gateFromAStoredLicense() {

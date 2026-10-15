@@ -60,30 +60,28 @@ public struct LicenseClient: Sendable {
     // MARK: - Activate
 
     /// Activates `key` on this Mac and saves it. Activating the key this Mac already holds just
-    /// re-checks it (no second activation); a different key replaces the old one, whose
-    /// activation is released first.
+    /// re-checks it (no second activation); a different key replaces the old one once Polar has
+    /// accepted it, and only then is the old one's activation released (so a mistyped key never
+    /// costs the Mac a working license).
     @discardableResult
     public func activate(key raw: String, label: String = LicenseClient.macName()) throws -> License {
         guard canActivate else { throw Failure.notAvailable }
         let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, !key.contains(where: \.isWhitespace) else { throw Failure.emptyKey }
 
-        if let current = store.read() {
-            if current.key == key {
-                switch check(current) {
-                case .valid(let display):
-                    var l = current
-                    l.displayKey = display ?? l.displayKey
-                    l.lastCheckedAt = now(); l.lastValidatedAt = now(); l.invalidSince = nil; l.invalidReason = nil
-                    try save(l)
-                    return l
-                case .unknown:
-                    return current   // no verdict: keep what's there rather than use up another slot
-                case .invalid:
-                    break            // this activation is gone (or the key was revoked): activate again below
-                }
-            } else {
-                try? deactivate()   // best effort: frees the old key's slot
+        let previous = store.read()
+        if let current = previous, current.key == key {
+            switch check(current) {
+            case .valid(let display):
+                var l = current
+                l.displayKey = display ?? l.displayKey
+                l.lastCheckedAt = now(); l.lastValidatedAt = now(); l.invalidSince = nil; l.invalidReason = nil
+                try save(l)
+                return l
+            case .unknown:
+                return current   // no verdict: keep what's there rather than use up another slot
+            case .invalid:
+                break            // this activation is gone (or the key was revoked): activate again below
             }
         }
 
@@ -101,6 +99,7 @@ public struct LicenseClient: Sendable {
             let display = (obj["license_key"] as? [String: Any])?["display_key"] as? String
             let l = License(key: key, activationID: id, label: label, displayKey: display, activatedAt: now())
             try save(l)
+            if let old = previous, old.key != key { _ = try? release(old) }   // best effort: frees the old key's slot
             return l
         case 403:
             let d = Self.detail(data) ?? "not permitted"
@@ -154,9 +153,13 @@ public struct LicenseClient: Sendable {
     /// status. Offline or a Polar error leaves everything as it was (Pro stays on).
     @discardableResult
     public func revalidateIfDue() -> ProStatus {
-        guard var l = store.read() else { return .free }
-        guard ProGate.needsRevalidation(l, now: now()), canActivate else { return ProGate.status(l, now: now()) }
-        let result = check(l)
+        guard let asked = store.read() else { return .free }
+        guard ProGate.needsRevalidation(asked, now: now()), canActivate else { return ProGate.status(asked, now: now()) }
+        let result = check(asked)
+        // `license activate|deactivate` may have replaced or removed the license while Polar was
+        // asked (up to 15 s). Record the answer only on the activation it's about, so a deactivated
+        // key isn't written back and a newly activated one isn't overwritten.
+        guard var l = store.read(), l.key == asked.key, l.activationID == asked.activationID else { return status }
         l.lastCheckedAt = now()
         switch result {
         case .valid(let display):
@@ -185,7 +188,7 @@ public struct LicenseClient: Sendable {
         guard canActivate else { store.delete(); return }
         let status: Int
         do {
-            (status, _) = try post("deactivate", ["key": l.key, "organization_id": organizationID, "activation_id": l.activationID])
+            status = try release(l)
         } catch {
             throw Failure.unreachable("Couldn't reach Polar, so this Mac is still activated. Try again when you're online.")
         }
@@ -195,6 +198,11 @@ public struct LicenseClient: Sendable {
         default:
             throw Failure.unreachable("Polar answered with an error (\(status)), so this Mac is still activated. Try again in a few minutes.")
         }
+    }
+
+    /// Asks Polar to drop `l`'s activation; returns the HTTP status. Doesn't touch the store.
+    private func release(_ l: License) throws -> Int {
+        try post("deactivate", ["key": l.key, "organization_id": organizationID, "activation_id": l.activationID]).0
     }
 
     // MARK: - HTTP
