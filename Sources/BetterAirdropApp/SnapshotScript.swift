@@ -48,8 +48,9 @@ extension AppDelegate {
         }
         steps += [
             // Notifications turned off in System Settings while the config still has them on.
-            ("notify-off", { self.model.updateConfig { $0.watchNotify = true }; self.model.notificationStatus = .denied
-                (self.settingsWindow?.contentViewController as? NSTabViewController)?.selectedTabViewItemIndex = 0 }),
+            ("notify-off-tab", { (self.settingsWindow?.contentViewController as? NSTabViewController)?.selectedTabViewItemIndex = 0 }),
+            // After the tab's own refresh, which reads the real (not determined) permission.
+            ("notify-off", { self.model.updateConfig { $0.watchNotify = true }; self.model.notificationStatus = .denied }),
             ("notify-off-capture", { Snapshot.capture(self.settingsWindow, "settings-general-notifications-off") }),
             ("settings-close", { self.settingsWindow?.close() }),
             // Lost access: make the (test) folder unreadable for a moment.
