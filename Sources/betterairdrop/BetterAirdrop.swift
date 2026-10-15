@@ -43,7 +43,6 @@ func makePlanner(config: Config, backend: String?) throws -> Planner {
     return planner
 }
 
-/// One stderr line per distinct reason a cloud backend fell back to Vision.
 /// One stderr line per distinct reason and fallback engine (hosted naming may fall back to Apple Intelligence).
 func reportFallbacks(_ proposals: [Proposal]) {
     struct Key: Hashable, Comparable {

@@ -12,7 +12,6 @@ export interface PolarConfig {
   benefitId?: string;
   fetch: typeof fetch;
   now: () => Date;
-  timeoutMs?: number;
 }
 
 export async function validateWithPolar(key: string, c: PolarConfig): Promise<Verdict> {
@@ -24,7 +23,7 @@ export async function validateWithPolar(key: string, c: PolarConfig): Promise<Ve
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(c.timeoutMs ?? 5000),
+      signal: AbortSignal.timeout(5000),
     });
   } catch {
     return "unavailable"; // network error or timeout
