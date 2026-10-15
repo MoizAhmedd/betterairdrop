@@ -10,7 +10,7 @@ struct Explain: ParsableCommand {
     @Argument(help: "An image file.", completion: .file())
     var file: String
 
-    @Option(help: "Naming backend: auto, claude, vision, apple (macOS 27).")
+    @Option(help: "Naming backend: auto, claude, vision, apple (Apple Intelligence, macOS 26+).")
     var backend: String?
 
     @Option(help: "Filename template to explain against.")

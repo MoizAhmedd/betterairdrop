@@ -186,6 +186,21 @@ public enum ClaudePrompt {
     You name image files. Look at the image and the context, then describe the image's main subject \
     as a short filename phrase.
 
+
+    """ + subjectRules + """
+
+
+    Other fields:
+    - "kind": photo, screenshot, receipt, document, whiteboard or other. Trust the context's creator hint \
+    for screenshots.
+    - "merchant": for a receipt, the store name (1-3 words); otherwise "".
+    - "total": for a receipt, the total paid as digits like "84.12"; otherwise "".
+    - "confidence": 0 to 1, how sure you are that the subject describes the image well.
+    - "people_present": true if a person is visible.
+    """
+
+    /// What makes a good subject. Shared with the on-device Apple Intelligence prompt (`AppleFMPrompt`).
+    static let subjectRules = """
     Rules for "subject":
     - 2 to 6 lowercase words, plain English, specific and concrete: "walnut lamp on oak sideboard", \
     "red bicycle against brick wall", "bowl of soup on wooden table", "weekly weather forecast".
@@ -196,14 +211,6 @@ public enum ClaudePrompt {
     numbers, even if they are visible. Describe people generically ("person reading on bench").
     - Don't repeat the date or the city from the context; they are added to the filename separately.
     - Don't start with "photo of", "picture of", "screenshot of" or "image of".
-
-    Other fields:
-    - "kind": photo, screenshot, receipt, document, whiteboard or other. Trust the context's creator hint \
-    for screenshots.
-    - "merchant": for a receipt, the store name (1-3 words); otherwise "".
-    - "total": for a receipt, the total paid as digits like "84.12"; otherwise "".
-    - "confidence": 0 to 1, how sure you are that the subject describes the image well.
-    - "people_present": true if a person is visible.
     """
 
     static let jsonInstructions = """
@@ -310,15 +317,16 @@ public enum ClaudePrompt {
         public var people_present: Bool?
 
         /// Merges with the local context. A screenshot identified by metadata stays a screenshot;
-        /// otherwise Claude's kind wins (it sees the pixels; the local rules are heuristics).
-        func suggestion(context ctx: PhotoContext, backend: String, maxWords: Int) -> NameSuggestion {
+        /// otherwise the model's kind wins (Claude sees the pixels; the local rules are heuristics).
+        /// `source` names the model in the `explain` trail.
+        func suggestion(context ctx: PhotoContext, backend: String, maxWords: Int, source: String = "Claude") -> NameSuggestion {
             var why: [String] = []
             let theirs = Kind(rawValue: kind) ?? .photo
             let finalKind: Kind = ctx.metadata.isScreenshotByMetadata ? .screenshot : theirs
-            if finalKind != theirs { why.append("kind: kept screenshot from the metadata (Claude said \(kind))") }
-            else if finalKind != ctx.kind { why.append("kind: Claude says \(kind) (local rules said \(ctx.kind.rawValue))") }
+            if finalKind != theirs { why.append("kind: kept screenshot from the metadata (\(source) said \(kind))") }
+            else if finalKind != ctx.kind { why.append("kind: \(source) says \(kind) (local rules said \(ctx.kind.rawValue))") }
             let subj = ClaudePrompt.cleanSubject(subject, city: ctx.place?.city, maxWords: maxWords)
-            why.append("subject \"\(subj)\" from Claude (confidence \(String(format: "%.2f", confidence))\(people_present == true ? ", people present" : ""))")
+            why.append("subject \"\(subj)\" from \(source) (confidence \(String(format: "%.2f", confidence))\(people_present == true ? ", people present" : ""))")
             let m = merchant?.trimmingCharacters(in: .whitespaces).nilIfEmpty
             let t = total?.trimmingCharacters(in: .whitespaces).nilIfEmpty.map { $0.replacingOccurrences(of: ".", with: "-") }
             return NameSuggestion(kind: finalKind, subject: subj, merchant: finalKind == .receipt ? m : nil,
@@ -337,10 +345,17 @@ public enum ClaudePrompt {
         guard let answer = try? JSONDecoder().decode(Answer.self, from: Data(json.utf8)) else {
             throw ClaudeNamer.Error.badOutput("not the expected JSON object")
         }
-        guard kinds.contains(answer.kind) else { throw ClaudeNamer.Error.badOutput("unknown kind \(answer.kind)") }
-        guard Slug.make(answer.subject, trimStopWords: false).count >= 2 else { throw ClaudeNamer.Error.badOutput("empty subject") }
-        guard answer.confidence.isFinite else { throw ClaudeNamer.Error.badOutput("confidence isn't a number") }
+        if let why = problem(with: answer) { throw ClaudeNamer.Error.badOutput(why) }
         return answer
+    }
+
+    /// Why an answer can't be used (unknown kind, empty subject, confidence not a number), or nil.
+    /// Shared with the Apple Intelligence backend.
+    static func problem(with answer: Answer) -> String? {
+        if !kinds.contains(answer.kind) { return "unknown kind \(answer.kind)" }
+        if Slug.make(answer.subject, trimStopWords: false).count < 2 { return "empty subject" }
+        if !answer.confidence.isFinite { return "confidence isn't a number" }
+        return nil
     }
 
     static let leadIns = ["a photo of ", "photo of ", "a picture of ", "picture of ", "an image of ", "image of ",

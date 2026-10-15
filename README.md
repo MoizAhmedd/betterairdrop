@@ -19,8 +19,8 @@ No Homebrew? `curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh
 
 macOS 13 or later. It opens in the menu bar and asks for Downloads access once. If
 `ANTHROPIC_API_KEY` is set in your shell (or you're logged in with `ant`), it offers to use it;
-otherwise it names photos with Apple Vision. Photos already in Downloads can be previewed and
-renamed from the menu.
+otherwise it uses Apple Intelligence (macOS 26+, when it's on) or Apple Vision. Photos already in
+Downloads can be previewed and renamed from the menu.
 
 Signed with the project's own certificate rather than an Apple Developer ID, so it isn't notarized.
 Both install paths leave it unquarantined, so there's no Gatekeeper dialog.
@@ -35,7 +35,7 @@ Both install paths leave it unquarantined, so there's no Gatekeeper dialog.
 
 ## Build from source
 
-Needs Xcode 16 or the Command Line Tools.
+Needs Xcode 16 or the Command Line Tools. Apple Intelligence naming needs Xcode 26 or later.
 
 ```sh
 git clone https://github.com/MoizAhmedd/betterairdrop.git && cd betterairdrop
@@ -48,7 +48,7 @@ scripts/make-app.sh && open .build/app/BetterAirdrop.app
 |---|---|---|
 | Claude Haiku (your API key) | Anthropic | a 768 px copy, no location or camera data |
 | Apple Vision | your Mac | nothing |
-| Apple Intelligence (macOS 27) | your Mac | nothing (planned) |
+| Apple Intelligence (macOS 26+) | your Mac | nothing |
 
 City names come from a built-in table, so coordinates never leave the Mac.
 
