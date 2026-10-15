@@ -22,15 +22,19 @@ public struct AppState: Codable, Equatable, Sendable {
     public var notifications: Notifications
     public var loginItem: LoginItem
     public var watch: Watch
+    /// What hosted naming last heard from the server in the app (names left, the last error). Nil
+    /// until the app has used it.
+    public var hosted: HostedUsage?
 
     public init(version: String, pid: Int32 = getpid(), updatedAt: Date = Date(), folder: String, folderAccess: Access,
-                notifications: Notifications, loginItem: LoginItem, watch: Watch) {
+                notifications: Notifications, loginItem: LoginItem, watch: Watch, hosted: HostedUsage? = nil) {
         self.version = version; self.pid = pid; self.updatedAt = updatedAt; self.folder = folder
         self.folderAccess = folderAccess; self.notifications = notifications; self.loginItem = loginItem; self.watch = watch
+        self.hosted = hosted
     }
 
     enum CodingKeys: String, CodingKey {
-        case schema, version, pid, folder, notifications, watch
+        case schema, version, pid, folder, notifications, watch, hosted
         case updatedAt = "updated_at", folderAccess = "folder_access", loginItem = "login_item"
     }
 
@@ -115,9 +119,35 @@ public struct StatusReport: Codable, Equatable, Sendable {
             }
         }
     }
+    /// Hosted naming (Pro: Claude with no API key). `remaining`, `resets_at` and `last_error` are what
+    /// the app last heard from the server (null until it has used it, and after the month resets).
+    public struct HostedInfo: Codable, Equatable, Sendable {
+        /// Pro is active or in grace, so hosted naming can be used.
+        public var available: Bool
+        public var remaining: Int?
+        public var resetsAt: Date?
+        public var lastError: String?
+        enum CodingKeys: String, CodingKey { case available, remaining, resetsAt = "resets_at", lastError = "last_error" }
+
+        public static let none = HostedInfo(available: false)
+
+        public init(available: Bool, remaining: Int? = nil, resetsAt: Date? = nil, lastError: String? = nil) {
+            self.available = available; self.remaining = remaining; self.resetsAt = resetsAt; self.lastError = lastError
+        }
+
+        // Always written, null included, so agents can rely on the keys.
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(available, forKey: .available)
+            try c.encode(remaining, forKey: .remaining)
+            try c.encode(resetsAt, forKey: .resetsAt)
+            try c.encode(lastError, forKey: .lastError)
+        }
+    }
     public struct Credentials: Codable, Equatable, Sendable {
         public var claude: Credential
         public var license = LicenseInfo.none
+        public var hosted = HostedInfo.none
     }
     public struct Permissions: Codable, Equatable, Sendable {
         /// granted, denied, waiting, or unknown (the app hasn't reported yet).
@@ -206,7 +236,10 @@ extension StatusReport {
 
     public static func make(_ i: Inputs) -> StatusReport {
         let hasCredential = i.storedKey || i.antLoggedIn
-        let engine = EngineStatus.current(config: i.config, hasCredential: hasCredential, appleReady: i.appleReady)
+        let pro = ProGate.status(i.license, now: i.now).isUnlocked
+        let usage = i.appState?.hosted?.current(now: i.now)
+        let engine = EngineStatus.current(config: i.config, hasCredential: hasCredential, appleReady: i.appleReady,
+                                          hasLicense: pro, hostedRemaining: usage?.remaining)
         let state = i.appRunning ? i.appState : nil
         let folderName = Self.folderName(i.appState?.folder ?? i.config.watchFolder)
 
@@ -297,7 +330,9 @@ extension StatusReport {
             app: App(installed: i.appPath != nil, path: i.appPath, version: i.appVersion, running: i.appRunning),
             setup: Setup(done: i.setup != nil, completedAt: i.setup?.completedAt),
             engine: Engine(backend: i.config.backend, active: engine.name, detail: engine.detail),
-            credentials: Credentials(claude: Credential(present: hasCredential, source: source), license: license),
+            credentials: Credentials(claude: Credential(present: hasCredential, source: source), license: license,
+                                     hosted: HostedInfo(available: pro, remaining: usage?.remaining, resetsAt: usage?.resetsAt,
+                                                        lastError: usage?.lastError)),
             permissions: permissions,
             watching: watching,
             nextSteps: steps)

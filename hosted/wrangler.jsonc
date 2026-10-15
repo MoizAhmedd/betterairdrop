@@ -1,0 +1,30 @@
+// BetterAirdrop hosted naming. Deploy steps: README.md. Secrets are never in this file:
+// `wrangler secret put ANTHROPIC_API_KEY`.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "betterairdrop-hosted",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "routes": [{ "pattern": "api.betterairdrop.com", "custom_domain": true }],
+  "vars": {
+    // Polar organization ID: public (the app ships it too). Keep it equal to Polar.organizationID
+    // in Sources/BetterAirdropKit/PolarConstants.swift.
+    "POLAR_ORG_ID": "aadcb5c9-867d-41c0-abe3-02dd71dd8991",
+    // Optional: only accept keys from this benefit (the Pro license-key benefit). Empty = any key in the org.
+    "POLAR_BENEFIT_ID": "",
+    "POLAR_API": "https://api.polar.sh",
+    "MONTHLY_CAP": "500",
+    "GLOBAL_DAILY_CAP": "5000"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "LICENSES", "class_name": "LicenseState" },
+      { "name": "BUDGET", "class_name": "GlobalBudget" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LicenseState", "GlobalBudget"] }],
+  // Only the Worker's own count lines (status and outcome) are kept. Invocation logs are off: they'd
+  // store each request's headers, IP address and location in Workers Logs.
+  "observability": { "enabled": true, "logs": { "invocation_logs": false } }
+}

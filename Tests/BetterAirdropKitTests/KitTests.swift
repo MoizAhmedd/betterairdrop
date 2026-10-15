@@ -123,9 +123,27 @@ func batch(_ items: [(String, String?, Committer.Outcome.Status, String?)], fall
         var c = Config()
         #expect(EngineStatus.current(config: c, hasCredential: true).name == "Claude Haiku 4.5")
         #expect(EngineStatus.current(config: c, hasCredential: false).name == "Apple Vision")
-        #expect(EngineStatus.current(config: c, hasCredential: true, appleReady: true).name == "Apple Intelligence")
+        // auto: your Claude key, then hosted (Pro), then Apple Intelligence, then Vision.
+        #expect(EngineStatus.current(config: c, hasCredential: true, appleReady: true, hasLicense: true).name == "Claude Haiku 4.5")
+        #expect(EngineStatus.current(config: c, hasCredential: false, appleReady: true, hasLicense: true)
+                == EngineStatus(name: "Hosted (Pro)", detail: "Pro, Apple Intelligence if offline"))
+        #expect(EngineStatus.current(config: c, hasCredential: false, hasLicense: true)
+                == EngineStatus(name: "Hosted (Pro)", detail: "Pro, Apple Vision if offline"))
+        #expect(EngineStatus.current(config: c, hasCredential: false, hasLicense: true, hostedRemaining: 47)
+                == EngineStatus(name: "Hosted (Pro)", detail: "47 names left this month"))
+        #expect(EngineStatus.current(config: c, hasCredential: false, hasLicense: true, hostedRemaining: 1).detail == "1 name left this month")
+        #expect(EngineStatus.current(config: c, hasCredential: false, appleReady: true).name == "Apple Intelligence")
         c.claudeInAuto = false
         #expect(EngineStatus.current(config: c, hasCredential: true).name == "Apple Vision")
+        #expect(EngineStatus.current(config: c, hasCredential: false, hasLicense: true).name == "Apple Vision", "claude.auto off: no hosted either")
+        c.backend = "hosted"
+        #expect(EngineStatus.current(config: c, hasCredential: false, hasLicense: true).name == "Hosted (Pro)")
+        #expect(EngineStatus.current(config: c, hasCredential: false) == EngineStatus(name: "Apple Vision", detail: "no Pro license"))
+        let limit = "monthly hosted limit reached; resets Nov 1, 2026"
+        #expect(EngineStatus.current(config: c, hasCredential: false, hasLicense: true, hostedProblem: limit)
+                == EngineStatus(name: "Apple Vision", detail: limit))
+        #expect(EngineStatus.current(config: c, hasCredential: false, appleReady: true, hasLicense: true, hostedProblem: limit)
+                == EngineStatus(name: "Apple Intelligence", detail: limit), "a Pro user over the limit gets Apple Intelligence")
         c.backend = "claude"
         #expect(EngineStatus.current(config: c, hasCredential: false).detail == "Claude has no key")
         #expect(EngineStatus.modelName("claude-sonnet-4-5-20250929") == "Claude Sonnet 4.5")

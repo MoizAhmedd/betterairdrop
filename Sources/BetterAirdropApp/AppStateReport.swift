@@ -32,7 +32,8 @@ extension AppModel {
                          folderAccess: folderAccess.map { $0 ? .granted : .denied } ?? .waiting,
                          notifications: notificationStatus ?? .notAsked,
                          loginItem: AppState.LoginItem(SMAppService.mainApp.status),
-                         watch: reportedWatch)
+                         watch: reportedWatch,
+                         hosted: hostedUsage)
         Self.stateWrites.async { try? s.save() }
     }
 

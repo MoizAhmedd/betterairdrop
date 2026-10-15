@@ -63,10 +63,10 @@ public struct ClaudeNamer: Namer {
     /// once with `output_config`, whose schema guarantees the shape.
     public func suggest(for url: URL, context ctx: PhotoContext) throws -> NameSuggestion {
         var timings = StageTimings()
-        let image = try timings.time(.encode) { try UploadImage.jpeg(from: url, maxPixelSize: imageSize) }
-        let prompt = ClaudePrompt.context(ctx)
+        let upload = try CloudUpload(url, context: ctx, maxPixelSize: imageSize, timings: &timings)
+        let (image, prompt) = (upload.image, upload.context)
         var usage = TokenUsage(model: model, inputTokens: 0, outputTokens: 0)
-        var why = ["sent a \(image.count / 1024) KB metadata-free JPEG and the text context to \(model)"]
+        var why = ["sent \(upload.summary) to \(model)"]
 
         let answer: ClaudePrompt.Answer
         do {
@@ -80,11 +80,7 @@ public struct ClaudeNamer: Namer {
                 throw first
             }
         }
-        var s = answer.suggestion(context: ctx, backend: id, maxWords: 6)
-        s.usage = usage
-        s.timings = timings
-        s.why = why + s.why
-        return s
+        return upload.suggestion(answer, context: ctx, backend: id, why: why, timings: timings, usage: usage)
     }
 
     /// One logical request, with retries for 429/5xx/network errors. Returns the first text block.
@@ -107,7 +103,7 @@ public struct ClaudeNamer: Namer {
             do {
                 (response, data) = try timings.time(.claude) { try transport.send(req) }
             } catch {
-                if attempt < maxAttempts { timings.time(.claude) { sleep(backoff(attempt, retryAfter: nil)) }; continue }
+                if attempt < maxAttempts { timings.time(.claude) { sleep(CloudUpload.backoff(attempt, retryAfter: nil)) }; continue }
                 throw Error.network((error as NSError).localizedDescription)
             }
             let status = response.statusCode
@@ -122,18 +118,12 @@ public struct ClaudeNamer: Namer {
                 continue
             }
             if (status == 429 || status == 529 || status >= 500) && attempt < maxAttempts {
-                let wait = backoff(attempt, retryAfter: response.value(forHTTPHeaderField: "retry-after"))
+                let wait = CloudUpload.backoff(attempt, retryAfter: response.value(forHTTPHeaderField: "retry-after"))
                 timings.time(.claude) { sleep(wait) }
                 continue
             }
             throw Error.http(status, message)
         }
-    }
-
-    /// `retry-after` (seconds) if the server sent one, else 1 s, 2 s, 4 s… with a little jitter. Capped at 20 s.
-    func backoff(_ attempt: Int, retryAfter: String?) -> TimeInterval {
-        if let r = retryAfter.flatMap(Double.init), r >= 0 { return min(r, 20) }
-        return min(pow(2, Double(attempt - 1)) + Double.random(in: 0...0.25), 20)
     }
 
     /// Checks `stop_reason` first, adds usage, returns the first text block.
@@ -439,6 +429,8 @@ public struct FallbackNamer: Namer {
         let firstError: any Error
         if case .ready = primary.availability() {
             do { return try primary.suggest(for: url, context: context) } catch { firstError = error }
+        } else if case .unavailable(let why) = primary.availability() {
+            firstError = BackendError.unavailable(primary.id, reason: why)   // e.g. "monthly hosted limit reached; resets …"
         } else {
             firstError = BackendError.unavailable(primary.id, reason: "not available")
         }

@@ -20,6 +20,8 @@ public struct StageTimings: Codable, Sendable, Equatable {
         case encode
         /// The Messages API request, retries included.
         case claude
+        /// The hosted-naming request (the license check and Claude, on BetterAirdrop's server), retries included.
+        case hosted
         /// The on-device Apple Intelligence request (waiting for the model included).
         case apple
         /// HEIC → JPEG.

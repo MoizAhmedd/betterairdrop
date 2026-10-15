@@ -178,7 +178,7 @@ struct NamingPane: View {
                     ForEach([EngineChoice.auto, .apple, .claude, .vision], id: \.self) { Text($0.title).tag($0) }
                 } label: {
                     Text("Engine")
-                    Text("Automatic uses Apple Intelligence when it's available, then Claude, then Apple Vision.")
+                    Text("Automatic uses Claude with your key, then hosted naming with Pro, then Apple Intelligence when it's available, then Apple Vision.")
                 }
                 if engineBinding.wrappedValue == .apple && !AppleIntelligenceStatus.current.isAvailable {
                     let apple = AppleIntelligenceStatus.current
@@ -189,13 +189,17 @@ struct NamingPane: View {
                         Text(apple.message)
                     }
                 }
-                LabeledContent("Now using") {
+                LabeledContent {
                     HStack(spacing: 5) {
                         Circle().fill(Color.green).frame(width: 7, height: 7)
                         Text(model.engine.name)
                         if let d = model.engine.detail { Text("· \(d)").foregroundStyle(.secondary) }
                     }
+                } label: {
+                    Text("Now using")
+                    if model.engine.isHosted { Text(EngineStatus.hostedNotice) }
                 }
+                if !model.isPro { ProLine(text: "Pro: great names without an API key.") }
             }
             Section("Claude") {
                 LabeledContent {

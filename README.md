@@ -59,7 +59,8 @@ scripts/make-app.sh && open .build/app/BetterAirdrop.app
 
 | Engine | Runs on | Sends |
 |---|---|---|
-| Claude Haiku (your API key) | Anthropic | a 768 px copy, no location or camera data |
+| Claude Haiku (your API key) | Anthropic | a 768 px copy with GPS and EXIF stripped; the date, city name, camera model, kind and a short text snippet go as text |
+| Hosted naming (Pro) | BetterAirdrop's server, then Anthropic | the same, plus your Pro license key; the server keeps no photos, context or names |
 | Apple Vision | your Mac | nothing |
 | Apple Intelligence (macOS 26+) | your Mac | nothing |
 

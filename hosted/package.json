@@ -1,0 +1,21 @@
+{
+  "name": "betterairdrop-hosted",
+  "private": true,
+  "description": "Hosted naming for BetterAirdrop Pro: a Cloudflare Worker that checks the Pro license and names one photo with Claude.",
+  "type": "module",
+  "scripts": {
+    "test": "tsc --noEmit && vitest run",
+    "check": "wrangler deploy --dry-run --outdir .wrangler/dry-run",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.134.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261015.1",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.4",
+    "wrangler": "^4.151.0"
+  }
+}

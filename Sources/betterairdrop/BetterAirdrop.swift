@@ -32,7 +32,7 @@ extension Config.Originals: ExpressibleByArgument {}
 func makePlanner(config: Config, backend: String?) throws -> Planner {
     var planner = Planner(config: config)
     do {
-        planner.namer = try Backends.resolve(backend ?? config.backend, config: config)
+        planner.namer = try Backends.resolve(backend ?? config.backend, config: config, license: LicenseStore())
     } catch {
         throw ValidationError("\(error)")
     }
@@ -43,11 +43,18 @@ func makePlanner(config: Config, backend: String?) throws -> Planner {
     return planner
 }
 
-/// One stderr line per distinct reason a cloud backend fell back to Vision.
+/// One stderr line per distinct reason and fallback engine (hosted naming may fall back to Apple Intelligence).
 func reportFallbacks(_ proposals: [Proposal]) {
-    let reasons = proposals.compactMap { $0.suggestion?.fallbackFrom?.trimmingCharacters(in: CharacterSet(charactersIn: ". ")) }
-    for (reason, n) in Dictionary(grouping: reasons, by: { $0 }).mapValues(\.count).sorted(by: { $0.key < $1.key }) {
-        stderr("note: \(reason); named \(n) file\(n == 1 ? "" : "s") with Apple Vision instead")
+    struct Key: Hashable, Comparable {
+        var reason: String, engine: String
+        static func < (a: Key, b: Key) -> Bool { (a.reason, a.engine) < (b.reason, b.engine) }
+    }
+    let keys = proposals.compactMap { p -> Key? in
+        guard let s = p.suggestion, let why = s.fallbackFrom?.trimmingCharacters(in: CharacterSet(charactersIn: ". ")) else { return nil }
+        return Key(reason: why, engine: s.backend == "apple" ? "Apple Intelligence" : "Apple Vision")
+    }
+    for (k, n) in Dictionary(grouping: keys, by: { $0 }).mapValues(\.count).sorted(by: { $0.key < $1.key }) {
+        stderr("note: \(k.reason); named \(n) file\(n == 1 ? "" : "s") with \(k.engine) instead")
     }
 }
 

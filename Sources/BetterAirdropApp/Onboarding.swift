@@ -211,7 +211,7 @@ struct OnboardingView: View {
                 }
                 .font(.system(size: 11))
             }
-            Text("What gets sent: a 768 px copy of each photo with **no location or camera data**, plus the city name and any text in it. If Claude can't be reached, Apple Vision names the photo instead.")
+            Text("What gets sent: a 768 px copy of each photo with **no location or camera metadata**, plus the date, city name, camera model and any text in it. If Claude can't be reached, Apple Vision names the photo instead.")
                 .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         .padding(.leading, 42).padding(.trailing, 12).padding(.bottom, 12)
