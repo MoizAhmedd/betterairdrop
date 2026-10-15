@@ -23,6 +23,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       sha256: ${{ steps.zip.outputs.sha256 }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
 
@@ -127,6 +128,8 @@ jobs:
 
   tap:
     needs: build
+    # Release candidates (v0.4.0-rc.1) stay out of Homebrew; only Sparkle's beta channel sees them.
+    if: needs.build.outputs.prerelease != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
