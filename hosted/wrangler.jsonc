@@ -1,5 +1,5 @@
 // BetterAirdrop hosted naming. Deploy steps: README.md. Secrets are never in this file:
-// `wrangler secret put ANTHROPIC_API_KEY`.
+// `wrangler secret put ANTHROPIC_API_KEY` and `wrangler secret put TRIAL_IP_SALT`.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "betterairdrop-hosted",
@@ -15,7 +15,12 @@
     "POLAR_BENEFIT_ID": "",
     "POLAR_API": "https://api.polar.sh",
     "MONTHLY_CAP": "500",
-    "GLOBAL_DAILY_CAP": "5000"
+    "GLOBAL_DAILY_CAP": "5000",
+    // The free trial: names per install for good, trial names a day in all (apart from
+    // GLOBAL_DAILY_CAP, which counts paid calls only), and trial names a day per network.
+    "TRIAL_CAP": "25",
+    "TRIAL_DAILY_CAP": "300",
+    "TRIAL_IP_DAILY_CAP": "50"
   },
   "durable_objects": {
     "bindings": [

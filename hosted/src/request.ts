@@ -50,6 +50,35 @@ export function bearerKey(req: Request): string | null {
   return m?.[1] ?? null;
 }
 
+/** The free trial's install ID from `Authorization: Trial <id>`, or null. */
+export function trialId(req: Request): string | null {
+  const h = req.headers.get("authorization") ?? "";
+  const m = /^Trial\s+(\S+)\s*$/i.exec(h);
+  return m?.[1] ?? null;
+}
+
+/** The app makes a random UUID per install (TrialStore.swift). */
+export function plausibleTrialId(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+/**
+ * What the trial's per-network count is keyed on (before it's hashed with the salt and the day):
+ * an IPv4 address as it is, an IPv6 address cut to its /64 (one home or phone gets a whole /64, so
+ * the full address would be a new network per request).
+ */
+export function network(ip: string | null): string {
+  if (!ip) return "unknown";
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
+  if (mapped) return mapped[1]!;
+  if (!ip.includes(":")) return ip;
+  const [head = "", tail = ""] = ip.split("::");
+  const h = head ? head.split(":") : [];
+  const t = tail ? tail.split(":") : [];
+  const groups = ip.includes("::") ? [...h, ...Array<string>(Math.max(8 - h.length - t.length, 0)).fill("0"), ...t] : h;
+  return groups.slice(0, 4).map((g) => (Number.parseInt(g, 16) || 0).toString(16)).join(":") + "::/64";
+}
+
 /** Polar keys are short ASCII tokens. Anything else is rejected without asking Polar. */
 export function plausibleKey(key: string): boolean {
   return key.length >= 8 && key.length <= 128 && /^[A-Za-z0-9_-]+$/.test(key);

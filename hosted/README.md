@@ -44,6 +44,34 @@ digits for an invoice or receipt, else `""`; `date` is `YYYY-MM-DD` or `""`.
 
 Errors use Anthropic's shape: `{"type": "error", "error": {"type", "message"}}`.
 
+### The free trial
+
+Without Pro, the app can send a random install ID instead (`pro_trial = true`, opt-in):
+
+```
+POST https://api.betterairdrop.com/v1/name
+Authorization: Trial <UUID made by the app>
+{"image": "...", "context": "..."}          # exactly as above
+
+200 {...the same six fields...}
+    X-Trial-Remaining: 24
+```
+
+No Polar call. Photos only (`/v1/name-text` with a trial is `403 trial_photos_only`). Its own caps,
+none of which touch `GLOBAL_DAILY_CAP` (that counts paid calls only):
+
+| Cap | Var | Default | Refusal |
+|---|---|---|---|
+| Names per trial ID, for good | `TRIAL_CAP` | 25 | `403 trial_used_up` |
+| Trial Anthropic calls a day, everyone together | `TRIAL_DAILY_CAP` | 300 | `429 trial_daily_limit` (with `resets_at`) |
+| Trial names a day per network (IPv4 address, or IPv6 /64) | `TRIAL_IP_DAILY_CAP` | 50 | `429 trial_daily_limit` |
+
+Anyone can make IDs (the app is self-signed, so there's no App Attest), so `TRIAL_DAILY_CAP` is
+what bounds the spend; the per-network share stops one script from using up a day's trial for
+everyone. The daily budget is checked first, so once it's spent a flood of fresh IDs costs one
+Durable Object read each and no writes. Without the `TRIAL_IP_SALT` secret the trial answers
+`503 trial_unavailable` and nothing IP-derived is computed.
+
 ## What it pins
 
 The client sends only the image and the context. The model (`claude-haiku-5-5`), the system prompt
@@ -83,10 +111,19 @@ so the monthly and daily ceilings above don't change.
 One license at its 500-name cap costs at most $0.10 a month. The 5,000-a-day global cap is at most
 about $1 a day, or about $30 a month.
 
+**The free trial** has its own 300-a-day cap on Anthropic calls (the structured retry counts), so
+at most 300 × $0.00017 ≈ **$0.05 a day** (about $1.50 a month), on top of the paid ceiling, which
+it never touches. A whole trial (25 photos) costs about $0.005. Worst case for everything together:
+about **$1.05 a day**, about $32 a month. The $40 workspace limit (step 1 below) still covers it.
+
 ## State and privacy
 
 - **Stored:** for each license, the SHA-256 of the key, Polar's last verdict and when it was given,
-  and this month's count. One global count for today.
+  and this month's count. One global count for today. For the trial: per trial ID, the SHA-256 of
+  `trial:<id>` (in the `LicenseState` class) and its lifetime count; one trial count for today; and
+  per network, today's count keyed by the first 128 bits of SHA-256(`TRIAL_IP_SALT`, the date, the
+  IPv4 address or IPv6 /64). Never an IP address. An alarm deletes the per-network counts when the
+  UTC day ends, and the date in the hash means a network's key changes every day.
 - **Never stored:** keys, images, context or names. Logs carry only the status and outcome of each
   request (`{"event":"request","status":200,"outcome":"named"}`), kept by Workers Logs for 3 days
   (7 on Workers Paid). Invocation logs are off in `wrangler.jsonc`, so request headers, IP addresses
@@ -104,7 +141,8 @@ object runs one call at a time, so a cap holds exactly. Each name is 3 Durable O
 **Free-plan headroom** at the 5,000-a-day cap: about 5,000 Worker requests of 100,000, about 15,000
 Durable Object requests of 100,000, and about 10,000 rows written of 100,000. Checking a request takes
 about 3–4 ms of CPU (measured locally on a 400 KB image) against the free plan's 10 ms. If
-`wrangler tail` shows "exceeded CPU" errors, move to Workers Paid ($5 a month).
+`wrangler tail` shows "exceeded CPU" errors, move to Workers Paid ($5 a month). The trial adds at
+most about 300 names a day: about 600 Durable Object requests and 900 rows written.
 
 ## Develop
 
@@ -132,12 +170,15 @@ Deploying needs Moiz's Cloudflare and Anthropic accounts.
    `POLAR_BENEFIT_ID` to the Pro license-key benefit's ID, so only Pro keys work if the organization
    sells other keyed products.
 
-3. **Log in and set the secret.**
+3. **Log in and set the secrets.**
    ```sh
    cd hosted && npm ci
    npx wrangler login
    npx wrangler secret put ANTHROPIC_API_KEY     # paste the workspace key from step 1
+   openssl rand -hex 32 | npx wrangler secret put TRIAL_IP_SALT   # the trial's per-network salt
    ```
+   `TRIAL_IP_SALT` needs no backup: if it's lost or changed, today's per-network counts restart,
+   nothing else.
 
 4. **Domain.** `wrangler.jsonc` routes the Worker to `api.betterairdrop.com` as a Custom Domain.
    `betterairdrop.com` must be a zone in the same Cloudflare account. Wrangler then creates the DNS
@@ -161,7 +202,12 @@ Deploying needs Moiz's Cloudflare and Anthropic accounts.
         -H 'content-type: application/json' -d @/tmp/body.json -i
    ```
    Expect `200` with a subject and `X-Names-Remaining: 499`. A made-up key gives `403`.
-   `npx wrangler tail` shows one count line per request.
+   `npx wrangler tail` shows one count line per request. The trial, with a fresh ID:
+   ```sh
+   curl -s https://api.betterairdrop.com/v1/name -H "Authorization: Trial $(uuidgen)" \
+        -H 'content-type: application/json' -d @/tmp/body.json -i
+   ```
+   Expect `200` and `X-Trial-Remaining: 24` (a `503 trial_unavailable` means `TRIAL_IP_SALT` isn't set).
 
 7. **The app** uses `https://api.betterairdrop.com` (`HostedNamer.defaultBaseURL`). To try another
    deployment, add this to `~/.config/betterairdrop/config.toml`:
@@ -176,4 +222,6 @@ Deploying needs Moiz's Cloudflare and Anthropic accounts.
 
 ### Changing the limits
 
-`MONTHLY_CAP` and `GLOBAL_DAILY_CAP` are vars in `wrangler.jsonc`. Edit them and redeploy.
+`MONTHLY_CAP`, `GLOBAL_DAILY_CAP` and the `TRIAL_*` caps are vars in `wrangler.jsonc`. Edit them
+and redeploy. `TRIAL_DAILY_CAP = "0"` turns the trial off for everyone (the app then names photos
+on the Mac, as without it).

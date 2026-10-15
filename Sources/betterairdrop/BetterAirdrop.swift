@@ -14,7 +14,7 @@ struct BetterAirdrop: ParsableCommand {
 }
 
 enum BetterAirdropVersion {
-    static let current = "0.4.0"
+    static let current = "0.4.1"
 }
 
 struct GlobalOptions: ParsableArguments {
@@ -43,7 +43,7 @@ func makePlanner(config: Config, backend: String?) throws -> Planner {
         }
     }
     do {
-        planner.namer = try Backends.resolve(backend ?? config.backend, config: config, license: LicenseStore())
+        planner.namer = try Backends.resolve(backend ?? config.backend, config: config, license: LicenseStore(), trial: TrialStore())
     } catch {
         throw ValidationError("\(error)")
     }

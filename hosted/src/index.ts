@@ -14,6 +14,11 @@ export interface Env {
   POLAR_API?: string;
   MONTHLY_CAP?: string;
   GLOBAL_DAILY_CAP?: string;
+  TRIAL_CAP?: string;
+  TRIAL_DAILY_CAP?: string;
+  TRIAL_IP_DAILY_CAP?: string;
+  /** Secret: `wrangler secret put TRIAL_IP_SALT` (random, e.g. `openssl rand -hex 32`). The trial is off without it. */
+  TRIAL_IP_SALT?: string;
   LICENSES: DurableObjectNamespace<LicenseState>;
   BUDGET: DurableObjectNamespace<GlobalBudget>;
 }
@@ -46,6 +51,20 @@ export default {
         }),
       name: (image, context, mayRetry) => nameImage(anthropic, image, context, mayRetry),
       nameText: (context, text, mayRetry) => nameText(anthropic, context, text, mayRetry),
+      trialCap: int(env.TRIAL_CAP, 25),
+      trialDailyCap: int(env.TRIAL_DAILY_CAP, 300),
+      trialNetworkDailyCap: int(env.TRIAL_IP_DAILY_CAP, 50),
+      // A trial ID's count lives in the same class as a license's, under the hash of "trial:<id>".
+      trial: (hash) => env.LICENSES.get(env.LICENSES.idFromName(hash)),
+      trialBudget: () => {
+        const b = env.BUDGET.get(env.BUDGET.idFromName("trial"));
+        return {
+          consume: (period, network, networkCap, cap) => b.consumeTrial(period, network, networkCap, cap),
+          spend: (period, cap) => b.spendTrial(period, cap),
+          release: (period, network) => b.releaseTrial(period, network),
+        };
+      },
+      ipSalt: env.TRIAL_IP_SALT || undefined,
     });
   },
 } satisfies ExportedHandler<Env>;

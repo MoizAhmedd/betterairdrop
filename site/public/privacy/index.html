@@ -29,7 +29,7 @@
 
 <article>
   <h1>Privacy</h1>
-  <p class="answer">Photos and PDFs are named on your Mac. Something leaves it only when Claude names it: with your own Claude key, or with Pro naming. For a PDF, that's some of its text, never the file.</p>
+  <p class="answer">Photos and PDFs are named on your Mac. Something leaves it only when Claude names it: with your own Claude key, with Pro naming, or with its free trial once you turn it on. For a PDF, that's some of its text, never the file.</p>
 
   <h2>On your Mac</h2>
   <ul>
@@ -39,7 +39,7 @@
   </ul>
 
   <h2>When Claude names a photo</h2>
-  <p>With a Claude key or Pro, Automatic naming uses Claude. For each photo it sends:</p>
+  <p>With a Claude key, Pro, or the free trial turned on, Automatic naming uses Claude. For each photo it sends:</p>
   <ul>
     <li>a smaller JPEG copy (768 px) with all hidden data removed, such as GPS location (no EXIF)</li>
     <li>as text: the capture date, the city and country, the camera model, the app that created it, the kind of photo, labels found on your Mac, and up to 300 characters of text found in the image</li>
@@ -55,6 +55,7 @@
   <ul>
     <li><strong>Your own key:</strong> straight to Anthropic, on your account.</li>
     <li><strong>Pro naming:</strong> to BetterAirdrop's server on Cloudflare, with your licence key. It passes the image or text to Anthropic on BetterAirdrop's account.</li>
+    <li><strong>The free Pro naming trial:</strong> the same as Pro naming, for photos only, with a random trial ID made on your Mac instead of a licence key. It's off until you turn it on (Try It in the menu, or Settings → Naming) and ends after 25 photos.</li>
   </ul>
   <p>Anthropic handles API data under its <a href="https://www.anthropic.com/legal/privacy">privacy policy</a>. To keep everything on your Mac, pick Apple Vision or Apple Intelligence in Settings → Naming.</p>
 
@@ -63,6 +64,8 @@
   <ul>
     <li>per licence key: a one-way hash of the key (SHA-256, not the key itself), Polar's last answer about it, and this month's name count (photos and PDFs together)</li>
     <li>one count of today's Claude requests across everyone</li>
+    <li>per trial ID: a SHA-256 hash of the ID and how many of its 25 names it has used</li>
+    <li>for the trial's daily limits: one count of today's trial requests, and a count per network keyed by a salted hash of your IP address and the date (for IPv6, of its first half). Never the IP address itself. The counts are deleted when the day ends (UTC), and the hash changes every day, so it can't link your requests across days.</li>
     <li>one log line per request with its status and outcome, kept by Cloudflare for 3 to 7 days. No IP addresses, headers, keys, images or PDF text are logged.</li>
   </ul>
   <p>Cloudflare runs the server and handles each connection under its <a href="https://www.cloudflare.com/privacypolicy/">privacy policy</a>.</p>

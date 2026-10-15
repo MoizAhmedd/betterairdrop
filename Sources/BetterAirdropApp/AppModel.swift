@@ -47,6 +47,14 @@ final class AppModel: ObservableObject {
     @Published private(set) var showProMention = false
     /// A one-line note in the menu after a free user drops a folder.
     @Published var proHint: String?
+    /// The free Pro naming trial, as last heard from the server (nil until it starts).
+    @Published private(set) var trial: TrialState?
+    /// "No Thanks" on the trial offer.
+    @Published private(set) var trialOfferDismissed = false
+    /// The menu's "Your 25 free Pro names are used up" row, from the moment they are until dismissed.
+    @Published private(set) var showTrialEnded = false
+    /// Hook for the notification layer: the trial just ran out.
+    var onTrialEnded: (() -> Void)?
     private var lifetimeRenames = 0
     private var extraServices: [WatchService] = []
     private var buildGeneration = 0
@@ -80,6 +88,8 @@ final class AppModel: ObservableObject {
         }
         license = LicenseStore().read()
         proStatus = ProGate.status(license)
+        trial = TrialStore().read()
+        trialOfferDismissed = defaults.bool(forKey: "trialOfferDismissed")
     }
 
     // MARK: - Derived
@@ -93,9 +103,17 @@ final class AppModel: ObservableObject {
     }
     var isPaused: Bool { defaults.bool(forKey: "pausedIndefinitely") || pausedUntil != nil }
     var engine: EngineStatus {
-        EngineStatus.current(config: config, hasCredential: credential.any, appleReady: AppleIntelligenceStatus.current.isAvailable,
-                             hasLicense: isPro, hostedProblem: isPro ? HostedNamer.currentProblem(key: license?.key) : nil,
-                             hostedRemaining: isPro ? hostedUsage?.remaining : nil)
+        let trialLeft = EngineStatus.trialRemaining(config: config, trial: trial, isPro: isPro)
+        let problem = isPro ? HostedNamer.currentProblem(key: license?.key)
+            : trialLeft != nil ? HostedNamer.currentTrialProblem(id: trial?.id) : nil
+        return EngineStatus.current(config: config, hasCredential: credential.any, appleReady: AppleIntelligenceStatus.current.isAvailable,
+                                    hasLicense: isPro, hostedProblem: problem,
+                                    hostedRemaining: isPro ? hostedUsage?.remaining : nil, trialRemaining: trialLeft)
+    }
+
+    /// The menu offers the free trial (ProTrial.shouldOffer).
+    var showTrialOffer: Bool {
+        ProTrial.shouldOffer(config: config, isPro: isPro, hasCredential: credential.any, trial: trial, dismissed: trialOfferDismissed)
     }
     var needsAttention: Bool { state == .noAccess }
 
@@ -278,7 +296,7 @@ final class AppModel: ObservableObject {
     /// (`Backends.resolveDocuments`): text only, falling back to Apple Intelligence, never Vision.
     nonisolated static func makePlanner(config: Config, backend: String? = nil, pdfs: Bool = false) -> Planner {
         var planner = Planner(config: config)
-        planner.namer = (try? Backends.resolve(backend ?? config.backend, config: config, license: LicenseStore())) ?? VisionNamer()
+        planner.namer = (try? Backends.resolve(backend ?? config.backend, config: config, license: LicenseStore(), trial: TrialStore())) ?? VisionNamer()
         planner.analyzer = { VisionAnalyzer.analyze($0) }
         if pdfs {
             planner.pdfs = true
@@ -329,12 +347,40 @@ final class AppModel: ObservableObject {
     }
 
     /// Picks up what hosted naming last heard (after a batch or a manual rename) for Settings and
-    /// `status --json` (via app-state.json).
+    /// `status --json` (via app-state.json), and the trial's count.
     func refreshHostedUsage() {
+        refreshTrial()
         let u = HostedNamer.lastUsage()
         guard u != hostedUsage else { return }
         hostedUsage = u
         writeAppState()
+    }
+
+    // MARK: - Free trial
+
+    /// "Try It": `pro_trial` on, so the next photos go to hosted naming (Settings → Naming turns it off).
+    func startTrial() {
+        updateConfig { $0.proTrial = true }
+    }
+
+    func declineTrial() {
+        trialOfferDismissed = true
+        defaults.set(true, forKey: "trialOfferDismissed")
+    }
+
+    func dismissTrialEnded() { showTrialEnded = false }
+
+    /// The trial's file changed (a name used one up). The moment it runs out: the upsell (menu row,
+    /// one notification), and the watchers are rebuilt so `auto` is back to the free engines.
+    private func refreshTrial() {
+        let t = TrialStore().read()
+        guard t != trial else { return }
+        let ended = t?.usedUp == true && trial?.usedUp != true
+        trial = t
+        guard ended, !isPro else { return }
+        rebuildService()
+        showTrialEnded = true
+        onTrialEnded?()
     }
 
     /// Re-checks folder access and the lock now (menu opened, onboarding saw a grant, Retry).
@@ -545,7 +591,8 @@ final class AppModel: ObservableObject {
             || old.template != c.template || old.kindTemplates != c.kindTemplates || old.convertHEIC != c.convertHEIC
             || old.originals != c.originals || old.placeProvider != c.placeProvider || old.stripGPSFromOutput != c.stripGPSFromOutput
             || old.watchScreenshots != c.watchScreenshots || old.watchExtraFolders != c.watchExtraFolders || old.dateFormat != c.dateFormat
-            || old.fileFolders != c.fileFolders || old.fileMonthly != c.fileMonthly || old.namePDFs != c.namePDFs {
+            || old.fileFolders != c.fileFolders || old.fileMonthly != c.fileMonthly || old.namePDFs != c.namePDFs
+            || old.proTrial != c.proTrial {
             rebuildService()
         }
     }
