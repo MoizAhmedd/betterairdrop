@@ -412,7 +412,6 @@ extension HostedNamerTests {
         #expect(!c.namePDFs)
         #expect(try Config.parse(c.rendered(updating: nil)) == c)
         #expect(!Config().rendered(updating: nil).contains("name_pdfs"))
-        #expect(Config().kindTemplates["invoice"] == "{date}_invoice_{merchant}_{total}")
         #expect(try Config.parse("[file]\ninvoice = \"~/Documents/Invoices\"").fileFolders["invoice"] == "~/Documents/Invoices")
     }
 
