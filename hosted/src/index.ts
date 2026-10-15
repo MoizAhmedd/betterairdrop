@@ -25,8 +25,11 @@ const int = (v: string | undefined, fallback: number) => {
 
 export default {
   async fetch(request, env): Promise<Response> {
-    // One retry for 429/5xx/connection errors, 10 s each, plus Polar's 5 s: under the app's 30 s.
-    const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 10_000 });
+    // Worst case under the app's 30 s timeout (past it, the app retries and the photo is paid twice):
+    // Polar's 5 s, then up to two requests (the structured retry), each with one SDK retry for
+    // 429/5xx/connection errors, at 6 s a try: 5 + 4 × 6 = 29 s. A normal request takes about 1 s,
+    // a structured one 3-4.5 s (docs/perf.md).
+    const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 6_000 });
     return handle(request, {
       now: () => new Date(),
       monthlyCap: int(env.MONTHLY_CAP, 500),

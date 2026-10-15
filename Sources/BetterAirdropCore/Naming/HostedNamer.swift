@@ -51,7 +51,7 @@ public struct HostedNamer: Namer {
     public var baseURL: URL
     public var license: any LicenseKeySource
     public var transport: any HTTPTransport
-    /// The Worker's own worst case (a Polar check and two tries at Claude) is about 25 s.
+    /// The Worker's own worst case (a Polar check, then two requests to Claude with a retry each) is 29 s.
     public var timeout: TimeInterval = 30
     /// One retry for network errors and the Worker's 500/502/504. Never for 403, 422, 429 or 503.
     public var maxAttempts = 2
