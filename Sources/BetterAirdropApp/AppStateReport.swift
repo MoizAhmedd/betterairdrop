@@ -29,8 +29,11 @@ extension AppModel {
                          notifications: notificationStatus ?? .notAsked,
                          loginItem: AppState.LoginItem(SMAppService.mainApp.status),
                          watch: reportedWatch)
-        DispatchQueue.global(qos: .utility).async { try? s.save() }
+        Self.stateWrites.async { try? s.save() }
     }
+
+    /// One at a time and in order, so an older report never lands on top of a newer one.
+    private static let stateWrites = DispatchQueue(label: "dev.betterairdrop.app-state")
 
     private var reportedWatch: AppState.Watch {
         if isPaused { return .paused }
