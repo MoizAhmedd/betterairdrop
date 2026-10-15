@@ -170,7 +170,7 @@ public struct Planner: Sendable {
         let meta = ctx.metadata
         let kind = suggestion?.kind ?? ctx.kind
         var t: [String: String] = [
-            "date": meta.date ?? "",
+            "date": config.dateFormat.apply(meta.date ?? ""),
             "time": meta.time ?? "",
             "place": ctx.place.map { Slug.make($0.city, trimStopWords: false, maxChars: 30) } ?? "",
             "country": ctx.place?.countryCode.lowercased() ?? "",

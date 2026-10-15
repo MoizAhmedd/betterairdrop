@@ -16,8 +16,29 @@ import Foundation
 ///   An orphan MOV is left alone.
 public final class Watcher {
     public struct Options: Sendable {
+        /// Which files in the folder are the watcher's to name.
+        public enum Intake: Sendable, Equatable {
+            /// Only what AirDrop delivered (quarantine agent `sharingd`).
+            case airdrop
+            /// Every new image (the "only from AirDrop" switch off, or a folder added in Pro).
+            case all
+            /// Only screenshots this Mac took (`ScreenCapture`): the Pro screenshot watcher.
+            case screenshots
+            /// AirDrops plus this Mac's screenshots, for when screenshots are saved to the AirDrop folder.
+            case airdropAndScreenshots
+        }
+
         public var folder: URL
-        public var airdropOnly = true
+        public var intake = Intake.airdrop
+        /// The original switch, kept for callers: true is `.airdrop`, false is `.all`.
+        public var airdropOnly: Bool {
+            get { intake == .airdrop }
+            set { intake = newValue ? .airdrop : .all }
+        }
+        /// Live Photo `.mov` partners are candidates too. Off for the Pro watchers, which name images only.
+        public var movies = true
+        /// How a screenshot is recognised (injectable for tests).
+        public var isScreenshot: @Sendable (URL) -> Bool = { ScreenCapture.isScreenCapture($0) }
         public var backlog = false
         /// Size and mtime must hold this long. The container check (`ImageIntegrity`) is what
         /// guards against a truncated HEIC; this only covers a transfer that pauses mid-write.
@@ -117,17 +138,28 @@ public final class Watcher {
         for name in names.sorted() {
             if name.hasPrefix(".") || Planner.partialSuffixes.contains(where: { name.hasSuffix($0) }) { continue }
             let ext = (name as NSString).pathExtension.lowercased()
-            guard Planner.imageExtensions.contains(ext) || Self.movieExtensions.contains(ext) else { continue }
+            guard Planner.imageExtensions.contains(ext) || (options.movies && Self.movieExtensions.contains(ext)) else { continue }
             let url = folder.appendingPathComponent(name)
             guard let fp = Self.fingerprint(url) else { continue }
             if let old = ignored[url.path], old == fp { continue }
             let q = Quarantine.of(url)
-            if options.airdropOnly && !(q?.isAirDrop ?? false) { continue }
+            let isScreenshot = options.isScreenshot
+            if !Self.admits(options.intake, isAirDrop: q?.isAirDrop ?? false, isScreenshot: { isScreenshot(url) }) { continue }
             if Marker.read(url) != nil { continue }
             if !options.backlog, let t = Self.arrival(url, quarantine: q), t < startedAt { continue }
             out.append(url)
         }
         return out
+    }
+
+    /// The intake rule for one file. `isScreenshot` is only asked when it matters (it reads an xattr).
+    static func admits(_ intake: Options.Intake, isAirDrop: Bool, isScreenshot: () -> Bool) -> Bool {
+        switch intake {
+        case .all: true
+        case .airdrop: isAirDrop
+        case .screenshots: isScreenshot()
+        case .airdropAndScreenshots: isAirDrop || isScreenshot()
+        }
     }
 
     func isComplete(_ url: URL) -> Bool {
