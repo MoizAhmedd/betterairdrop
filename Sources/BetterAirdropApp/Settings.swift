@@ -169,6 +169,15 @@ struct NamingPane: View {
                     Text("Engine")
                     Text("Automatic uses Apple Intelligence when it's available, then Claude, then Apple Vision.")
                 }
+                if engineBinding.wrappedValue == .apple && !AppleIntelligenceStatus.current.isAvailable {
+                    let apple = AppleIntelligenceStatus.current
+                    LabeledContent {
+                        if let url = apple.settingsURL { Button("Open Settings…") { NSWorkspace.shared.open(url) } }
+                    } label: {
+                        Text("Apple Intelligence")
+                        Text(apple.message)
+                    }
+                }
                 LabeledContent("Now using") {
                     HStack(spacing: 5) {
                         Circle().fill(Color.green).frame(width: 7, height: 7)

@@ -16,13 +16,18 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    # macOS 26 for Xcode 26, whose SDK has FoundationModels (Apple Intelligence). The deployment
+    # target stays macOS 13 (Package.swift); FoundationModels is weak-linked and used only on 26+.
+    runs-on: macos-26
     timeout-minutes: 60
     outputs:
       version: ${{ steps.v.outputs.version }}
       sha256: ${{ steps.zip.outputs.sha256 }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check the SDK has FoundationModels
+        run: scripts/ci-check-sdk.sh
 
       - id: v
         name: Version
@@ -70,6 +75,10 @@ jobs:
           lipo -archs dist/BetterAirdrop.app/Contents/MacOS/BetterAirdrop
           lipo -archs dist/BetterAirdrop.app/Contents/Helpers/betterairdrop
           /usr/libexec/PlistBuddy -c 'Print :SUFeedURL' dist/BetterAirdrop.app/Contents/Info.plist
+          # Apple Intelligence is compiled into the arm64 slice (weak-linked, so macOS 13 still launches).
+          otool -arch arm64 -l dist/BetterAirdrop.app/Contents/MacOS/BetterAirdrop | grep -B2 -A2 'FoundationModels.framework'
+          otool -arch arm64 -l dist/BetterAirdrop.app/Contents/MacOS/BetterAirdrop | grep -B3 'FoundationModels.framework' | grep -q LC_LOAD_WEAK_DYLIB
+          /usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' dist/BetterAirdrop.app/Contents/Info.plist
 
       - id: zip
         name: Zip and SHA256SUMS

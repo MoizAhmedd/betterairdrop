@@ -10,9 +10,12 @@ same config, journal and undo.
 |---|---|---|---|
 | `claude` (Claude Haiku 4.5) | Anthropic's API | a 1024 px JPEG re-encoded **with all metadata removed** (no EXIF, no GPS), plus text: the date, the city name, the detected kind, a short OCR snippet and a device hint | `cinema-seating-in-empty-theatre` |
 | `vision` (Apple Vision) | on your Mac | nothing | `auditorium`, `window-brick` |
-| `apple` (Foundation Models) | on your Mac, macOS 27 | nothing | planned (M4) |
+| `apple` (Apple Intelligence, Foundation Models) | on your Mac, macOS 26+ with Apple Intelligence on | nothing | named from Vision's labels and text (the on-device model reads text, not pixels) |
 
-`backend = "auto"` (the default) uses **Claude when a credential is found, otherwise Vision**.
+`backend = "auto"` (the default) uses **Apple Intelligence when it's ready, else Claude when a
+credential is found, otherwise Vision**. If Apple Intelligence isn't available, `--backend apple`
+says why (off in System Settings → Apple Intelligence & Siri, model still downloading, Mac not
+supported, macOS older than 26). Like Claude, it falls back to Vision for any photo it can't name.
 Vision always runs anyway: it supplies the OCR text, kind hints and labels that go into Claude's
 context, and it names the photo by itself if Claude fails for any reason (no network, timeout,
 rate limit, refusal), so a rename never fails because of the network. The first time Claude is

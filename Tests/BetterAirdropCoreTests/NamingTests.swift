@@ -167,11 +167,13 @@ struct FakeNamer: Namer {
     }
 
     @Test func backends() throws {
-        #expect(try Backends.resolve("auto", auth: .none).id == "vision")          // no macOS 27, no credential
-        #expect(throws: BackendError.self) { try Backends.resolve("apple", auth: .none) }
+        // On a Mac without Apple Intelligence (and no credential) auto is Vision. AppleFMTests covers the rest.
+        if !AppleIntelligenceStatus.current.isAvailable {
+            #expect(try Backends.resolve("auto", auth: .none).id == "vision")
+            #expect(throws: BackendError.self) { try Backends.resolve("apple", auth: .none) }
+        }
         #expect(throws: BackendError.self) { try Backends.resolve("claude", auth: .none) }
         #expect(throws: BackendError.unknown("gpt")) { try Backends.resolve("gpt", auth: .none) }
-        if case .unavailable(let why) = AppleFMNamer().availability() { #expect(why.contains("macOS 27")) }
     }
 }
 

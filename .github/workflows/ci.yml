@@ -4,13 +4,17 @@ name: ci
 on:
   push:
     branches: [main]
-    paths: ["Sources/**", "Tests/**", "Package.*", ".github/workflows/ci.yml", "scripts/ci-test.sh"]
+    paths: ["Sources/**", "Tests/**", "Package.*", ".github/workflows/ci.yml", "scripts/ci-test.sh", "scripts/ci-check-sdk.sh"]
   workflow_dispatch:
 
 jobs:
   test:
-    runs-on: macos-15
+    # macOS 26 for Xcode 26: its SDK has FoundationModels, so the Apple Intelligence engine is
+    # compiled (with an older SDK `#if canImport(FoundationModels)` silently drops it).
+    runs-on: macos-26
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Check the SDK has FoundationModels
+        run: scripts/ci-check-sdk.sh
       - run: scripts/ci-test.sh

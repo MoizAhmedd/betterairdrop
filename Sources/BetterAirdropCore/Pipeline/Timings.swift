@@ -20,6 +20,8 @@ public struct StageTimings: Codable, Sendable, Equatable {
         case encode
         /// The Messages API request, retries included.
         case claude
+        /// The on-device Apple Intelligence request (waiting for the model included).
+        case apple
         /// HEIC → JPEG.
         case convert
         /// Journal, move into place, marker, original to the Trash.

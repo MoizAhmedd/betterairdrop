@@ -6,7 +6,8 @@ Push a tag. Everything else is `.github/workflows/release.yml`:
 git tag v0.3.1 && git push origin v0.3.1          # a hyphen (v0.3.1-rc.1) makes a pre-release
 ```
 
-1. **build** (macos-15): `swift test`; imports the certificate into a temporary keychain; runs
+1. **build** (macos-26, its default Xcode 26): checks the SDK has FoundationModels (without it the
+   Apple Intelligence engine compiles out); `swift test`; imports the certificate into a temporary keychain; runs
    `scripts/make-app.sh --universal --sign` (arm64 and x86_64 built separately and joined with
    `lipo`, signed inside-out); checks `codesign --verify --deep --strict` and prints
    `codesign -d -r-`; zips with `ditto`; writes `SHA256SUMS`; signs the zip for Sparkle

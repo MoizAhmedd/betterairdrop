@@ -22,7 +22,7 @@ struct Watch: ParsableCommand {
     @Option(help: "Folder to watch (default: watch.folder in the config, ~/Downloads).", completion: .directory)
     var dir: String?
 
-    @Option(help: "Naming backend: auto, claude, vision, apple (macOS 27).")
+    @Option(help: "Naming backend: auto, claude, vision, apple (Apple Intelligence, macOS 26+).")
     var backend: String?
 
     @Flag(help: "Also name AirDrops that arrived before the watcher started.")
@@ -90,7 +90,7 @@ struct Watch: ParsableCommand {
             print("\(summary). Undo: betterairdrop undo --batch \(b.id)\(tokens.isEmpty ? "" : String(format: "  (Claude: %d photo%@, about $%.4f)", tokens.count, tokens.count == 1 ? "" : "s", cost))")
         }
 
-        let backendDesc = namer.map { Backends.isCloud($0) ? "claude (Apple Vision if it fails)" : $0.id } ?? "none"
+        let backendDesc = namer.map { $0 is FallbackNamer ? "\($0.id) (Apple Vision if it fails)" : $0.id } ?? "none"
         print("betterairdrop: watching \(tilde(folder.path)) for \(options.airdropOnly ? "AirDrop arrivals" : "new photos")"
               + "\(backlog ? " (including earlier ones)" : "") · backend \(backendDesc) · Ctrl-C to stop")
 

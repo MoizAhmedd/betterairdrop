@@ -1,31 +1,4 @@
 import Foundation
-#if canImport(FoundationModels)
-import FoundationModels
-#endif
-
-/// Apple's on-device Foundation Models (macOS 27 + Apple Intelligence). Placeholder until M4:
-/// it compiles everywhere and reports why it isn't available. The FoundationModels branch is
-/// only compiled with an SDK that ships the framework.
-public struct AppleFMNamer: Namer {
-    public let id = "apple"
-    public init() {}
-
-    public func availability() -> Availability {
-        #if canImport(FoundationModels)
-        if #available(macOS 27, *) {
-            switch SystemLanguageModel.default.availability {
-            case .available: return .unavailable("Foundation Models is available, but the apple backend isn't implemented yet (M4)")
-            default: return .unavailable("Apple Intelligence is off or not supported on this Mac")
-            }
-        }
-        #endif
-        return .unavailable("requires macOS 27 with Apple Intelligence")
-    }
-
-    public func suggest(for url: URL, context: PhotoContext) throws -> NameSuggestion {
-        throw BackendError.unavailable(id, reason: "not implemented yet (M4)")
-    }
-}
 
 public enum BackendError: Error, CustomStringConvertible, Equatable {
     case unknown(String), unavailable(String, reason: String)
@@ -60,20 +33,21 @@ public enum Backends {
     }
 
     /// `auto` = apple if it's ready, else Claude if a credential resolves (and `claude.auto` is on),
-    /// else vision. Claude always falls back to Vision per photo on any failure, so a rename never
-    /// fails because of the network. An explicit backend that isn't available is an error.
-    public static func resolve(_ id: String, config: Config = Config(), auth: ClaudeAuth = .shared) throws -> any Namer {
+    /// else vision. Claude and Apple Intelligence always fall back to Vision per photo on any
+    /// failure, so a rename never fails because of the network or the model. An explicit backend
+    /// that isn't available is an error.
+    public static func resolve(_ id: String, config: Config = Config(), auth: ClaudeAuth = .shared,
+                               apple: AppleFMNamer = AppleFMNamer()) throws -> any Namer {
         if id == "auto" {
-            let apple = AppleFMNamer()
-            if case .ready = apple.availability() { return apple }
+            if case .ready = apple.availability() { return FallbackNamer(primary: apple, fallback: VisionNamer()) }
             if config.claudeInAuto, auth.resolve() != nil {
                 return FallbackNamer(primary: ClaudeNamer(model: config.claudeModel, auth: auth), fallback: VisionNamer())
             }
             return VisionNamer()
         }
-        let namer = try make(id, config: config, auth: auth)
+        let namer = id == "apple" ? apple : try make(id, config: config, auth: auth)
         if case .unavailable(let why) = namer.availability() { throw BackendError.unavailable(id, reason: why) }
-        if id == "claude" { return FallbackNamer(primary: namer, fallback: VisionNamer()) }
+        if id == "claude" || id == "apple" { return FallbackNamer(primary: namer, fallback: VisionNamer()) }
         return namer
     }
 
