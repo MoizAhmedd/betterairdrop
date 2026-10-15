@@ -33,6 +33,8 @@ public final class Committer {
     public let journal: Journal
     public let trasher: any Trasher
     public var backend = "none"
+    /// Pro: add Finder tags (kind, and the city for photos) to each renamed file.
+    public var tagging = false
     /// Test hook, called after each stage.
     public var fault: ((Stage, URL) throws -> Void)?
 
@@ -181,7 +183,10 @@ public final class Committer {
                 }
             }
             try fault?(.originalHandled, source)
-            try journal.append(begun!.with(.done, trashed: trashed?.path))
+            // Pro: Finder tags. Best effort: a file that can't be tagged is still renamed.
+            var done = begun!.with(.done, trashed: trashed?.path)
+            if tagging, let added = try? FinderTags.add(FinderTags.tags(for: p), to: dest), !added.isEmpty { done.tags = added }
+            try journal.append(done)
             return Outcome(source: source.path, target: dest.path, status: .done, trashed: trashed?.path)
         } catch let crash as SimulatedCrash {
             throw crash

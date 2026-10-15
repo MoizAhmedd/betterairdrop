@@ -106,6 +106,7 @@ template = "{date}_{place}_{subject}"   # tokens: date time place country subjec
 originals = "trash"                     # trash | keep | delete
 convert_heic = true
 date_format = "yyyy-mm-dd"              # yyyy-mm-dd | yyyymmdd | yyyy-mm | dd-mm-yyyy | mm-dd-yyyy
+finder_tags = false                     # Pro, menu-bar app only: tag renamed files with the kind (and city for photos)
 
 [watch]
 folder = "~/Downloads"

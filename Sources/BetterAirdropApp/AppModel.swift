@@ -164,6 +164,7 @@ final class AppModel: ObservableObject {
             let built = plan.entries.enumerated().map { i, e -> (WatchPlan.Entry, Watcher, WatchService) in
                 let committer = Committer(config: config, journal: journal)
                 committer.backend = planner.namer?.id ?? "none"
+                committer.tagging = pro && config.finderTags
                 var options = Watcher.Options(folder: e.folder)
                 options.intake = e.intake
                 options.movies = e.movies
@@ -470,9 +471,10 @@ final class AppModel: ObservableObject {
 
     /// Plans and commits specific files (Redo, Rename Again, the preview sheet's result).
     func commit(_ proposals: [Proposal], completion: @escaping (Watcher.Batch) -> Void) {
-        let config = self.config, journal = self.journal
+        let config = self.config, journal = self.journal, tagging = isPro && config.finderTags
         DispatchQueue.global(qos: .userInitiated).async {
             let committer = Committer(config: config, journal: journal)
+            committer.tagging = tagging
             let id = Journal.newBatchID()
             let outcomes = (try? committer.commit(proposals, batch: id)) ?? []
             let batch = Watcher.Batch(id: id, proposals: proposals, outcomes: outcomes)
@@ -508,6 +510,7 @@ final class AppModel: ObservableObject {
         let old = config
         config = c
         do { try c.save(to: configURL); configError = nil } catch { configError = "\(error)" }
+        if old.finderTags != c.finderTags { rebuildService(); return }   // the watchers' committers tag (or not)
         if old.watchFolder != c.watchFolder || old.backend != c.backend || old.claudeModel != c.claudeModel
             || old.claudeInAuto != c.claudeInAuto || old.watchAirdropOnly != c.watchAirdropOnly
             || old.template != c.template || old.kindTemplates != c.kindTemplates || old.convertHEIC != c.convertHEIC

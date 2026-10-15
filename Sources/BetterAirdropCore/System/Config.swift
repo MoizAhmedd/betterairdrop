@@ -47,6 +47,9 @@ public struct Config: Sendable, Equatable {
     /// Whether `backend = "auto"` may use Claude when a credential is found. Off = auto stays on-device.
     public var claudeInAuto = true
 
+    /// Pro (menu-bar app only): add Finder tags (the kind, and the city for photos) to renamed files.
+    public var finderTags = false
+
     /// Keys the parser didn't recognise (reported by `doctor`, never fatal).
     public var unknownKeys: [String] = []
 
@@ -227,6 +230,7 @@ public struct Config: Sendable, Equatable {
         case "ollama.model": ollamaModel = try str()
         case "claude.model": claudeModel = try str()
         case "claude.auto": claudeInAuto = try bool()
+        case "finder_tags": finderTags = try bool()
         default:
             if key.hasPrefix("templates.") {
                 let kind = String(key.dropFirst("templates.".count))

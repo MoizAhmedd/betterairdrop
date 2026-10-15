@@ -42,6 +42,8 @@ public struct JournalRecord: Codable, Sendable, Equatable {
     public var message: String?
     /// What naming this file cost at list price, in US dollars (cloud backends only).
     public var costUSD: Double?
+    /// Finder tags BetterAirdrop added (Pro), on the `done` record; undo removes exactly these.
+    public var tags: [String]?
 
     public init(op: Op, batch: String, action: Proposal.Action, source: String, target: String,
                 sourceSHA1: String, outputSHA1: String, originals: String? = nil, trashed: String? = nil,

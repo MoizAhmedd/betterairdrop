@@ -82,6 +82,7 @@ public struct Undoer {
                 guard targetExists else { return outcome(.failed, "neither \(source.lastPathComponent) nor \(target.lastPathComponent) exists") }
                 try FileOps.renameExclusive(target, source)
                 Marker.remove(source)
+                if let tags = r.tags { FinderTags.remove(tags, from: source) }
                 return outcome(.restored)
 
             case .convert:

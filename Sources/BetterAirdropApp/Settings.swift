@@ -271,6 +271,7 @@ struct NamingPane: View {
                 }
             }
             NameBuilderSection(model: model, template: $template)
+            FinderTagsSection(model: model)
         }
         .formStyle(.grouped)
         .fixedSize(horizontal: false, vertical: true)
