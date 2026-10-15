@@ -67,6 +67,7 @@ struct Watch: ParsableCommand {
         var options = Watcher.Options(folder: folder)
         options.airdropOnly = config.watchAirdropOnly
         options.backlog = backlog
+        options.pdfs = planner.pdfs
         if let q = quietSeconds { options.quietWindow = q }
         let watcher = Watcher(options: options, planner: planner, committer: committer)
         if config.watchNotify && !noNotify { watcher.notifier = OSAScriptNotifier() }

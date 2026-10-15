@@ -96,11 +96,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
         status.close()
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
-        panel.message = "Choose photos to rename. You'll see the new names before anything changes."
+        panel.message = model.namesPDFs ? "Choose photos or PDFs to rename. You'll see the new names before anything changes."
+                                         : "Choose photos to rename. You'll see the new names before anything changes."
         panel.prompt = "Preview Names"
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = model.isPro   // whole folders are Pro
-        panel.allowedContentTypes = [.heic, .heif, .jpeg, .png, .rawImage]
+        panel.allowedContentTypes = [.heic, .heif, .jpeg, .png, .rawImage] + (model.namesPDFs ? [.pdf] : [])
         panel.directoryURL = model.folder
         panel.begin { [weak self] r in
             if r == .OK { self?.renameFiles(panel.urls) }
@@ -110,7 +111,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
     /// The preview sheet for any set of files (Rename Files…, a drop on the icon, Services, the
     /// first-run backlog). Names are worked out 20 at a time; nothing changes until Rename.
     func renameFiles(_ urls: [URL]) {
-        let (files, folders) = PhotoFolders.split(urls)
+        let pdfs = model.namesPDFs
+        let (files, folders, skippedPDFs) = PhotoFolders.split(urls, pdfs: pdfs)
+        if files.isEmpty && folders.isEmpty && skippedPDFs > 0 {
+            // Only PDFs, and PDF naming is off (or this is free): one quiet line in the menu, no dialog.
+            status.open()
+            model.proHint = model.isPro ? "PDF naming is off: turn on Name PDFs too in Settings → Pro."
+                                        : "Naming PDFs is part of BetterAirdrop Pro."
+            return
+        }
         guard !folders.isEmpty else { previewRenames(files); return }
         guard model.isPro else {
             // Free renames the files it was given; folders are Pro. One quiet line in the menu, no dialog.
@@ -123,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
             return
         }
         DispatchQueue.global(qos: .userInitiated).async {
-            let found = folders.flatMap { PhotoFolders.images(in: $0) }
+            let found = folders.flatMap { PhotoFolders.images(in: $0, pdfs: pdfs) }
             DispatchQueue.main.async { [weak self] in self?.previewRenames(files + found) }
         }
     }

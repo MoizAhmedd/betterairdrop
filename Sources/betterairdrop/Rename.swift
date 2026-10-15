@@ -10,7 +10,7 @@ struct Rename: ParsableCommand {
 
     @OptionGroup var global: GlobalOptions
 
-    @Argument(help: "Image files to rename.", completion: .file())
+    @Argument(help: "Image files to rename (and PDFs, with Pro and name_pdfs on).", completion: .file())
     var files: [String]
 
     @Flag(help: "Show what would happen without changing anything.")
@@ -25,7 +25,7 @@ struct Rename: ParsableCommand {
     @Option(help: "Filename template, e.g. \"{date}_{place}_{subject}\".")
     var template: String?
 
-    @Flag(help: "Only touch files AirDrop delivered (quarantine agent sharingd).")
+    @Flag(help: "Only touch files AirDrop delivered (quarantine agent sharingd; for PDFs, any download or AirDrop).")
     var airdropOnly = false
 
     @Option(help: "What to do with a converted HEIC's original: trash, keep or delete.")

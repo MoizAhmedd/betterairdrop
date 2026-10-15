@@ -21,6 +21,8 @@ public struct WatchPlan: Equatable, Sendable {
         public var folder: URL
         public var intake: Watcher.Options.Intake
         public var role: Role
+        /// Pro, "Name PDFs too": PDFs here are named as well. Never in the screenshot folder.
+        public var pdfs = false
         /// Live Photo videos are only picked up in the AirDrop folder.
         public var movies: Bool { role == .airdrop }
     }
@@ -30,12 +32,14 @@ public struct WatchPlan: Equatable, Sendable {
     /// - Parameters:
     ///   - screenshots: the screenshot folder when "Also name new screenshots" is on (and Pro is unlocked).
     ///   - extras: the user's other folders (when Pro is unlocked).
-    public static func make(main: URL, mainAirdropOnly: Bool, screenshots: URL?, extras: [URL]) -> WatchPlan {
-        var mainEntry = Entry(folder: main, intake: mainAirdropOnly ? .airdrop : .all, role: .airdrop)
+    ///   - pdfs: "Name PDFs too" is on and Pro is unlocked: the AirDrop folder and the other folders
+    ///     name new PDFs as well.
+    public static func make(main: URL, mainAirdropOnly: Bool, screenshots: URL?, extras: [URL], pdfs: Bool = false) -> WatchPlan {
+        var mainEntry = Entry(folder: main, intake: mainAirdropOnly ? .airdrop : .all, role: .airdrop, pdfs: pdfs)
         var seen: Set<String> = [key(main)]
         var others: [Entry] = []
         for u in extras where seen.insert(key(u)).inserted {
-            others.append(Entry(folder: u, intake: .all, role: .folder))
+            others.append(Entry(folder: u, intake: .all, role: .folder, pdfs: pdfs))
         }
         if let s = screenshots {
             if key(s) == key(main) {
@@ -67,16 +71,16 @@ public enum PhotoFolders {
         (try? u.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
     }
 
-    /// Images in the folder and its subfolders, skipping hidden files and packages, sorted by path,
-    /// at most `limit`.
-    public static func images(in folder: URL, limit: Int = PhotoFolders.limit) -> [URL] {
+    /// Images (and, with `pdfs`, PDFs) in the folder and its subfolders, skipping hidden files and
+    /// packages, sorted by path, at most `limit`.
+    public static func images(in folder: URL, limit: Int = PhotoFolders.limit, pdfs: Bool = false) -> [URL] {
         guard isFolder(folder), !isPackage(folder),
               let e = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [.isRegularFileKey],
                                                      options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
         var out: [URL] = []
         for case let u as URL in e {
             if isPackage(u) { e.skipDescendants(); continue }
-            guard Planner.imageExtensions.contains(u.pathExtension.lowercased()),
+            guard Planner.imageExtensions.contains(u.pathExtension.lowercased()) || (pdfs && PDFIntake.isPDF(u)),
                   (try? u.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
             out.append(u)
             if out.count >= limit { break }
@@ -84,15 +88,16 @@ public enum PhotoFolders {
         return out.sorted { $0.path < $1.path }
     }
 
-    /// Splits what was dropped into image files and folders. Free renames the files; Pro expands
-    /// the folders too.
-    public static func split(_ urls: [URL]) -> (files: [URL], folders: [URL]) {
-        var files: [URL] = [], folders: [URL] = []
+    /// Splits what was dropped into image files (plus PDFs, with `pdfs`) and folders. Free renames
+    /// the files; Pro expands the folders too. `skippedPDFs` counts PDFs left out because `pdfs` is off.
+    public static func split(_ urls: [URL], pdfs: Bool = false) -> (files: [URL], folders: [URL], skippedPDFs: Int) {
+        var files: [URL] = [], folders: [URL] = [], skipped = 0
         for u in urls {
             if isFolder(u) { if !isPackage(u) { folders.append(u) } }
             else if Planner.imageExtensions.contains(u.pathExtension.lowercased()) { files.append(u) }
+            else if PDFIntake.isPDF(u) { if pdfs { files.append(u) } else { skipped += 1 } }
         }
-        return (files, folders)
+        return (files, folders, skipped)
     }
 }
 

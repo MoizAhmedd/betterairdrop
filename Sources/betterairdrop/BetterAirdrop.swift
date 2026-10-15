@@ -28,9 +28,20 @@ struct GlobalOptions: ParsableArguments {
 
 extension Config.Originals: ExpressibleByArgument {}
 
-/// The planner the CLI uses: local Vision analysis for context, and the configured namer.
+/// Pro with "Name PDFs too" on (`name_pdfs`, on by default): the same rule as the app.
+func namesPDFs(_ config: Config) -> Bool { config.namePDFs && LicenseStore().licenseKey() != nil }
+
+/// The planner the CLI uses: local Vision analysis for context, and the configured namer. With
+/// Pro and `name_pdfs`, PDFs too, with their own text-only engine.
 func makePlanner(config: Config, backend: String?) throws -> Planner {
     var planner = Planner(config: config)
+    if namesPDFs(config) {
+        planner.pdfs = true
+        planner.documentNamer = Backends.resolveDocuments(backend ?? config.backend, config: config, license: LicenseStore())
+        if let d = planner.documentNamer, Backends.isCloud(d) {
+            CloudNotice.showPDFNoteOnce { stderr("note: " + $0.replacingOccurrences(of: "\n", with: "\n      ") + "\n") }
+        }
+    }
     do {
         planner.namer = try Backends.resolve(backend ?? config.backend, config: config, license: LicenseStore())
     } catch {

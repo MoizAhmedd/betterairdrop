@@ -20,7 +20,11 @@ public struct BatchMessage: Equatable, Sendable {
         let offline = done.contains { proposals[$0.source]?.suggestion?.fallbackFrom != nil }
         let n = done.count
         let f = batch.failed
-        var title = n == 0 && f > 0 ? "Couldn't rename \(f) photo\(f == 1 ? "" : "s")" : "Renamed \(n) photo\(n == 1 ? "" : "s")"
+        let pdfs = done.filter { PDFIntake.isPDF(URL(fileURLWithPath: $0.source)) }.count
+        func count(_ k: Int, _ word: String) -> String { "\(k) \(word)\(k == 1 ? "" : "s")" }
+        let what = pdfs == 0 ? count(n, "photo") : pdfs == n ? count(n, "PDF") : count(n - pdfs, "photo") + " and " + count(pdfs, "PDF")
+        let failedPDFs = batch.outcomes.filter { $0.status == .failed && PDFIntake.isPDF(URL(fileURLWithPath: $0.source)) }.count
+        var title = n == 0 && f > 0 ? "Couldn't rename \(count(f, failedPDFs == f ? "PDF" : "photo"))" : "Renamed \(what)"
         if n > 0 && f > 0 { title += ", \(f) failed" }
         if offline { title += " (offline)" }
 
@@ -35,8 +39,13 @@ public struct BatchMessage: Equatable, Sendable {
         case 2: body = "\(names[0]) and \(names[1])"
         default: body = "\(names[0]), \(names[1]) and \(names.count - 2) more"
         }
-        if offline { body = "Claude couldn't be reached, so Apple Vision named \(n == 1 ? "it" : "these"): " + body }
-        return BatchMessage(title: title, body: body, offline: offline, thumbnailPath: done.first?.target)
+        if offline {
+            let engine = done.contains { proposals[$0.source]?.suggestion?.backend == "apple" } ? "Apple Intelligence" : "Apple Vision"
+            body = "Claude couldn't be reached, so \(engine) named \(n == 1 ? "it" : "these"): " + body
+        }
+        // Notification attachments are images; a PDF's banner has no thumbnail.
+        let thumb = done.first { !PDFIntake.isPDF(URL(fileURLWithPath: $0.source)) }?.target
+        return BatchMessage(title: title, body: body, offline: offline, thumbnailPath: thumb)
     }
 
     /// After Undo, the banner is replaced by this.

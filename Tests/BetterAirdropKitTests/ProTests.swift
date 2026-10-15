@@ -596,7 +596,7 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
         #expect(PhotoFolders.images(in: a).map { $0.resolvingSymlinksInPath().path.replacingOccurrences(of: base, with: "") } == ["IMG_1.HEIC", "sub/IMG_2.jpg"])
         #expect(PhotoFolders.images(in: a.appendingPathComponent("Photos Library.photoslibrary")).isEmpty)
         #expect(PhotoFolders.images(in: a, limit: 1).count == 1)
-        let (files, folders) = PhotoFolders.split([a.appendingPathComponent("IMG_1.HEIC"), a.appendingPathComponent("notes.txt"), a.appendingPathComponent("sub"),
+        let (files, folders, _) = PhotoFolders.split([a.appendingPathComponent("IMG_1.HEIC"), a.appendingPathComponent("notes.txt"), a.appendingPathComponent("sub"),
                                                    a.appendingPathComponent("Photos Library.photoslibrary")])
         #expect(files.map(\.lastPathComponent) == ["IMG_1.HEIC"])
         #expect(folders.map(\.lastPathComponent) == ["sub"])
