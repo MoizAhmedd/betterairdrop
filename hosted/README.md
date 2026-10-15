@@ -22,6 +22,7 @@ Authorization: Bearer <Pro license key>
 | 413 | `payload_too_large` | Image over 400 KB or over 768 px |
 | 422 | `refusal` | Claude declined the image |
 | 429 | `monthly_limit` / `daily_limit` | 500 names per license per calendar month (UTC), or the global daily cap on Anthropic calls (a re-asked answer is two). `error.resets_at` and `Retry-After` say when it resets |
+| 500 | `internal_error` | Anything unexpected (a Durable Object failure). Logged by error name only |
 | 502 | `upstream_error` / `bad_output` | Anthropic failed, or answered twice with something unusable |
 | 503 | `license_check_unavailable` | Polar is down and the key has no valid check from the last 7 days |
 

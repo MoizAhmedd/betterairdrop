@@ -242,6 +242,15 @@ describe("payloads", () => {
     expect(w.net.calls).toHaveLength(0);
   });
 
+  it("an unexpected failure is a JSON 500 that the app retries, logged without its message", async () => {
+    const w = world({ validate: async () => { throw new Error(`storage failed for ${KEY}`); } });
+    const res = await handle(request(), w.deps);
+    expect(res.status).toBe(500);
+    expect((await body(res)).error.type).toBe("internal_error");
+    expect(JSON.stringify(w.logs)).not.toContain(KEY);
+    expect(w.logs.at(-1)).toEqual({ event: "request", status: 500, outcome: "internal_error" });
+  });
+
   it("only POST /v1/name exists", async () => {
     const w = world();
     expect((await handle(request(undefined, { path: "/v1/messages" }), w.deps)).status).toBe(404);

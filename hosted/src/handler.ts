@@ -40,9 +40,17 @@ export interface Deps {
 }
 
 export async function handle(req: Request, deps: Deps): Promise<Response> {
-  const res = await route(req, deps);
+  const log = deps.log ?? ((l) => console.log(JSON.stringify(l)));
+  let res: Response;
+  try {
+    res = await route(req, deps);
+  } catch (e) {
+    // A Durable Object or runtime failure. The error's name only: its message could carry anything.
+    log({ event: "internal_error", name: e instanceof Error ? e.name : typeof e });
+    res = error(500, "internal_error", "Hosted naming hit an error. Try again in a minute.");
+  }
   // Counts only: the outcome and status, never keys, images, context or names.
-  (deps.log ?? ((l) => console.log(JSON.stringify(l))))({ event: "request", status: res.status, outcome: res.headers.get("x-outcome") });
+  log({ event: "request", status: res.status, outcome: res.headers.get("x-outcome") });
   res.headers.delete("x-outcome");
   return res;
 }
