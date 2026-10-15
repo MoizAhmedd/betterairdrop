@@ -12,10 +12,12 @@ public enum TemplatePreview {
     public static let tokens = ["date", "time", "place", "country", "subject", "kind", "device", "orig"]
 
     /// The name a sample photo would get, or the template's error.
-    public static func render(_ source: String, ext: String = "jpg") -> Result<String, Error> {
+    public static func render(_ source: String, ext: String = "jpg", dateFormat: DateFormat = .iso) -> Result<String, Error> {
         do {
             let t = try Template(source)
-            guard let stem = t.render(sample) else { return .failure(CocoaError(.formatting)) }
+            var values = sample
+            values["date"] = dateFormat.apply(sample["date"]!)
+            guard let stem = t.render(values) else { return .failure(CocoaError(.formatting)) }
             return .success("\(stem).\(ext)")
         } catch { return .failure(error) }
     }

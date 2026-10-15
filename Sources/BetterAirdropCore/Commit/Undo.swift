@@ -65,6 +65,7 @@ public struct Undoer {
         let source = URL(fileURLWithPath: r.source), target = URL(fileURLWithPath: r.target)
         func outcome(_ st: Outcome.Status, _ msg: String? = nil, reason: Outcome.Reason? = nil) -> Outcome {
             if st == .restored || st == .alreadyClean { try? journal.append(r.with(.undo, message: msg)) }
+            if st == .restored { Marker.markUndone(source) }   // so a running watcher doesn't rename it back
             return Outcome(source: r.source, target: r.target, status: st, message: msg, reason: reason)
         }
         let targetExists = FileOps.exists(target)
@@ -82,6 +83,7 @@ public struct Undoer {
                 guard targetExists else { return outcome(.failed, "neither \(source.lastPathComponent) nor \(target.lastPathComponent) exists") }
                 try FileOps.renameExclusive(target, source)
                 Marker.remove(source)
+                if let tags = r.tags { FinderTags.remove(tags, from: source) }
                 return outcome(.restored)
 
             case .convert:

@@ -64,6 +64,7 @@ final class StatusItemController: NSObject {
         guard let button = item.button, let buttonWindow = button.window else { return }
         model.refreshRecent()
         model.recheck()
+        model.panelOpened()
         let p = panel ?? MenuPanel(root: PanelView(model: model, actions: actions))
         panel = p
         p.onClose = { [weak self] in self?.didClose() }

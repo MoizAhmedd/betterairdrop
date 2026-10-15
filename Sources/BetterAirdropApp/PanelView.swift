@@ -18,6 +18,8 @@ protocol PanelActions: AnyObject {
     func redo(_ item: RecentItem)
     func previewBacklog()
     func addClaudeKey()
+    func showPro()
+    func exportReceipts()
     func quit()
 }
 
@@ -30,6 +32,7 @@ struct PanelView: View {
             header
             bars
             firstRunRows
+            proRows
             HStack {
                 Text("Recent").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                 Spacer()
@@ -52,6 +55,7 @@ struct PanelView: View {
             MenuRow(title: "Open \(model.folderName)", shortcut: "⇧⌘L") { actions.openFolder() }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
             MenuRow(title: "Show All History…") { actions.showHistory() }
+            if model.isPro { MenuRow(title: "Export Receipts as CSV…") { actions.exportReceipts() } }
             PauseMenuRow(model: model)
             Divider().padding(.horizontal, 10).padding(.vertical, 5)
             MenuRow(title: "Settings…", shortcut: "⌘,") { actions.showSettings() }
@@ -153,6 +157,40 @@ extension PanelView {
                 actions.previewBacklog()
             }
         }
+    }
+}
+
+extension PanelView {
+    /// The only places the menu mentions Pro: once after the 20th rename, and right after a free
+    /// user drops a folder. Both are one line and go away on their own.
+    @ViewBuilder var proRows: some View {
+        if let hint = model.proHint {
+            ProNoteRow(text: hint, link: "Learn more ›", open: { actions.showPro() }, close: { model.proHint = nil })
+        } else if model.showProMention {
+            ProNoteRow(text: "Pro also names your screenshots and photos in other folders.", link: "Learn more ›",
+                       open: { actions.showPro() }, close: { model.dismissProMention() })
+        }
+    }
+}
+
+struct ProNoteRow: View {
+    let text: String
+    let link: String
+    let open: () -> Void
+    let close: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(text).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button(link, action: open).buttonStyle(.link)
+            }
+            .font(.system(size: 11.5))
+            Spacer(minLength: 0)
+            Button(action: close) { Image(systemName: "xmark").font(.system(size: 9, weight: .semibold)) }
+                .buttonStyle(.plain).foregroundStyle(.secondary).help("Dismiss")
+        }
+        .padding(.horizontal, 10).padding(.bottom, 6)
     }
 }
 

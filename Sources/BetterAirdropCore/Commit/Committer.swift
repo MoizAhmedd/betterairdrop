@@ -33,6 +33,8 @@ public final class Committer {
     public let journal: Journal
     public let trasher: any Trasher
     public var backend = "none"
+    /// Pro: add Finder tags (kind, and the city for photos) to each renamed file.
+    public var tagging = false
     /// Test hook, called after each stage.
     public var fault: ((Stage, URL) throws -> Void)?
 
@@ -101,6 +103,11 @@ public final class Committer {
         let source = URL(fileURLWithPath: p.source)
         let sourceSHA1 = try FileOps.sha1(source)
         var prep = Prepared(sourceSHA1: sourceSHA1, outputSHA1: sourceSHA1)
+        // Filing by kind (Pro) can target a folder that doesn't exist yet (Receipts/2026-10).
+        if let target = p.target {
+            let dir = URL(fileURLWithPath: target).deletingLastPathComponent()
+            if !FileOps.exists(dir) { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
+        }
         guard p.action == .convert, let target = p.target else { return prep }
         let t = URL(fileURLWithPath: target).deletingLastPathComponent().appendingPathComponent(".betterairdrop-\(UUID().uuidString).jpg.tmp")
         do {
@@ -138,11 +145,14 @@ public final class Committer {
             var dest = FileOps.exists(planned) ? CollisionResolver.resolve(directory: dir, stem: stem, ext: ext) : planned
 
             let summary = p.suggestion.map { "\($0.kind.rawValue): \($0.subject)" } ?? p.context.map { $0.kind.rawValue }
-            let rec = JournalRecord(op: .begin, batch: batch, action: p.action, source: source.path, target: dest.path,
+            var rec = JournalRecord(op: .begin, batch: batch, action: p.action, source: source.path, target: dest.path,
                                     sourceSHA1: sourceSHA1, outputSHA1: outputSHA1,
                                     originals: p.action == .convert ? config.originals.rawValue : nil,
                                     backend: p.suggestion?.backend ?? backend, summary: summary,
                                     costUSD: p.suggestion?.usage?.cost())
+            if let s = p.suggestion, s.kind == .receipt, !Watcher.isMovie(source.path) {
+                rec.receipt = .init(date: p.context?.metadata.date, merchant: s.merchant, total: s.total)
+            }
             try journal.append(rec)
             begun = rec
             try fault?(.journaledBegin, source)
@@ -176,7 +186,10 @@ public final class Committer {
                 }
             }
             try fault?(.originalHandled, source)
-            try journal.append(begun!.with(.done, trashed: trashed?.path))
+            // Pro: Finder tags. Best effort: a file that can't be tagged is still renamed.
+            var done = begun!.with(.done, trashed: trashed?.path)
+            if tagging, let added = try? FinderTags.add(FinderTags.tags(for: p), to: dest), !added.isEmpty { done.tags = added }
+            try journal.append(done)
             return Outcome(source: source.path, target: dest.path, status: .done, trashed: trashed?.path)
         } catch let crash as SimulatedCrash {
             throw crash

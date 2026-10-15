@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
         panel.message = "Choose photos to rename. You'll see the new names before anything changes."
         panel.prompt = "Preview Names"
         panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
+        panel.canChooseDirectories = model.isPro   // whole folders are Pro
         panel.allowedContentTypes = [.heic, .heif, .jpeg, .png, .rawImage]
         panel.directoryURL = model.folder
         panel.begin { [weak self] r in
@@ -110,8 +110,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
     /// The preview sheet for any set of files (Rename Files…, a drop on the icon, Services, the
     /// first-run backlog). Names are worked out 20 at a time; nothing changes until Rename.
     func renameFiles(_ urls: [URL]) {
+        let (files, folders) = PhotoFolders.split(urls)
+        guard !folders.isEmpty else { previewRenames(files); return }
+        guard model.isPro else {
+            // Free renames the files it was given; folders are Pro. One quiet line in the menu, no dialog.
+            if files.isEmpty {
+                status.open()
+                model.proHint = "Renaming whole folders is part of BetterAirdrop Pro."
+            } else {
+                previewRenames(files)
+            }
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let found = folders.flatMap { PhotoFolders.images(in: $0) }
+            DispatchQueue.main.async { [weak self] in self?.previewRenames(files + found) }
+        }
+    }
+
+    private func previewRenames(_ files: [URL]) {
         status.close()
-        let files = urls.filter { Planner.imageExtensions.contains($0.pathExtension.lowercased()) }
         guard !files.isEmpty else { NSSound.beep(); return }
         let pm = RenamePreviewModel(files: files, claude: model.engine.name.hasPrefix("Claude"))
         let ref = WindowRef()
@@ -153,6 +171,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
 
     /// "Better names: add a Claude key".
     func addClaudeKey() { showSettings(pane: .naming) }
+
+    /// Settings → Pro (from the one-time menu row or the folder note).
+    func showPro() { showSettings(pane: .pro) }
+
+    /// "Export Receipts as CSV…" (Pro): date, merchant, total and file for every receipt renamed and not undone.
+    func exportReceipts() {
+        status.close()
+        guard model.isPro else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Receipts.csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.directoryURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let journal = model.journal
+        DispatchQueue.global(qos: .userInitiated).async {
+            let csv = ReceiptsCSV.make(journal.entries())
+            let ok = (try? Data(csv.utf8).write(to: url, options: .atomic)) != nil
+            DispatchQueue.main.async {
+                if ok { NSWorkspace.shared.activateFileViewerSelecting([url]) } else { NSSound.beep() }
+            }
+        }
+    }
 
     // MARK: - First run (no wizard)
 

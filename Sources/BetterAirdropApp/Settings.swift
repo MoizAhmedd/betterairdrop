@@ -10,9 +10,9 @@ import SwiftUI
 @MainActor
 enum SettingsWindow {
     enum Pane: Int, CaseIterable {
-        case general, naming, advanced, about
-        var title: String { ["General", "Naming", "Advanced", "About"][rawValue] }
-        var symbol: String { ["gearshape", "tag", "slider.horizontal.3", "info.circle"][rawValue] }
+        case general, naming, pro, advanced, about
+        var title: String { ["General", "Naming", "Pro", "Advanced", "About"][rawValue] }
+        var symbol: String { ["gearshape", "tag", "star", "slider.horizontal.3", "info.circle"][rawValue] }
     }
 
     static func make(model: AppModel, app: AppDelegate) -> NSWindow {
@@ -22,6 +22,7 @@ enum SettingsWindow {
             let root: AnyView = switch pane {
             case .general: AnyView(GeneralPane(model: model, app: app))
             case .naming: AnyView(NamingPane(model: model))
+            case .pro: AnyView(ProPane(model: model))
             case .advanced: AnyView(AdvancedPane(model: model, app: app))
             case .about: AnyView(AboutPane(updater: app.updater))
             }
@@ -254,7 +255,7 @@ struct NamingPane: View {
                         }
                     }
                     Group {
-                        switch TemplatePreview.render(template) {
+                        switch TemplatePreview.render(template, dateFormat: model.config.dateFormat) {
                         case .success(let name): Text(name)
                         case .failure(let e): Text("\(e)").foregroundStyle(.red)
                         }
@@ -269,6 +270,8 @@ struct NamingPane: View {
                     }
                 }
             }
+            NameBuilderSection(model: model, template: $template)
+            FinderTagsSection(model: model)
         }
         .formStyle(.grouped)
         .fixedSize(horizontal: false, vertical: true)
@@ -606,6 +609,7 @@ enum Diagnostics {
         credential: stored \(model.credential.storedKey), env \(model.credential.environmentKey), ant \(model.credential.antPath == nil ? "not installed" : model.credential.antLoggedIn ? "logged in" : "not logged in")
         settings: airdrop_only \(c.watchAirdropOnly), notify \(c.watchNotify), convert_heic \(c.convertHEIC), originals \(c.originals.rawValue), place \(c.placeProvider.rawValue)
         login item: \(LoginItem.isEnabled ? "on" : "off"), updater: \(Updater.isConfigured ? "configured" : "not configured")
+        pro: \(model.proStatus), screenshots \(c.watchScreenshots), other folders \(c.watchExtraFolders.count), date_format \(c.dateFormat.rawValue)
         this month: \(model.stats.photos) photos, $\(String(format: "%.2f", model.stats.costUSD))
         config error: \(model.configError == nil ? "none" : "yes")
         """

@@ -13,6 +13,8 @@ public struct Planner: Sendable {
     public var analyzer: (@Sendable (URL) -> VisionResult?)?
     public var templateOverride: String?
     public var airdropOnly = false
+    /// Pro: move each file into its kind's folder as it's renamed (the app's watchers set this).
+    public var filing: Filing?
 
     public init(config: Config, places: Places? = Places.shared, namer: (any Namer)? = nil) {
         self.config = config
@@ -157,7 +159,9 @@ public struct Planner: Sendable {
         let (stem, template, tokens) = try compose(url: url, context: ctx, suggestion: suggestion)
         let convert = willConvert(url)
         let ext = convert ? "jpg" : Self.normalizedExtension(url.pathExtension)
-        let dir = url.deletingLastPathComponent()
+        let kind = suggestion?.kind ?? ctx.kind
+        let here = url.deletingLastPathComponent()
+        let dir = filing?.directory(for: kind, date: ctx.metadata.date).flatMap { Filing.sameVolume($0, as: here) ? $0 : nil } ?? here
         let target = CollisionResolver.resolve(directory: dir, stem: stem, ext: ext, reserved: reserved, ignoring: url)
         if target.path == url.path { return .skip(url, "name unchanged") }
         reserved.insert(target.path.lowercased())
@@ -170,7 +174,7 @@ public struct Planner: Sendable {
         let meta = ctx.metadata
         let kind = suggestion?.kind ?? ctx.kind
         var t: [String: String] = [
-            "date": meta.date ?? "",
+            "date": config.dateFormat.apply(meta.date ?? ""),
             "time": meta.time ?? "",
             "place": ctx.place.map { Slug.make($0.city, trimStopWords: false, maxChars: 30) } ?? "",
             "country": ctx.place?.countryCode.lowercased() ?? "",

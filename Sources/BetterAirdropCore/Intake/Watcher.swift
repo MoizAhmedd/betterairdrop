@@ -5,7 +5,7 @@ import Foundation
 /// Intake rules (PLAN.md §5, D4):
 /// - top level only; images (`heic heif jpg jpeg png dng`) plus `.mov` Live Photo partners
 /// - `com.apple.quarantine` agent must be `sharingd` (unless `airdropOnly` is off)
-/// - no `dev.betterairdrop.done` marker, no dotfiles, no `.download`/`.partial`/`.crdownload`
+/// - no `dev.betterairdrop.done` marker (or `.undone`, set by undo), no dotfiles, no `.download`/`.partial`/`.crdownload`
 /// - arrived after the watcher started (quarantine time), unless `backlog` is on, so starting the
 ///   watcher never renames a folder's worth of old AirDrops by surprise
 /// - settled: size and mtime unchanged for `settleInterval`, and the image container is complete
@@ -16,8 +16,29 @@ import Foundation
 ///   An orphan MOV is left alone.
 public final class Watcher {
     public struct Options: Sendable {
+        /// Which files in the folder are the watcher's to name.
+        public enum Intake: Sendable, Equatable {
+            /// Only what AirDrop delivered (quarantine agent `sharingd`).
+            case airdrop
+            /// Every new image (the "only from AirDrop" switch off, or a folder added in Pro).
+            case all
+            /// Only screenshots this Mac took (`ScreenCapture`): the Pro screenshot watcher.
+            case screenshots
+            /// AirDrops plus this Mac's screenshots, for when screenshots are saved to the AirDrop folder.
+            case airdropAndScreenshots
+        }
+
         public var folder: URL
-        public var airdropOnly = true
+        public var intake = Intake.airdrop
+        /// The original switch, kept for callers: true is `.airdrop`, false is `.all`.
+        public var airdropOnly: Bool {
+            get { intake == .airdrop }
+            set { intake = newValue ? .airdrop : .all }
+        }
+        /// Live Photo `.mov` partners are candidates too. Off for the Pro watchers, which name images only.
+        public var movies = true
+        /// How a screenshot is recognised (injectable for tests).
+        public var isScreenshot: @Sendable (URL) -> Bool = { ScreenCapture.isScreenCapture($0) }
         public var backlog = false
         /// Size and mtime must hold this long. The container check (`ImageIntegrity`) is what
         /// guards against a truncated HEIC; this only covers a transfer that pauses mid-write.
@@ -117,17 +138,28 @@ public final class Watcher {
         for name in names.sorted() {
             if name.hasPrefix(".") || Planner.partialSuffixes.contains(where: { name.hasSuffix($0) }) { continue }
             let ext = (name as NSString).pathExtension.lowercased()
-            guard Planner.imageExtensions.contains(ext) || Self.movieExtensions.contains(ext) else { continue }
+            guard Planner.imageExtensions.contains(ext) || (options.movies && Self.movieExtensions.contains(ext)) else { continue }
             let url = folder.appendingPathComponent(name)
             guard let fp = Self.fingerprint(url) else { continue }
             if let old = ignored[url.path], old == fp { continue }
             let q = Quarantine.of(url)
-            if options.airdropOnly && !(q?.isAirDrop ?? false) { continue }
-            if Marker.read(url) != nil { continue }
+            let isScreenshot = options.isScreenshot
+            if !Self.admits(options.intake, isAirDrop: q?.isAirDrop ?? false, isScreenshot: { isScreenshot(url) }) { continue }
+            if Marker.read(url) != nil || Marker.isUndone(url) { continue }
             if !options.backlog, let t = Self.arrival(url, quarantine: q), t < startedAt { continue }
             out.append(url)
         }
         return out
+    }
+
+    /// The intake rule for one file. `isScreenshot` is only asked when it matters (it reads an xattr).
+    static func admits(_ intake: Options.Intake, isAirDrop: Bool, isScreenshot: () -> Bool) -> Bool {
+        switch intake {
+        case .all: true
+        case .airdrop: isAirDrop
+        case .screenshots: isScreenshot()
+        case .airdropAndScreenshots: isAirDrop || isScreenshot()
+        }
     }
 
     func isComplete(_ url: URL) -> Bool {
@@ -269,7 +301,8 @@ public final class Watcher {
                 continue
             }
             let newStem = URL(fileURLWithPath: target).deletingPathExtension().lastPathComponent
-            let movTarget = CollisionResolver.resolve(directory: mov.deletingLastPathComponent(), stem: newStem,
+            // Next to the still's new name (the same folder, unless filing moved the still).
+            let movTarget = CollisionResolver.resolve(directory: URL(fileURLWithPath: target).deletingLastPathComponent(), stem: newStem,
                                                       ext: mov.pathExtension.lowercased(), reserved: reserved, ignoring: mov)
             reserved.insert(movTarget.path.lowercased())
             var mp = Proposal(source: mov.path, action: .rename, target: movTarget.path)

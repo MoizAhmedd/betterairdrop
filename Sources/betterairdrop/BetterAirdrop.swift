@@ -9,7 +9,7 @@ struct BetterAirdrop: ParsableCommand {
         commandName: "betterairdrop",
         abstract: "Name AirDropped photos from their context, on your Mac.",
         version: BetterAirdropVersion.current,
-        subcommands: [Rename.self, Explain.self, Watch.self, Undo.self, Log.self, Status.self, Setup.self, Auth.self, Uninstall.self]
+        subcommands: [Rename.self, Explain.self, Watch.self, Undo.self, Log.self, Status.self, Setup.self, Auth.self, LicenseCommand.self, Uninstall.self]
     )
 }
 

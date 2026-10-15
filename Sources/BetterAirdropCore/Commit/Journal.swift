@@ -39,9 +39,13 @@ public struct JournalRecord: Codable, Sendable, Equatable {
     public var trashed: String?
     public var backend: String?
     public var summary: String?
+    /// What the namer read off a receipt, for "Export Receipts as CSV" (Pro).
+    public var receipt: ReceiptFields?
     public var message: String?
     /// What naming this file cost at list price, in US dollars (cloud backends only).
     public var costUSD: Double?
+    /// Finder tags BetterAirdrop added (Pro), on the `done` record; undo removes exactly these.
+    public var tags: [String]?
 
     public init(op: Op, batch: String, action: Proposal.Action, source: String, target: String,
                 sourceSHA1: String, outputSHA1: String, originals: String? = nil, trashed: String? = nil,

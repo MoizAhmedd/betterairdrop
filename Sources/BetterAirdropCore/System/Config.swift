@@ -17,6 +17,19 @@ public struct Config: Sendable, Equatable {
     public var watchFolder = "~/Downloads"
     public var watchAirdropOnly = true
     public var watchNotify = true
+    /// Pro (menu-bar app only): also name new screenshots in the screenshot folder.
+    public var watchScreenshots = false
+    /// Pro (menu-bar app only): more folders whose new images are named, e.g. `["~/Pictures/Inbox"]`.
+    public var watchExtraFolders: [String] = []
+
+    /// How `{date}` is written.
+    public var dateFormat = DateFormat.iso
+
+    /// Pro (menu-bar app only): file new arrivals of a kind into a folder, e.g.
+    /// `[file] receipt = "~/Documents/Receipts"`. Keys are kinds (photo, screenshot, receipt, document, whiteboard).
+    public var fileFolders: [String: String] = [:]
+    /// Put filed photos in a `YYYY-MM` subfolder.
+    public var fileMonthly = true
 
     public var placeProvider = PlaceProvider.offline
     public var stripGPSFromOutput = false
@@ -33,6 +46,9 @@ public struct Config: Sendable, Equatable {
     public var claudeModel = ClaudeNamer.defaultModel
     /// Whether `backend = "auto"` may use Claude when a credential is found. Off = auto stays on-device.
     public var claudeInAuto = true
+
+    /// Pro (menu-bar app only): add Finder tags (the kind, and the city for photos) to renamed files.
+    public var finderTags = false
 
     /// Keys the parser didn't recognise (reported by `doctor`, never fatal).
     public var unknownKeys: [String] = []
@@ -64,7 +80,8 @@ public struct Config: Sendable, Equatable {
     }
 
     /// Parses the TOML subset betterairdrop uses: `key = value` pairs and one level of `[tables]`.
-    /// Values are "strings", numbers and true/false. `#` starts a comment outside strings.
+    /// Values are "strings", numbers, true/false and one-line arrays of strings (`["a", "b"]`).
+    /// `#` starts a comment outside strings.
     public static func parse(_ text: String) throws -> Config {
         var c = Config()
         var table = ""
@@ -85,7 +102,7 @@ public struct Config: Sendable, Equatable {
         return c
     }
 
-    enum Value: Equatable { case string(String), number(Double), bool(Bool) }
+    enum Value: Equatable { case string(String), number(Double), bool(Bool), strings([String]) }
 
     static func stripComment(_ s: String) -> String {
         var inString = false, escaped = false
@@ -99,6 +116,7 @@ public struct Config: Sendable, Equatable {
     }
 
     static func parseValue(_ s: String, line: Int) throws -> Value {
+        if s.hasPrefix("[") { return .strings(try parseStringArray(s, line: line)) }
         if s.hasPrefix("\"") {
             guard s.count >= 2, s.hasSuffix("\"") else { throw ParseError(line: line, message: "unterminated string") }
             var out = "", escaped = false
@@ -114,6 +132,38 @@ public struct Config: Sendable, Equatable {
         if s == "false" { return .bool(false) }
         if let d = Double(s.replacingOccurrences(of: "_", with: "")) { return .number(d) }
         throw ParseError(line: line, message: "can't read value \(s) (strings need quotes)")
+    }
+
+    /// `["~/a", "~/b"]` on one line. Only strings; a trailing comma is allowed.
+    static func parseStringArray(_ s: String, line: Int) throws -> [String] {
+        let bad = ParseError(line: line, message: "arrays must be one line of \"strings\", like [\"~/Pictures\"]")
+        guard s.hasSuffix("]") else { throw bad }
+        var items: [String] = []
+        var i = s.index(after: s.startIndex)
+        let end = s.index(before: s.endIndex)
+        var expectItem = true
+        while i < end {
+            let c = s[i]
+            if c == " " || c == "\t" { i = s.index(after: i); continue }
+            if c == "," {
+                guard !expectItem else { throw bad }
+                expectItem = true
+                i = s.index(after: i)
+                continue
+            }
+            guard c == "\"", expectItem else { throw bad }
+            // Find the closing quote, skipping escaped ones.
+            var j = s.index(after: i), escaped = false
+            while j < end, escaped || s[j] != "\"" {
+                escaped = !escaped && s[j] == "\\"
+                j = s.index(after: j)
+            }
+            guard j < end, case .string(let v) = try parseValue(String(s[i...j]), line: line) else { throw bad }
+            items.append(v)
+            expectItem = false
+            i = s.index(after: j)
+        }
+        return items
     }
 
     /// Sets a dotted key (`watch.enabled`). Used by the parser and by `betterairdrop config set`.
@@ -168,18 +218,32 @@ public struct Config: Sendable, Equatable {
         case "watch.folder": watchFolder = try str()
         case "watch.airdrop_only": watchAirdropOnly = try bool()
         case "watch.notify": watchNotify = try bool()
+        case "watch.screenshots": watchScreenshots = try bool()
+        case "watch.extra_folders":
+            guard case .strings(let a) = v else { throw ParseError(line: line, message: "\(key) must be an array of strings") }
+            watchExtraFolders = a.filter { !$0.isEmpty }
+        case "date_format": dateFormat = try oneOf(DateFormat.self)
+        case "file.monthly": fileMonthly = try bool()
         case "place.provider": placeProvider = try oneOf(PlaceProvider.self)
         case "place.strip_gps_from_output": stripGPSFromOutput = try bool()
         case "ollama.url": ollamaURL = try str()
         case "ollama.model": ollamaModel = try str()
         case "claude.model": claudeModel = try str()
         case "claude.auto": claudeInAuto = try bool()
+        case "finder_tags": finderTags = try bool()
         default:
             if key.hasPrefix("templates.") {
                 let kind = String(key.dropFirst("templates.".count))
                 let s = try str()
                 do { _ = try Template(s) } catch { throw ParseError(line: line, message: "\(error)") }
                 kindTemplates[kind] = s
+            } else if key.hasPrefix("file.") {
+                let kind = String(key.dropFirst("file.".count))
+                guard Kind(rawValue: kind) != nil else {
+                    throw ParseError(line: line, message: "\(key): file rules are per kind (\(Kind.allCases.map(\.rawValue).joined(separator: ", ")))")
+                }
+                let s = try str()
+                fileFolders[kind] = s.isEmpty ? nil : s   // "" = leave this kind where it arrived
             } else {
                 unknownKeys.append(key)
             }

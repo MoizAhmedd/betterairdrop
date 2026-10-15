@@ -18,14 +18,21 @@ extension Config {
             ("watch.folder", Self.quote(watchFolder)),
             ("watch.airdrop_only", "\(watchAirdropOnly)"),
             ("watch.notify", "\(watchNotify)"),
+            ("watch.screenshots", "\(watchScreenshots)"),
+            ("watch.extra_folders", "[" + watchExtraFolders.map(Self.quote).joined(separator: ", ") + "]"),
+            ("date_format", Self.quote(dateFormat.rawValue)),
             ("place.provider", Self.quote(placeProvider.rawValue)),
             ("place.strip_gps_from_output", "\(stripGPSFromOutput)"),
             ("ollama.url", Self.quote(ollamaURL)),
             ("ollama.model", Self.quote(ollamaModel)),
             ("claude.model", Self.quote(claudeModel)),
             ("claude.auto", "\(claudeInAuto)"),
+            ("finder_tags", "\(finderTags)"),
         ]
         for (kind, t) in kindTemplates.sorted(by: { $0.key < $1.key }) { out.append(("templates.\(kind)", Self.quote(t))) }
+        out.append(("file.monthly", "\(fileMonthly)"))
+        // A kind with no folder is written as "" (so turning a rule off edits the line in place).
+        for kind in Kind.allCases.map(\.rawValue) { out.append(("file.\(kind)", Self.quote(fileFolders[kind] ?? ""))) }
         return out
     }
 

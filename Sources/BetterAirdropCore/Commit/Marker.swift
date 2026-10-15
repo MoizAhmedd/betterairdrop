@@ -24,4 +24,11 @@ public struct Marker: Codable, Sendable, Equatable {
     }
 
     public static func remove(_ url: URL) { Xattr.remove(url, name); Xattr.remove(url, legacyName) }
+
+    /// Set by undo on the restored original, so a watcher doesn't rename it straight back (its
+    /// arrival time, quarantine or inode change, is after the watcher started). Renaming by hand
+    /// ignores it.
+    public static let undoneName = "dev.betterairdrop.undone"
+    public static func markUndone(_ url: URL) { try? Xattr.set(url, undoneName, Data("1".utf8)) }
+    public static func isUndone(_ url: URL) -> Bool { Xattr.get(url, undoneName) != nil }
 }

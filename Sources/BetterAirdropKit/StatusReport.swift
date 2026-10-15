@@ -89,8 +89,35 @@ public struct StatusReport: Codable, Equatable, Sendable {
         /// "stored", "ant" or nil.
         public var source: String?
     }
+    /// BetterAirdrop Pro on this Mac (`betterairdrop license` manages it).
+    public struct LicenseInfo: Codable, Equatable, Sendable {
+        /// none, active, grace (Polar said the key is invalid; Pro stays on until `grace_until`), invalid (Pro is off).
+        public var state: String
+        /// Pro features are unlocked.
+        public var pro: Bool
+        /// The masked key, e.g. "****-ABCD".
+        public var key: String?
+        public var graceUntil: Date?
+        enum CodingKeys: String, CodingKey { case state, pro, key, graceUntil = "grace_until" }
+
+        public static let none = LicenseInfo(state: "none", pro: false)
+
+        public init(state: String, pro: Bool, key: String? = nil, graceUntil: Date? = nil) {
+            self.state = state; self.pro = pro; self.key = key; self.graceUntil = graceUntil
+        }
+
+        public init(_ license: License?, now: Date = Date()) {
+            switch ProGate.status(license, now: now) {
+            case .free: self = .none
+            case .active: self.init(state: "active", pro: true, key: license?.maskedKey)
+            case .grace(let until): self.init(state: "grace", pro: true, key: license?.maskedKey, graceUntil: until)
+            case .lapsed: self.init(state: "invalid", pro: false, key: license?.maskedKey)
+            }
+        }
+    }
     public struct Credentials: Codable, Equatable, Sendable {
         public var claude: Credential
+        public var license = LicenseInfo.none
     }
     public struct Permissions: Codable, Equatable, Sendable {
         /// granted, denied, waiting, or unknown (the app hasn't reported yet).
@@ -159,12 +186,17 @@ extension StatusReport {
         public var lockHolder: ProcessLock.Owner?
         /// Apple Intelligence can name photos (then `auto` uses it).
         public var appleReady: Bool
+        /// The stored Pro license, if any.
+        public var license: License?
+        public var now: Date
 
         public init(cliVersion: String, appPath: String?, appVersion: String?, appRunning: Bool, appState: AppState?,
-                    setup: SetupRecord?, config: Config, storedKey: Bool, antLoggedIn: Bool, lockHolder: ProcessLock.Owner?, appleReady: Bool = false) {
+                    setup: SetupRecord?, config: Config, storedKey: Bool, antLoggedIn: Bool, lockHolder: ProcessLock.Owner?, appleReady: Bool = false,
+                    license: License? = nil, now: Date = Date()) {
             self.cliVersion = cliVersion; self.appPath = appPath; self.appVersion = appVersion; self.appRunning = appRunning
             self.appState = appState; self.setup = setup; self.config = config; self.storedKey = storedKey
             self.antLoggedIn = antLoggedIn; self.lockHolder = lockHolder; self.appleReady = appleReady
+            self.license = license; self.now = now
         }
     }
 
@@ -247,6 +279,17 @@ extension StatusReport {
                               command: "betterairdrop setup --api-key-env ANTHROPIC_API_KEY --yes"))
         }
 
+        // Pro is never suggested here; only a key Polar has rejected gets a (optional) step.
+        let license = LicenseInfo(i.license, now: i.now)
+        if license.state == "grace" || license.state == "invalid" {
+            let f = DateFormatter()
+            f.dateStyle = .medium
+            let when = license.graceUntil.map { "Pro stays on until \(f.string(from: $0))" } ?? "Pro is off"
+            steps.append(Step(who: "human", required: false,
+                              text: "Polar says the Pro key \(license.key ?? "") is no longer valid (\(when)). Activate a valid key.",
+                              command: "betterairdrop license activate <key>"))
+        }
+
         let source: String? = i.storedKey ? "stored" : i.antLoggedIn ? "ant" : nil
         return StatusReport(
             ready: watching.state == "watching",
@@ -254,7 +297,7 @@ extension StatusReport {
             app: App(installed: i.appPath != nil, path: i.appPath, version: i.appVersion, running: i.appRunning),
             setup: Setup(done: i.setup != nil, completedAt: i.setup?.completedAt),
             engine: Engine(backend: i.config.backend, active: engine.name, detail: engine.detail),
-            credentials: Credentials(claude: Credential(present: hasCredential, source: source)),
+            credentials: Credentials(claude: Credential(present: hasCredential, source: source), license: license),
             permissions: permissions,
             watching: watching,
             nextSteps: steps)
