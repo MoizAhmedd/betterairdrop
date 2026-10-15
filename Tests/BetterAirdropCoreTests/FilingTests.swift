@@ -81,6 +81,17 @@ import Testing
         #expect(listing(receipts.appendingPathComponent("2026-09")) == ["2026-09-21_toronto_walnut-lamp.jpg", "2026-09-21_toronto_walnut-lamp.mov"])
     }
 
+    @Test func aDestinationOnAnotherVolumeRenamesInPlace() throws {
+        let s = Sandbox()
+        TestImages.png(s.file("IMG_R005.png"))
+        var p = s.planner()
+        p.namer = receiptNamer
+        p.filing = Filing(folders: [.receipt: URL(fileURLWithPath: "/dev/Receipts")])   // devfs: never the sandbox's volume
+        #expect(!Filing.sameVolume(URL(fileURLWithPath: "/dev/Receipts/2026-09"), as: s.downloads))
+        #expect(Filing.sameVolume(s.root.path("Documents/Receipts/2026-09"), as: s.downloads))
+        #expect(p.plan([s.file("IMG_R005.png")])[0].target == s.file("2026-09-21_receipt_loblaws_84-12.png").path)
+    }
+
     @Test func withoutFilingNothingMoves() throws {
         let s = Sandbox()
         TestImages.png(s.file("IMG_R004.png"))

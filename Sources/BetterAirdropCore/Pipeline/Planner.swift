@@ -160,7 +160,8 @@ public struct Planner: Sendable {
         let convert = willConvert(url)
         let ext = convert ? "jpg" : Self.normalizedExtension(url.pathExtension)
         let kind = suggestion?.kind ?? ctx.kind
-        let dir = filing?.directory(for: kind, date: ctx.metadata.date) ?? url.deletingLastPathComponent()
+        let here = url.deletingLastPathComponent()
+        let dir = filing?.directory(for: kind, date: ctx.metadata.date).flatMap { Filing.sameVolume($0, as: here) ? $0 : nil } ?? here
         let target = CollisionResolver.resolve(directory: dir, stem: stem, ext: ext, reserved: reserved, ignoring: url)
         if target.path == url.path { return .skip(url, "name unchanged") }
         reserved.insert(target.path.lowercased())
