@@ -28,9 +28,9 @@ betterairdrop setup --yes --engine vision --launch-at-login
 links the CLI at `~/.local/bin/betterairdrop`. If that's not on `PATH`, use
 `~/Applications/BetterAirdrop.app/Contents/Helpers/betterairdrop`.
 
-**Engines:** `vision` is on-device and free. `auto` uses Claude when the app has a key, otherwise
-Vision. `claude` needs a key. `apple` is for Apple Intelligence and fails if it isn't ready on
-this Mac.
+**Engines:** `vision` is on-device and free. `auto` picks Apple Intelligence if it's on (macOS 26+),
+then Claude if the app has a key, then Vision. `claude` needs a key. `apple` fails unless Apple
+Intelligence is ready on this Mac.
 
 For Claude names, store the user's Anthropic key from an environment variable. Never pass it as
 an argument:
