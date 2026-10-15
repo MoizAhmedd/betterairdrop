@@ -108,7 +108,7 @@ struct GeneralPane: View {
                     Button("Open Setup…") { app.showOnboarding() }
                 } label: {
                     Text("Setup")
-                    Text("Folder access, the naming engine and your Claude key.")
+                    Text("Folder access, how photos are named, and your Claude key.")
                 }
             }
             Section("Files") {
@@ -173,12 +173,12 @@ struct NamingPane: View {
 
     var body: some View {
         Form {
-            Section("Naming engine") {
+            Section("How photos are named") {
                 Picker(selection: engineBinding) {
                     ForEach([EngineChoice.auto, .apple, .claude, .vision], id: \.self) { Text($0.title).tag($0) }
                 } label: {
-                    Text("Engine")
-                    Text("Automatic uses Claude with your key, then hosted naming with Pro, then Apple Intelligence when it's available, then Apple Vision.")
+                    Text("Name with")
+                    Text("Automatic picks the best you have: your Claude key, then Pro naming, then Apple Intelligence, then Apple Vision.")
                 }
                 if engineBinding.wrappedValue == .apple && !AppleIntelligenceStatus.current.isAvailable {
                     let apple = AppleIntelligenceStatus.current
@@ -192,8 +192,8 @@ struct NamingPane: View {
                 LabeledContent {
                     HStack(spacing: 5) {
                         Circle().fill(Color.green).frame(width: 7, height: 7)
-                        Text(model.engine.name)
-                        if let d = model.engine.detail { Text("· \(d)").foregroundStyle(.secondary) }
+                        Text(model.engine.title)
+                        if let d = model.engine.subtitle { Text("· \(d)").foregroundStyle(.secondary) }
                     }
                 } label: {
                     Text("Now using")
@@ -235,7 +235,7 @@ struct NamingPane: View {
                     Text("\(model.stats.photos) photo\(model.stats.photos == 1 ? "" : "s") · ≈ \(String(format: "$%.2f", model.stats.costUSD))")
                 } label: {
                     Text("This month")
-                    Text("at Anthropic's list price, worked out from the tokens actually used")
+                    Text("An estimate of what Anthropic charges your key")
                 }
             }
             Section("Name format") {
@@ -379,7 +379,7 @@ struct KindTemplatesSheet: View {
                         .foregroundStyle(valid(values[k] ?? "") ? .green : .red)
                 }
             }
-            Text("Tokens: {date} {time} {place} {country} {subject} {kind} {device} {merchant} {total} {orig}")
+            Text("You can use: {date} {time} {place} {country} {subject} {kind} {device} {merchant} {total} {orig}")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
             HStack {
                 Spacer()
@@ -464,7 +464,7 @@ struct AdvancedPane: View {
                     }
                 } label: {
                     Text("Diagnostics")
-                    Text("versions, permissions, engine status. No file names, no keys.")
+                    Text("Versions, permissions and naming settings. No file names or keys.")
                 }
                 LabeledContent {
                     Button("Re-check") {
@@ -484,7 +484,7 @@ struct AdvancedPane: View {
                     Button("Uninstall…", role: .destructive) { uninstalling = true }
                 } label: {
                     Text("Uninstall BetterAirdrop")
-                    Text("Removes the app, login item, CLI link and stored API key. Your renamed photos stay as they are.")
+                    Text("Removes the app, its login item, the Terminal command and your saved API key. Renamed photos stay as they are.")
                 }
             }
         }
@@ -526,7 +526,7 @@ struct UninstallSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Uninstall BetterAirdrop?").font(.headline)
-            Text("This turns off the login item, removes the CLI link and the stored API key, resets the Downloads permission and moves BetterAirdrop to the Trash. Renamed photos stay renamed.")
+            Text("This turns off the login item, removes the Terminal command and your saved API key, resets the Downloads permission and moves BetterAirdrop to the Trash. Renamed photos stay renamed.")
                 .font(.system(size: 11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Toggle("Also delete settings and rename history", isOn: $purge).toggleStyle(.switch).controlSize(.small)
             HStack {

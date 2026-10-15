@@ -9,13 +9,13 @@ same config, journal and undo.
 | Backend | Where it runs | What it sends | Names look like |
 |---|---|---|---|
 | `claude` (Claude Haiku 4.5) | Anthropic's API | a 768 px JPEG re-encoded **with all metadata removed** (no EXIF, no GPS), plus text: the date, the city name, the camera model, the detected kind, on-device labels, a short OCR snippet and a device hint | `cinema-seating-in-empty-theatre` |
-| `hosted` (Pro: Claude with no API key) | BetterAirdrop's server, then Anthropic's API | what `claude` sends, plus your Pro license key. The server keeps no photos, context or names. 500 names a month | like `claude` |
+| `hosted` (Pro naming: Claude with no API key) | BetterAirdrop's server, then Anthropic's API | what `claude` sends, plus your Pro license key. The server keeps no photos, context or names. 500 names a month | like `claude` |
 | `vision` (Apple Vision) | on your Mac | nothing | `auditorium`, `window-brick` |
 | `apple` (Apple Intelligence, Foundation Models) | on your Mac, macOS 26+ with Apple Intelligence on | nothing | named from Vision's labels and text (the on-device model reads text, not pixels) |
 
-`backend = "auto"` (the default) uses **Claude when a credential is found, else hosted naming when
+`backend = "auto"` (the default) uses **Claude when a credential is found, else Pro naming (`hosted`) when
 this Mac has an active Pro license, else Apple Intelligence when it's ready, otherwise Vision**.
-When hosted naming can't name a photo (the license is invalid, the month's 500 names are used, or
+When Pro naming can't name a photo (the license is invalid, the month's 500 names are used, or
 the server can't be reached), Apple Intelligence names it if it's ready, otherwise Vision. If Apple Intelligence isn't available, `--backend apple`
 says why (off in System Settings → Apple Intelligence & Siri, model still downloading, Mac not
 supported, macOS older than 26). Like Claude, it falls back to Vision for any photo it can't name.
@@ -26,7 +26,7 @@ used, BetterAirdrop prints a one-time notice saying what gets sent.
 
 PDFs (Pro, see [Naming PDFs](#naming-pdfs-pro)) go to the same engine, as text only.
 
-To keep everything on-device, set `backend = "vision"` or turn Claude (and hosted naming) off for `auto`:
+To keep everything on-device, set `backend = "vision"` or turn Claude (and Pro naming) off for `auto`:
 
 ```toml
 [claude]
@@ -128,7 +128,7 @@ monthly = true                          # …/Receipts/2026-10/ from the photo's
 
 [claude]
 model = "claude-haiku-4-5"              # any Messages API model id
-auto = true                             # let backend = "auto" use Claude (or hosted naming) when a credential (or Pro license) exists
+auto = true                             # let backend = "auto" use Claude (or Pro naming) when a credential (or Pro license) exists
 
 [hosted]
 url = "https://api.betterairdrop.com"   # only to test another deployment of hosted/
@@ -191,8 +191,8 @@ the file's date.
 | Engine | For PDFs |
 |---|---|
 | `claude` (your key) | a text-only request to Claude; about $2 per 1,000 PDFs on Haiku 4.5 |
-| `hosted` (Pro) | `POST /v1/name-text` with the text; counts against the same 500 names a month |
-| `apple` | on the Mac; also the fallback when Claude or hosted naming fails |
+| `hosted` (Pro naming) | `POST /v1/name-text` with the text; counts against the same 500 names a month |
+| `apple` | on the Mac; also the fallback when Claude or Pro naming fails |
 | `vision` | Apple Intelligence if it's ready (still on the Mac), otherwise the PDF is left as it is |
 
 Apple Vision alone can't tell an invoice from a lease, and a PDF's first line or metadata title is

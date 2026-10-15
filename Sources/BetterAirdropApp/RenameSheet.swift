@@ -22,10 +22,11 @@ final class RenamePreviewModel: ObservableObject {
     /// 400 old photos never costs more than a few cents to preview.
     @Published var planned = 0
     let files: [URL]
-    /// Whether the names come from Claude (paid), for the cost estimate.
+    /// Whether the names come from Claude (paid) or Pro naming (counted), for the cost line.
     let claude: Bool
+    let hosted: Bool
 
-    init(files: [URL], claude: Bool) { self.files = files; self.claude = claude }
+    init(files: [URL], claude: Bool, hosted: Bool) { self.files = files; self.claude = claude; self.hosted = hosted }
 
     var nextBatch: [URL] { Array(files.dropFirst(planned).prefix(PreviewCost.batchSize)) }
     var remaining: Int { files.count - planned }
@@ -95,7 +96,7 @@ struct RenamePreviewView: View {
     }
 
     var footnote: String {
-        var parts = m.planned > 0 ? [PreviewCost.text(count: m.planned, claude: m.claude)] : []
+        var parts = m.planned > 0 ? [PreviewCost.text(count: m.planned, claude: m.claude, hosted: m.hosted)] : []
         parts.append(m.converts ? "HEIC → JPEG · originals to the Trash · can be undone" : "can be undone")
         return parts.joined(separator: " · ")
     }

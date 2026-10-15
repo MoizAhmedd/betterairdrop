@@ -147,8 +147,8 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 EngineCard(choice: .apple, selected: $s.engine, enabled: s.appleReady,
                            title: "Apple Intelligence",
-                           detail: s.appleReady ? "On-device and private. Names are good, not great." : s.apple.message,
-                           badge: ("On-device · Free", .green))
+                           detail: s.appleReady ? "Private, on this Mac. Good names, not great." : s.apple.message,
+                           badge: ("On this Mac · Free", .green))
                 if let url = s.apple.settingsURL {
                     Button("Open Apple Intelligence Settings…") { NSWorkspace.shared.open(url) }
                         .buttonStyle(.link).font(.system(size: 12))
@@ -156,14 +156,14 @@ struct OnboardingView: View {
                         .padding(.leading, 42).padding(.bottom, 10)
                 }
                 Divider()
-                EngineCard(choice: .claude, selected: $s.engine, enabled: true, title: "Claude Haiku",
-                           detail: "The best names: 92% of them good in our tests, against 42% for Apple Vision. About $2 per 1,000 photos, paid to Anthropic with your own key.",
+                EngineCard(choice: .claude, selected: $s.engine, enabled: true, title: EngineChoice.claude.title,
+                           detail: "The best names: 92% of them good in our tests, against 42% for Apple Vision. You pay Anthropic about $2 per 1,000 photos.",
                            badge: ("Best names", .blue))
                 if s.engine == .claude { keyPanel }
                 Divider()
                 EngineCard(choice: .vision, selected: $s.engine, enabled: true, title: "Apple Vision",
                            detail: "No setup, and nothing leaves your Mac. The names are plain, more like tags: window-brick, drinking-glass.",
-                           badge: ("On-device · Free", .gray))
+                           badge: ("On this Mac · Free", .gray))
             }
             .groupBox()
         }
@@ -211,7 +211,7 @@ struct OnboardingView: View {
                 }
                 .font(.system(size: 11))
             }
-            Text("What gets sent: a 768 px copy of each photo with **no location or camera metadata**, plus the date, city name, camera model and any text in it. If Claude can't be reached, Apple Vision names the photo instead.")
+            Text("What gets sent: a smaller copy of each photo with **GPS and other hidden data removed**, plus its date, city, camera model and any text in it. If Claude can't be reached, Apple Vision names the photo instead.")
                 .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         .padding(.leading, 42).padding(.trailing, 12).padding(.bottom, 12)

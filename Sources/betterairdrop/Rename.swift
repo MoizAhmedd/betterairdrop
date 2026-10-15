@@ -19,7 +19,7 @@ struct Rename: ParsableCommand {
     @Flag(help: "Print machine-readable JSON.")
     var json = false
 
-    @Option(help: "Naming backend: auto, claude, vision, apple (Apple Intelligence, macOS 26+).")
+    @Option(help: "Naming backend: auto, claude (your API key), hosted (Pro naming), apple (Apple Intelligence, macOS 26+) or vision (basic, on this Mac).")
     var backend: String?
 
     @Option(help: "Filename template, e.g. \"{date}_{place}_{subject}\".")

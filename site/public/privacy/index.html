@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy · BetterAirdrop</title>
-<meta name="description" content="What BetterAirdrop sends off your Mac, to whom, and what its hosted-naming server keeps.">
+<meta name="description" content="What BetterAirdrop sends off your Mac, to whom, and what its Pro naming server keeps.">
 <link rel="canonical" href="https://betterairdrop.com/privacy/">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)">
@@ -29,7 +29,7 @@
 
 <article>
   <h1>Privacy</h1>
-  <p class="answer">Photos and PDFs are named on your Mac. Something leaves it only when Claude names it: with your own Claude key, or with Pro's hosted naming. For a PDF, that's a text extract, never the file.</p>
+  <p class="answer">Photos and PDFs are named on your Mac. Something leaves it only when Claude names it: with your own Claude key, or with Pro naming. For a PDF, that's some of its text, never the file.</p>
 
   <h2>On your Mac</h2>
   <ul>
@@ -39,36 +39,36 @@
   </ul>
 
   <h2>When Claude names a photo</h2>
-  <p>With a Claude key or Pro, the Automatic engine uses Claude. For each photo it sends:</p>
+  <p>With a Claude key or Pro, Automatic naming uses Claude. For each photo it sends:</p>
   <ul>
-    <li>a 768 px JPEG copy with all metadata removed (no EXIF, no GPS)</li>
-    <li>as text: the capture date, the city and country, the camera model, the app that created it, the detected kind, on-device labels, and up to 300 characters of text found in the image</li>
+    <li>a smaller JPEG copy (768 px) with all hidden data removed, such as GPS location (no EXIF)</li>
+    <li>as text: the capture date, the city and country, the camera model, the app that created it, the kind of photo, labels found on your Mac, and up to 300 characters of text found in the image</li>
   </ul>
   <p>File names, coordinates and the original file are never sent.</p>
   <h2>When Claude names a PDF (Pro)</h2>
   <p>With "Name PDFs too" on, the text is read on your Mac. For each PDF it sends only:</p>
   <ul>
-    <li>up to 4,000 characters of its text, from the first two pages (for a scan, read from page 1 with on-device OCR)</li>
+    <li>up to 4,000 characters of its text, from the first two pages (for a scan, read from page 1 on your Mac)</li>
     <li>its page count and the title in its metadata</li>
   </ul>
   <p>Never the PDF itself, an image of a page, or its file name. Turn it off in Settings → Pro.</p>
   <ul>
     <li><strong>Your own key:</strong> straight to Anthropic, on your account.</li>
-    <li><strong>Hosted naming (Pro):</strong> to BetterAirdrop's server on Cloudflare, with your licence key. It passes the image or text to Anthropic on BetterAirdrop's account.</li>
+    <li><strong>Pro naming:</strong> to BetterAirdrop's server on Cloudflare, with your licence key. It passes the image or text to Anthropic on BetterAirdrop's account.</li>
   </ul>
   <p>Anthropic handles API data under its <a href="https://www.anthropic.com/legal/privacy">privacy policy</a>. To keep everything on your Mac, pick Apple Vision or Apple Intelligence in Settings → Naming.</p>
 
-  <h2>What the hosted-naming server keeps</h2>
-  <p>No photos, PDF text, text context or names. It keeps:</p>
+  <h2>What the Pro naming server keeps</h2>
+  <p>No photos, PDF text, photo details or names. It keeps:</p>
   <ul>
-    <li>per licence key: a SHA-256 hash of the key (not the key), Polar's last answer about it, and this month's name count (photos and PDFs together)</li>
+    <li>per licence key: a one-way hash of the key (SHA-256, not the key itself), Polar's last answer about it, and this month's name count (photos and PDFs together)</li>
     <li>one count of today's Claude requests across everyone</li>
     <li>one log line per request with its status and outcome, kept by Cloudflare for 3 to 7 days. No IP addresses, headers, keys, images or PDF text are logged.</li>
   </ul>
   <p>Cloudflare runs the server and handles each connection under its <a href="https://www.cloudflare.com/privacypolicy/">privacy policy</a>.</p>
 
   <h2>Payments and licence keys</h2>
-  <p><a href="https://polar.sh">Polar</a> takes payment, sends the receipt and issues your key. The app contacts Polar to activate a Mac (with the key and the Mac's name, shown in your Polar customer portal) and to check the key about once a week. The hosted-naming server checks it with Polar too.</p>
+  <p><a href="https://polar.sh">Polar</a> takes payment, sends the receipt and issues your key. The app contacts Polar to activate a Mac (with the key and the Mac's name, shown in your Polar customer portal) and to check the key about once a week. The Pro naming server checks it with Polar too.</p>
 
   <h2>Updates</h2>
   <p>The app checks BetterAirdrop's site for updates. Turn it off in Settings.</p>

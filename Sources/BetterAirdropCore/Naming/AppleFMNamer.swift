@@ -31,7 +31,7 @@ public enum AppleIntelligenceStatus: Equatable, Sendable {
         case .notInThisBuild: "This copy of BetterAirdrop was built without Apple Intelligence support (it needs Xcode 26 or later). Update BetterAirdrop."
         case .deviceNotEligible: "This Mac can't run Apple Intelligence. It needs a Mac with Apple silicon (M1 or later)."
         case .notEnabled: "Apple Intelligence is off. Turn it on in System Settings → Apple Intelligence & Siri."
-        case .modelNotReady: "Apple Intelligence is still getting ready (the model may be downloading). Try again in a few minutes."
+        case .modelNotReady: "Apple Intelligence is still getting ready (it may be downloading). Try again in a few minutes."
         case .unknown(let why): "Apple Intelligence isn't available on this Mac (\(why))."
         }
     }

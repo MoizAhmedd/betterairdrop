@@ -20,9 +20,9 @@ public struct Template: Sendable, Equatable {
         case unknownToken(String), unclosedBrace, noDescriptiveToken
         public var description: String {
             switch self {
-            case .unknownToken(let t): "unknown template token {\(t)}; known: \(Template.tokens.sorted().joined(separator: ", "))"
-            case .unclosedBrace: "template has an unclosed {"
-            case .noDescriptiveToken: "template needs at least one of {subject}, {merchant}, {total} or {orig}"
+            case .unknownToken(let t): "{\(t)} isn't a name part; you can use \(Template.tokens.sorted().joined(separator: ", "))"
+            case .unclosedBrace: "a { has no closing }"
+            case .noDescriptiveToken: "the name needs at least one of {subject}, {merchant}, {total} or {orig}"
             }
         }
     }

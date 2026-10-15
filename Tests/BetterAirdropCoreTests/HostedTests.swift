@@ -115,7 +115,8 @@ func hostedError(_ type: String, _ message: String, resets: String? = nil) -> St
 
         // Later photos skip the request and go straight to Vision, saying why.
         #expect(n.availability() == .unavailable(HostedNamer.Error.licenseInvalid.description))
-        #expect(HostedNamer.currentProblem(key: Self.key) == HostedNamer.Error.licenseInvalid.description)
+        // The app says it in plain words; status --json's last_error keeps the description.
+        #expect(HostedNamer.currentProblem(key: Self.key) == "your Pro key isn't valid any more")
         #expect(HostedNamer.lastUsage()?.lastError == HostedNamer.Error.licenseInvalid.description)
         let s = try FallbackNamer(primary: n, fallback: VisionNamer()).suggest(for: url, context: ctx)
         #expect(s.backend == "vision" && s.fallbackFrom?.contains("license invalid") == true)
@@ -142,6 +143,8 @@ func hostedError(_ type: String, _ message: String, resets: String? = nil) -> St
 
         // Until the reset: skipped, with the reason. After it: tried again.
         #expect(n.availability() == .unavailable(message))
+        #expect(HostedNamer.currentProblem(key: Self.key, now: clock.now)
+                == "this month's Pro names are used up; more on \(HostedNamer.Error.day(resets))")
         let s = try FallbackNamer(primary: n, fallback: VisionNamer()).suggest(for: url, context: ctx)
         #expect(s.backend == "vision" && s.fallbackFrom?.contains("monthly hosted limit reached; resets") == true)
         #expect(HostedStubProtocol.captured.count == 1)

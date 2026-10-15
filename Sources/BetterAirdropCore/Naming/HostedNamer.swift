@@ -92,6 +92,17 @@ public struct HostedNamer: Namer {
             }
         }
 
+        /// The same in plain words, for the app's "Now using". `description` stays as it is: it's
+        /// `last_error` in `status --json`, and the CLI's notes.
+        public var message: String {
+            switch self {
+            case .licenseInvalid: "your Pro key isn't valid any more"
+            case .monthlyLimit(let d): "this month's Pro names are used up" + (d.map { "; more on \(Self.day($0))" } ?? "")
+            case .dailyLimit(let d): "Pro naming hit today's limit" + (d.map { "; back \(Self.time($0))" } ?? "")
+            default: description
+            }
+        }
+
         /// The month resets at midnight UTC on the 1st, so the UTC date reads right ("Nov 1, 2026").
         static func day(_ d: Date) -> String {
             let f = DateFormatter()
@@ -114,9 +125,9 @@ public struct HostedNamer: Namer {
     }
 
     /// Why hosted naming is skipped right now for this key (license invalid, a limit), for the
-    /// engine status. Nil if it isn't.
+    /// app's engine status, in plain words (`Error.message`). Nil if it isn't.
     public static func currentProblem(key: String?, now: Date = Date()) -> String? {
-        key.flatMap { blocks.reason(key: $0, now: now)?.description }
+        key.flatMap { blocks.reason(key: $0, now: now)?.message }
     }
 
     /// What the server last said in this process (nil before the first request).

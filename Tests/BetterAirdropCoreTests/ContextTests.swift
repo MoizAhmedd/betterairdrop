@@ -52,7 +52,7 @@ import Testing
     @Test func errorsNameTheLine() {
         #expect(throws: Config.ParseError.self) { try Config.parse("backend = vision") }       // unquoted
         #expect { try Config.parse("\n\noriginals = \"shred\"") } throws: { ($0 as? Config.ParseError)?.line == 3 }
-        #expect { try Config.parse("template = \"{date}_{nope}\"") } throws: { "\($0)".contains("unknown template token") }
+        #expect { try Config.parse("template = \"{date}_{nope}\"") } throws: { "\($0)".contains("{nope} isn't a name part") }
         #expect(throws: Config.ParseError.self) { try Config.parse("[watch\nenabled = true") }
         #expect(throws: Config.ParseError.self) { try Config.parse("jpeg_quality = 7") }
     }

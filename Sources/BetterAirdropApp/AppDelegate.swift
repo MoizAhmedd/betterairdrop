@@ -140,7 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
     private func previewRenames(_ files: [URL]) {
         status.close()
         guard !files.isEmpty else { NSSound.beep(); return }
-        let pm = RenamePreviewModel(files: files, claude: model.engine.name.hasPrefix("Claude"))
+        let pm = RenamePreviewModel(files: files, claude: model.engine.name.hasPrefix("Claude"), hosted: model.engine.isHosted)
         let ref = WindowRef()
         let view = RenamePreviewView(m: pm, cancel: { ref.window?.close() }, more: { [weak self] in self?.planNext(pm) },
                                      commit: { [weak self] proposals in

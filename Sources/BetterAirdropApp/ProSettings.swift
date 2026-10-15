@@ -61,7 +61,7 @@ struct ProPane: View {
             Section {
                 Toggle(isOn: Binding(get: { model.config.watchScreenshots }, set: { v in model.updateConfig { $0.watchScreenshots = v } })) {
                     HStack(spacing: 6) { Text("Also name new screenshots"); if !model.isPro { ProTag() } }
-                    Text("Screenshots saved to \(AppModel.tilde(model.screenshotFolder)), named with the same engine. \(accessText(model.screenshotFolder))")
+                    Text("Screenshots saved to \(AppModel.tilde(model.screenshotFolder)), named the same way as your AirDrops. \(accessText(model.screenshotFolder))")
                 }
                 .disabled(!model.isPro)
                 ForEach(model.config.watchExtraFolders, id: \.self) { path in
@@ -75,9 +75,9 @@ struct ProPane: View {
                 }
                 Toggle(isOn: Binding(get: { model.config.namePDFs }, set: { v in model.updateConfig { $0.namePDFs = v } })) {
                     HStack(spacing: 6) { Text("Name PDFs too"); if !model.isPro { ProTag() } }
-                    Text("PDFs you download or AirDrop to \(model.folderName), new PDFs in your other folders, and PDFs you rename by hand are named from their text: "
-                         + "\"document (3).pdf\" becomes \"2026-10-12_invoice_bell-canada_84-12.pdf\". With Claude or hosted naming, "
-                         + "a text extract is sent, never the file. Without either, Apple Intelligence names them, or they're left alone.")
+                    Text("Named from their text: \"document (3).pdf\" becomes \"2026-10-12_invoice_bell-canada_84-12.pdf\". "
+                         + "Works on PDFs you download or AirDrop to \(model.folderName), new ones in your other folders, and ones you rename by hand. "
+                         + "With Claude or Pro naming, some of the text is sent, never the file. Otherwise Apple Intelligence names them on this Mac, or they're left alone.")
                 }
                 .disabled(!model.isPro)
                 LabeledContent {
