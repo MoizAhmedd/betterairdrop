@@ -117,7 +117,9 @@ public enum PreviewCost {
     public static let claudePerPhoto = 0.002
 
     /// `hosted`: Pro naming names them, so they count toward this month's names (and leave the Mac).
-    public static func text(count: Int, claude: Bool, hosted: Bool = false) -> String {
+    /// `trial`: the free trial's names instead.
+    public static func text(count: Int, claude: Bool, hosted: Bool = false, trial: Bool = false) -> String {
+        if hosted && trial { return "uses \(count) of your free Pro names" }
         if hosted { return "uses \(count) of this month's Pro names" }
         guard claude else { return "free, on this Mac" }
         let usd = Double(count) * claudePerPhoto

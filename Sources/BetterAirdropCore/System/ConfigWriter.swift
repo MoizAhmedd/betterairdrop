@@ -29,6 +29,7 @@ extension Config {
             ("claude.auto", "\(claudeInAuto)"),
             ("finder_tags", "\(finderTags)"),
             ("name_pdfs", "\(namePDFs)"),
+            ("pro_trial", "\(proTrial)"),
         ]
         for (kind, t) in kindTemplates.sorted(by: { $0.key < $1.key }) { out.append(("templates.\(kind)", Self.quote(t))) }
         out.append(("file.monthly", "\(fileMonthly)"))

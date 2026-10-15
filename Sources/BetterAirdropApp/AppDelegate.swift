@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
         status = StatusItemController(model: model, actions: self)
         notifications = Notifications(app: self)
         model.onBatch = { [weak self] b in self?.notifications.post(b) }
+        model.onTrialEnded = { [weak self] in self?.notifications.postTrialEnded() }
         model.onLostAccess = { [weak self] in
             guard let self, UserDefaults.standard.bool(forKey: "onboardingDone") else { return }
             self.notifications.postLostAccess()
@@ -141,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
         status.close()
         guard !files.isEmpty else { NSSound.beep(); return }
         let pm = RenamePreviewModel(files: files, claude: model.engine.name.hasPrefix("Claude"), hosted: model.engine.isHosted)
+        pm.trial = !model.isPro
         let ref = WindowRef()
         let view = RenamePreviewView(m: pm, cancel: { ref.window?.close() }, more: { [weak self] in self?.planNext(pm) },
                                      commit: { [weak self] proposals in
@@ -183,6 +185,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
 
     /// Settings → Pro (from the one-time menu row or the folder note).
     func showPro() { showSettings(pane: .pro) }
+
+    /// The checkout (the trial's upsell), or Settings → Pro while Pro isn't on sale.
+    func buyPro() {
+        status.close()
+        if Polar.canBuy, let url = URL(string: Polar.checkoutURL) { NSWorkspace.shared.open(url) } else { showPro() }
+    }
 
     /// "Export Receipts as CSV…" (Pro): date, merchant, total and file for every receipt renamed and not undone.
     func exportReceipts() {

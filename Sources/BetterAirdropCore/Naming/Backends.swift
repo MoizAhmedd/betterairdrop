@@ -42,15 +42,22 @@ public enum Backends {
     /// even while it's over a limit, so it picks up again after the reset without a rebuild.
     /// An explicit backend that isn't available is an error. `license` is BetterAirdropKit's
     /// `LicenseStore` in the app and the CLI; without it there's no hosted naming.
+    ///
+    /// With no license, `pro_trial` on and the free trial not used up, `auto` uses hosted naming
+    /// with `trial` (photos only), falling back the same way. Once the trial is used up, or with
+    /// `pro_trial` off, `auto` is exactly what it was without Pro.
     public static func resolve(_ id: String, config: Config = Config(), auth: ClaudeAuth = .shared,
                                apple: AppleFMNamer = AppleFMNamer(),
-                               license: any LicenseKeySource = NoLicenseKey()) throws -> any Namer {
+                               license: any LicenseKeySource = NoLicenseKey(), trial: TrialStore? = nil) throws -> any Namer {
         if id == "auto" {
             if config.claudeInAuto, auth.resolve() != nil {
                 return FallbackNamer(primary: ClaudeNamer(model: config.claudeModel, auth: auth), fallback: VisionNamer())
             }
             if config.claudeInAuto, license.licenseKey() != nil {
                 return FallbackNamer(primary: HostedNamer(baseURL: config.hostedURL, license: license), fallback: onDevice(apple))
+            }
+            if config.claudeInAuto, config.proTrial, let trial, !trial.isUsedUp {
+                return FallbackNamer(primary: HostedNamer(baseURL: config.hostedURL, trial: trial), fallback: onDevice(apple))
             }
             if case .ready = apple.availability() { return FallbackNamer(primary: apple, fallback: VisionNamer()) }
             return VisionNamer()
@@ -113,7 +120,8 @@ public enum CloudNotice {
     never the file or a page image. Coordinates and file names stay on this Mac. To keep everything
     on-device, set `backend = "vision"` (or `[claude] auto = false`) in ~/.config/betterairdrop/config.toml.
     A photo Claude can't name is named on this Mac (Apple Vision; for Pro naming, Apple Intelligence
-    if it's on); a PDF by Apple Intelligence if it's on, or left as it is.
+    if it's on); a PDF by Apple Intelligence if it's on, or left as it is. The free Pro naming trial
+    (`pro_trial = true`) sends the same for photos, with a random trial ID instead of a license key.
     """
 
     static var marker: URL { Paths.supportDirectory.appendingPathComponent("cloud-notice-shown") }

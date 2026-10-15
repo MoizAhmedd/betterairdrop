@@ -25,6 +25,8 @@ final class RenamePreviewModel: ObservableObject {
     /// Whether the names come from Claude (paid) or Pro naming (counted), for the cost line.
     let claude: Bool
     let hosted: Bool
+    /// Pro naming with the free trial (no Pro license).
+    var trial = false
 
     init(files: [URL], claude: Bool, hosted: Bool) { self.files = files; self.claude = claude; self.hosted = hosted }
 
@@ -96,7 +98,7 @@ struct RenamePreviewView: View {
     }
 
     var footnote: String {
-        var parts = m.planned > 0 ? [PreviewCost.text(count: m.planned, claude: m.claude, hosted: m.hosted)] : []
+        var parts = m.planned > 0 ? [PreviewCost.text(count: m.planned, claude: m.claude, hosted: m.hosted, trial: m.trial)] : []
         parts.append(m.converts ? "HEIC → JPEG · originals to the Trash · can be undone" : "can be undone")
         return parts.joined(separator: " · ")
     }

@@ -19,6 +19,7 @@ protocol PanelActions: AnyObject {
     func previewBacklog()
     func addClaudeKey()
     func showPro()
+    func buyPro()
     func exportReceipts()
     func quit()
 }
@@ -146,7 +147,7 @@ extension PanelView {
             .padding(.horizontal, 10).padding(.vertical, 8)
             .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.1)))
             .padding(.horizontal, 4).padding(.bottom, 6)
-        } else if model.showKeyNudge {
+        } else if model.showKeyNudge && !model.showTrialOffer && !model.engine.isHosted {   // not next to the trial
             Button { actions.addClaudeKey() } label: {
                 Text("Better names: add a Claude key ›").font(.system(size: 11.5))
             }
@@ -161,15 +162,42 @@ extension PanelView {
 }
 
 extension PanelView {
-    /// The only places the menu mentions Pro: once after the 20th rename, and right after a free
-    /// user drops a folder. Both are one line and go away on their own.
+    /// The only places the menu mentions Pro: the free trial's offer (until answered) and its end,
+    /// once after the 20th rename, and right after a free user drops a folder. Each is one row and
+    /// goes away once answered or dismissed.
     @ViewBuilder var proRows: some View {
-        if let hint = model.proHint {
+        if model.showTrialOffer {
+            TrialOfferRow(start: { model.startTrial() }, decline: { model.declineTrial() })
+        } else if model.showTrialEnded {
+            ProNoteRow(text: ProTrial.ended + " " + ProTrial.keep, link: "Buy Pro ›",
+                       open: { actions.buyPro() }, close: { model.dismissTrialEnded() })
+        } else if let hint = model.proHint {
             ProNoteRow(text: hint, link: "Learn more ›", open: { actions.showPro() }, close: { model.proHint = nil })
         } else if model.showProMention {
             ProNoteRow(text: "Pro also names your screenshots and photos in other folders.", link: "Learn more ›",
                        open: { actions.showPro() }, close: { model.dismissProMention() })
         }
+    }
+}
+
+/// The free trial's offer, with the notice of what it sends. Nothing is sent until "Try It".
+struct TrialOfferRow: View {
+    let start: () -> Void
+    let decline: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(ProTrial.offer).font(.system(size: 12, weight: .medium))
+            Text(ProTrial.notice).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button("Try It", action: start).controlSize(.small).buttonStyle(.borderedProminent)
+                Button("No Thanks", action: decline).controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.1)))
+        .padding(.horizontal, 4).padding(.bottom, 6)
     }
 }
 

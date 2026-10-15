@@ -70,7 +70,7 @@ struct Status: ParsableCommand {
             appState: state, setup: SetupRecord.load(), config: config,
             storedKey: CredentialStore().hasAPIKey(), antLoggedIn: ClaudeAuth.shared.antToken() != nil,
             lockHolder: ProcessLock.holder(), appleReady: AppleIntelligenceStatus.current.isAvailable,
-            license: LicenseStore().read()))
+            license: LicenseStore().read(), trial: TrialStore().read()))
     }
 
     static func isApp(pid: Int32) -> Bool {

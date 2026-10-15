@@ -114,6 +114,7 @@ convert_heic = true
 date_format = "yyyy-mm-dd"              # yyyy-mm-dd | yyyymmdd | yyyy-mm | dd-mm-yyyy | mm-dd-yyyy
 finder_tags = false                     # Pro, menu-bar app only: tag renamed files with the kind (and city for photos)
 name_pdfs = true                        # Pro: also name PDFs from their text (see "Naming PDFs")
+pro_trial = false                       # the free Pro naming trial: auto names your next 25 photos with Pro naming (sends them off the Mac)
 
 [watch]
 folder = "~/Downloads"
@@ -156,6 +157,15 @@ reached or answers with an error.** Only an explicit "revoked/invalid" answer st
 period, after which Pro turns off until a valid key is activated.
 
 `state` is `none`, `active`, `grace` (Polar said invalid; `grace_until` says when Pro turns off) or `invalid` (Pro is off). `betterairdrop status --json` carries the same `state` and `pro` under `credentials.license`.
+
+## The free Pro naming trial
+
+Without Pro or a Claude key, `pro_trial = true` (the app's **Try It**, or Settings → Naming → Free
+Pro naming trial) makes `backend = "auto"` name the next 25 photos with Pro naming, for free and
+with no sign-up. It sends what Pro sends for a photo, with a random trial ID made on this Mac
+(`~/Library/Application Support/betterairdrop/pro-trial.json`) instead of a license key. Photos
+only, never PDFs. Off by default. Once the 25 are used up, or with `pro_trial = false`, `auto` is
+exactly what it is without Pro. `betterairdrop status --json` shows it under `credentials.trial`.
 
 ## Naming PDFs (Pro)
 

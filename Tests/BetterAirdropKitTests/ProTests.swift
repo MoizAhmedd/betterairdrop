@@ -619,3 +619,72 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
         #expect(folders.map(\.lastPathComponent) == ["sub"])
     }
 }
+
+/// The free Pro naming trial: what the app shows, when it offers it, and `status --json`'s `credentials.trial`.
+@Suite struct ProTrialTests {
+    let now = at("2026-10-15T12:00:00Z")
+    var on: Config { var c = Config(); c.proTrial = true; return c }
+
+    @Test func engineStatus() {
+        let fresh = EngineStatus.trialRemaining(config: on, trial: nil, isPro: false)
+        #expect(fresh == 25)
+        #expect(EngineStatus.current(config: on, hasCredential: false, trialRemaining: fresh)
+                == EngineStatus(name: "Hosted (Pro)", detail: "free trial, 25 names left"))
+        #expect(EngineStatus.current(config: on, hasCredential: false, trialRemaining: 1).detail == "free trial, 1 name left")
+        #expect(EngineStatus.current(config: on, hasCredential: true, trialRemaining: 25).isClaude, "your own key comes first")
+        #expect(EngineStatus.current(config: on, hasCredential: false, appleReady: true, hostedProblem: "busy", trialRemaining: 3)
+                == EngineStatus(name: "Apple Intelligence", detail: "busy"))
+        var local = on; local.claudeInAuto = false
+        #expect(EngineStatus.current(config: local, hasCredential: false, trialRemaining: 25).name == "Apple Vision")
+
+        // Off, used up, or Pro: no trial, so the free engines exactly as before.
+        let id = "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+        #expect(EngineStatus.trialRemaining(config: Config(), trial: nil, isPro: false) == nil)
+        #expect(EngineStatus.trialRemaining(config: on, trial: TrialState(id: id, remaining: 0, usedUp: true), isPro: false) == nil)
+        #expect(EngineStatus.trialRemaining(config: on, trial: nil, isPro: true) == nil)
+        #expect(EngineStatus.trialRemaining(config: on, trial: TrialState(id: id, remaining: 7), isPro: false) == 7)
+        #expect(EngineStatus.current(config: on, hasCredential: false, trialRemaining: nil).name == "Apple Vision")
+    }
+
+    @Test func offerOnlyToNewFreeUsersOnAutomatic() {
+        let id = "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+        func offer(_ c: Config = Config(), pro: Bool = false, key: Bool = false, trial: TrialState? = nil, dismissed: Bool = false) -> Bool {
+            ProTrial.shouldOffer(config: c, isPro: pro, hasCredential: key, trial: trial, dismissed: dismissed)
+        }
+        #expect(offer())
+        #expect(!offer(pro: true) && !offer(key: true) && !offer(dismissed: true))
+        #expect(!offer(on), "already on")
+        #expect(!offer(trial: TrialState(id: id, remaining: 0, usedUp: true)), "already tried, then turned off")
+        var vision = Config(); vision.backend = "vision"
+        var local = Config(); local.claudeInAuto = false
+        #expect(!offer(vision) && !offer(local), "someone who chose to stay on this Mac isn't asked")
+    }
+
+    /// The switch's line always says what's sent while the trial can still run.
+    @Test func settingsLine() {
+        #expect(ProTrial.notice.contains("BetterAirdrop's server") && ProTrial.notice.contains("Anthropic"))
+        #expect(ProTrial.settingsLine(config: Config(), trial: nil) == ProTrial.offer + " " + ProTrial.notice)
+        let id = "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+        #expect(ProTrial.settingsLine(config: on, trial: TrialState(id: id, remaining: 12)).hasPrefix("12 of 25 free names left."))
+        #expect(ProTrial.settingsLine(config: on, trial: TrialState(id: id, remaining: 0, usedUp: true)) == ProTrial.ended)
+    }
+
+    func report(_ config: Config, trial: TrialState?) -> StatusReport {
+        StatusReport.make(.init(cliVersion: "0.4.1", appPath: nil, appVersion: nil, appRunning: false, appState: nil, setup: nil,
+                                config: config, storedKey: false, antLoggedIn: false, lockHolder: nil, trial: trial, now: now))
+    }
+
+    @Test func statusJSON() throws {
+        let id = "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+        let r = report(on, trial: TrialState(id: id, remaining: 20))
+        #expect(r.engine.active == "Hosted (Pro)" && r.engine.detail == "free trial, 20 names left")
+        #expect(r.credentials.trial == .init(enabled: true, state: TrialState(id: id, remaining: 20)))
+        let obj = try JSONSerialization.jsonObject(with: Data(report(Config(), trial: nil).json().utf8)) as! [String: Any]
+        let trial = (obj["credentials"] as! [String: Any])["trial"] as! [String: Any]
+        #expect(Set(trial.keys) == ["enabled", "remaining", "used_up"], "always all three keys")
+        #expect(trial["enabled"] as? Bool == false && trial["remaining"] is NSNull && trial["used_up"] as? Bool == false)
+        #expect(!(try report(on, trial: TrialState(id: id)).json()).contains(id), "the trial ID isn't reported")
+        let done = report(on, trial: TrialState(id: id, remaining: 0, usedUp: true))
+        #expect(done.engine.active == "Apple Vision" && done.credentials.trial.usedUp)
+    }
+}

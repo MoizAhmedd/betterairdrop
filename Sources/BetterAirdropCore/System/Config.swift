@@ -59,6 +59,10 @@ public struct Config: Sendable, Equatable {
     /// Where hosted naming (Pro) sends photos. Only changed to test another deployment of `hosted/`.
     public var hostedURL = HostedNamer.defaultBaseURL
 
+    /// The free Pro naming trial (no Pro, no Claude key): `auto` names the next 25 photos with hosted
+    /// naming. Off until the user turns it on (the app's "Try It"), since it sends photos off the Mac.
+    public var proTrial = false
+
     /// Pro: also name PDFs (new ones in the watched folders, and PDFs renamed by hand) from their text.
     public var namePDFs = true
 
@@ -247,6 +251,7 @@ public struct Config: Sendable, Equatable {
         case "claude.auto": claudeInAuto = try bool()
         case "finder_tags": finderTags = try bool()
         case "name_pdfs": namePDFs = try bool()
+        case "pro_trial": proTrial = try bool()
         case "hosted.url":
             let s = try str()
             guard let u = URL(string: s), ["https", "http"].contains(u.scheme ?? ""), u.host != nil else {

@@ -34,10 +34,12 @@ public struct EngineStatus: Equatable, Sendable {
     /// `hasCredential`: a Claude credential resolves (key, env or `ant`). `appleReady`: Foundation Models is usable.
     /// `hasLicense`: Pro is active or in grace on this Mac (hosted naming). `hostedProblem`: why
     /// hosted naming is being skipped right now (`HostedNamer.currentProblem`), e.g. its monthly
-    /// limit. `hostedRemaining`: names left this month, as the server last said.
-    /// `auto` follows `Backends.resolve`: Claude, hosted, Apple Intelligence, Vision.
+    /// limit. `hostedRemaining`: names left this month, as the server last said. `trialRemaining`:
+    /// the free trial is on and has this many names left (`trialRemaining(...)`); nil = no trial.
+    /// `auto` follows `Backends.resolve`: Claude, hosted, the trial, Apple Intelligence, Vision.
     public static func current(config: Config, hasCredential: Bool, appleReady: Bool = false,
-                               hasLicense: Bool = false, hostedProblem: String? = nil, hostedRemaining: Int? = nil) -> EngineStatus {
+                               hasLicense: Bool = false, hostedProblem: String? = nil, hostedRemaining: Int? = nil,
+                               trialRemaining: Int? = nil) -> EngineStatus {
         let claude = EngineStatus(name: modelName(config.claudeModel), detail: "Vision if offline", isClaude: true,
                                   shownDetail: "Apple Vision if offline")
         // Hosted falls back to Apple Intelligence when it's ready, else Vision (Backends.onDevice).
@@ -53,6 +55,10 @@ public struct EngineStatus: Equatable, Sendable {
         default:
             if config.claudeInAuto && hasCredential { return claude }
             if config.claudeInAuto && hasLicense { return hosted }
+            if config.claudeInAuto, let left = trialRemaining {
+                return hostedProblem.map { EngineStatus(name: onDevice, detail: $0) }
+                    ?? EngineStatus(name: hostedName, detail: "free trial, \(left) name\(left == 1 ? "" : "s") left")
+            }
             if appleReady { return EngineStatus(name: "Apple Intelligence", detail: nil) }
             return EngineStatus(name: "Apple Vision", detail: nil)
         }
@@ -64,6 +70,12 @@ public struct EngineStatus: Equatable, Sendable {
 
     /// An engine `name` (or `status --json`'s `engine.active`) as people see it.
     public static func title(_ name: String) -> String { name == hostedName ? hostedTitle : name }
+
+    /// The free trial's names left when `auto` would use it: `pro_trial` on, no Pro, not used up.
+    public static func trialRemaining(config: Config, trial: TrialState?, isPro: Bool) -> Int? {
+        guard config.proTrial, !isPro, trial?.usedUp != true else { return nil }
+        return trial?.remaining ?? TrialStore.names
+    }
 
     /// Hosted naming is what names the next photo.
     public var isHosted: Bool { name == Self.hostedName }
@@ -95,5 +107,30 @@ public struct EngineStatus: Equatable, Sendable {
         let family = parts[1].prefix(1).uppercased() + parts[1].dropFirst()
         let version = parts.dropFirst(2).prefix { $0.count <= 2 && Int($0) != nil }.joined(separator: ".")
         return "Claude \(family)" + (version.isEmpty ? "" : " \(version)")
+    }
+}
+
+/// What the app says about the free Pro naming trial. Plain words: the copy pass calls hosted naming "Pro naming".
+public enum ProTrial {
+    /// The offer, in the menu on first run and in Settings → Naming. Opt-in: nothing is sent until "Try It".
+    public static let offer = "Try Pro naming free on your next \(TrialStore.names) photos."
+    /// The one-line notice that goes with the offer and the switch.
+    public static let notice = "A smaller copy of each photo goes to BetterAirdrop's server and on to Anthropic, which names it."
+    /// The upsell, once the trial is used up (menu, notification, Settings).
+    public static let ended = "Your \(TrialStore.names) free Pro names are used up."
+    public static let keep = "Keep names like these: $19"
+
+    /// The menu's offer row: a new user with no Pro and no Claude key, on Automatic, who hasn't
+    /// answered the offer or started the trial.
+    public static func shouldOffer(config: Config, isPro: Bool, hasCredential: Bool, trial: TrialState?, dismissed: Bool) -> Bool {
+        !isPro && !hasCredential && config.backend == "auto" && config.claudeInAuto && !config.proTrial && trial == nil && !dismissed
+    }
+
+    /// The line under Settings → Naming's switch.
+    public static func settingsLine(config: Config, trial: TrialState?) -> String {
+        if trial?.usedUp == true { return ended }
+        guard config.proTrial else { return offer + " " + notice }
+        let left = trial?.remaining ?? TrialStore.names
+        return "\(left) of \(TrialStore.names) free names left. " + notice
     }
 }

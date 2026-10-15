@@ -1,5 +1,8 @@
 // The only state the Worker keeps: per license key (by SHA-256, never the key itself) Polar's last
-// verdict and this month's count, and one global count for today. No images, prompts or answers.
+// verdict and this month's count, and one global count for today. For the free trial: per trial ID
+// (by SHA-256) its lifetime count, and the trial's own count for today with a per-network count
+// (a salted hash of the IP and the day, never the IP), dropped when the day ends. No images,
+// prompts or answers.
 //
 // Each lives in a SQLite-backed Durable Object (durable.ts). These classes hold the logic over a
 // tiny storage interface so tests can run them against a Map.
@@ -65,6 +68,56 @@ export class BudgetRecord {
   }
 }
 
+/** A trial request was refused: the trial's daily budget is spent, or this network's share of it. */
+export interface TrialConsumed {
+  ok: boolean;
+  refused?: "daily" | "network";
+}
+
+interface NetworkCounts {
+  period: string;
+  counts: Record<string, number>;
+}
+
+/**
+ * The free trial's own daily budget (a second GlobalBudget instance, "trial"), apart from the paid
+ * one so trial traffic can never use up paying users' capacity. `network` is a salted hash of the
+ * caller's IP and the day (handler.ts): one network gets at most `networkCap` trial names a day.
+ */
+export class TrialBudgetRecord {
+  constructor(private readonly s: Storage) {}
+  /** Counts one trial name today for this network, unless the trial or the network is at its cap. */
+  async consume(period: string, network: string, networkCap: number, cap: number): Promise<TrialConsumed> {
+    const u = await this.s.get<Usage>("usage");
+    const used = u?.period === period ? u.used : 0;
+    if (used >= cap) return { ok: false, refused: "daily" };
+    const n = await this.s.get<NetworkCounts>(NETWORKS_KEY);
+    const counts = n?.period === period ? n.counts : {};
+    const mine = counts[network] ?? 0;
+    if (mine >= networkCap) return { ok: false, refused: "network" };
+    counts[network] = mine + 1;
+    await this.s.put<Usage>("usage", { period, used: used + 1 });
+    await this.s.put<NetworkCounts>(NETWORKS_KEY, { period, counts });
+    return { ok: true };
+  }
+  /** The structured retry's second Anthropic call: the trial's daily count only. */
+  spend(period: string, cap: number): Promise<Consumed> {
+    return consume(this.s, period, cap);
+  }
+  /** Gives back a `consume` whose trial ID turned out to be used up. */
+  async release(period: string, network: string): Promise<void> {
+    await release(this.s, period);
+    const n = await this.s.get<NetworkCounts>(NETWORKS_KEY);
+    if (n?.period === period && (n.counts[network] ?? 0) > 0) {
+      n.counts[network]! -= 1;
+      await this.s.put<NetworkCounts>(NETWORKS_KEY, n);
+    }
+  }
+}
+
+/** The storage key of the per-network counts, which the trial budget's alarm deletes after the day ends. */
+export const NETWORKS_KEY = "networks";
+
 /** The interface both the Durable Object stubs (RPC) and the in-memory test doubles provide. */
 export interface LicenseStore {
   validity(): Promise<Validity | undefined>;
@@ -75,6 +128,14 @@ export interface LicenseStore {
 export interface BudgetStore {
   consume(period: string, cap: number): Promise<Consumed>;
 }
+export interface TrialBudgetStore {
+  consume(period: string, network: string, networkCap: number, cap: number): Promise<TrialConsumed>;
+  spend(period: string, cap: number): Promise<Consumed>;
+  release(period: string, network: string): Promise<void>;
+}
+/** A trial ID's record: the license record's count, with one period for the trial's whole life. */
+export type TrialStore = Pick<LicenseStore, "consume" | "release">;
+export const TRIAL_PERIOD = "trial";
 
 // MARK: - Periods (UTC)
 

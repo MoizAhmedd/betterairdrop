@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Deps } from "../src/handler";
 import { nameImage, nameText } from "../src/name";
 import { validateWithPolar } from "../src/polar";
-import { BudgetRecord, LicenseRecord, type Storage } from "../src/state";
+import { BudgetRecord, LicenseRecord, TrialBudgetRecord, type Storage } from "../src/state";
 
 export class MemoryStorage implements Storage {
   readonly map = new Map<string, unknown>();
@@ -33,10 +33,15 @@ export const CONTEXT = "Context worked out on the user's Mac:\n- captured: 2026-
 export const KEY = "BA_1234ABCD-5678-EF90-1234-567890ABCDEF";
 export const GOOD_ANSWER = { subject: "Walnut lamp on oak sideboard", kind: "photo", merchant: "", total: "", confidence: 0.92, people_present: false };
 
-export function request(body: unknown = { image: jpeg(768, 576), context: CONTEXT }, opts: { key?: string | null; method?: string; path?: string; raw?: string } = {}) {
+export const TRIAL_ID = "3F2504E0-4F89-41D3-9A0C-0305E82C3301";
+
+export function request(body: unknown = { image: jpeg(768, 576), context: CONTEXT },
+                        opts: { key?: string | null; trial?: string; ip?: string; method?: string; path?: string; raw?: string } = {}) {
   const headers: Record<string, string> = { "content-type": "application/json" };
   const key = opts.key === undefined ? KEY : opts.key;
-  if (key !== null) headers.authorization = `Bearer ${key}`;
+  if (opts.trial !== undefined) headers.authorization = `Trial ${opts.trial}`;
+  else if (key !== null) headers.authorization = `Bearer ${key}`;
+  headers["cf-connecting-ip"] = opts.ip ?? "203.0.113.7";
   const method = opts.method ?? "POST";
   return new Request(`https://api.betterairdrop.com${opts.path ?? "/v1/name"}`, {
     method,
@@ -86,6 +91,7 @@ export interface World {
   net: FakeNet;
   licenses: Map<string, MemoryStorage>;
   budget: MemoryStorage;
+  trialBudget: MemoryStorage;
   clock: { now: Date };
   logs: Record<string, unknown>[];
   deps: Deps;
@@ -96,6 +102,7 @@ export function world(over: Partial<Deps> = {}): World {
   const net = new FakeNet();
   const licenses = new Map<string, MemoryStorage>();
   const budget = new MemoryStorage();
+  const trialBudget = new MemoryStorage();
   const clock = { now: new Date("2026-10-15T12:00:00Z") };
   const logs: Record<string, unknown>[] = [];
   const anthropic = new Anthropic({ apiKey: "sk-ant-test", maxRetries: 0, fetch: net.fetch });
@@ -112,9 +119,18 @@ export function world(over: Partial<Deps> = {}): World {
     name: (image, context, mayRetry) => nameImage(anthropic, image, context, mayRetry),
     nameText: (context, text, mayRetry) => nameText(anthropic, context, text, mayRetry),
     log: (l) => logs.push(l),
+    trialCap: 25,
+    trialDailyCap: 300,
+    trialNetworkDailyCap: 50,
+    trial: (hash) => {
+      if (!licenses.has(hash)) licenses.set(hash, new MemoryStorage());
+      return new LicenseRecord(licenses.get(hash)!);
+    },
+    trialBudget: () => new TrialBudgetRecord(trialBudget),
+    ipSalt: "test-salt",
     ...over,
   };
-  return { net, licenses, budget, clock, logs, deps };
+  return { net, licenses, budget, trialBudget, clock, logs, deps };
 }
 
 export async function body(res: Response): Promise<any> {

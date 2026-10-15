@@ -163,6 +163,21 @@ struct GeneralPane: View {
 
 // MARK: - Naming
 
+/// Settings → Naming: the free Pro naming trial's switch (off until "Try It" or this), and the
+/// upsell once it's used up.
+struct TrialToggle: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        Toggle(isOn: Binding(get: { model.config.proTrial }, set: { v in model.updateConfig { $0.proTrial = v } })) {
+            Text("Free Pro naming trial")
+            Text(ProTrial.settingsLine(config: model.config, trial: model.trial))
+        }
+        .disabled(model.trial?.usedUp == true)
+        if model.trial?.usedUp == true { ProLine(text: ProTrial.keep + ".") }
+    }
+}
+
 struct NamingPane: View {
     @ObservedObject var model: AppModel
     @State private var template = ""
@@ -200,6 +215,7 @@ struct NamingPane: View {
                     if let notice = model.engine.notice(namesPDFs: model.namesPDFs) { Text(notice) }
                 }
                 if !model.isPro { ProLine(text: "Pro: great names without an API key.") }
+                if !model.isPro { TrialToggle(model: model) }
             }
             Section("Claude") {
                 LabeledContent {

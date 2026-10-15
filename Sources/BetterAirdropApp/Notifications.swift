@@ -12,9 +12,11 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         static let offline = "betterairdrop.batch.offline"
         static let lost = "betterairdrop.lost"
         static let backlog = "betterairdrop.backlog"
+        static let trialEnded = "betterairdrop.trial-ended"
     }
     enum Action {
-        static let undo = "undo", reveal = "reveal", renameAgain = "renameAgain", fix = "fix", pause = "pause", preview = "preview"
+        static let undo = "undo", reveal = "reveal", renameAgain = "renameAgain", fix = "fix", pause = "pause", preview = "preview",
+                   buy = "buy"
     }
 
     weak var app: AppDelegate?
@@ -39,6 +41,9 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
             ], intentIdentifiers: []),
             UNNotificationCategory(identifier: Category.backlog, actions: [
                 UNNotificationAction(identifier: Action.preview, title: "Preview", options: [.foreground]),
+            ], intentIdentifiers: []),
+            UNNotificationCategory(identifier: Category.trialEnded, actions: [
+                UNNotificationAction(identifier: Action.buy, title: "Buy Pro", options: [.foreground]),
             ], intentIdentifiers: []),
         ])
     }
@@ -87,6 +92,15 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         deliver(UNNotificationRequest(identifier: "backlog", content: content, trigger: nil), ask: false)
     }
 
+    /// The free trial just ran out: one banner, the moment it happens (the menu keeps a row too).
+    func postTrialEnded() {
+        let content = UNMutableNotificationContent()
+        content.title = ProTrial.ended
+        content.body = ProTrial.keep + ". New photos are named on this Mac again."
+        content.categoryIdentifier = Category.trialEnded
+        deliver(UNNotificationRequest(identifier: "trial-ended", content: content, trigger: nil), ask: false)
+    }
+
     /// Replaces the batch's banner with "Undone".
     func postUndone(batch: String, restored: Int) {
         guard enabled else { return }
@@ -130,8 +144,10 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
             case Action.fix: app.fixAccess()
             case Action.preview: app.previewBacklog()
             case Action.pause: app.model.pause(.indefinitely)
+            case Action.buy: app.buyPro()
             case UNNotificationDefaultActionIdentifier:
-                if category == Category.lost { app.fixAccess() } else if category == Category.backlog { app.previewBacklog() } else { app.reveal(paths) }
+                if category == Category.lost { app.fixAccess() } else if category == Category.backlog { app.previewBacklog() }
+                else if category == Category.trialEnded { app.buyPro() } else { app.reveal(paths) }
             case Action.reveal: app.reveal(paths)
             default: break
             }

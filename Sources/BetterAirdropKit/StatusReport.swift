@@ -144,10 +144,33 @@ public struct StatusReport: Codable, Equatable, Sendable {
             try c.encode(lastError, forKey: .lastError)
         }
     }
+    /// The free Pro naming trial (`pro_trial`): no Pro, no Claude key, 25 photos named by hosted naming.
+    public struct TrialInfo: Codable, Equatable, Sendable {
+        /// `pro_trial` is on.
+        public var enabled: Bool
+        /// Trial names left, as the server last said (null before the first one).
+        public var remaining: Int?
+        public var usedUp: Bool
+        enum CodingKeys: String, CodingKey { case enabled, remaining, usedUp = "used_up" }
+
+        public static let none = TrialInfo(enabled: false, state: nil)
+
+        public init(enabled: Bool, state: TrialState?) {
+            self.enabled = enabled; remaining = state?.remaining; usedUp = state?.usedUp ?? false
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(enabled, forKey: .enabled)
+            try c.encode(remaining, forKey: .remaining)
+            try c.encode(usedUp, forKey: .usedUp)
+        }
+    }
     public struct Credentials: Codable, Equatable, Sendable {
         public var claude: Credential
         public var license = LicenseInfo.none
         public var hosted = HostedInfo.none
+        public var trial = TrialInfo.none
     }
     public struct Permissions: Codable, Equatable, Sendable {
         /// granted, denied, waiting, or unknown (the app hasn't reported yet).
@@ -218,15 +241,17 @@ extension StatusReport {
         public var appleReady: Bool
         /// The stored Pro license, if any.
         public var license: License?
+        /// The free trial's state (`TrialStore`), if it has started.
+        public var trial: TrialState?
         public var now: Date
 
         public init(cliVersion: String, appPath: String?, appVersion: String?, appRunning: Bool, appState: AppState?,
                     setup: SetupRecord?, config: Config, storedKey: Bool, antLoggedIn: Bool, lockHolder: ProcessLock.Owner?, appleReady: Bool = false,
-                    license: License? = nil, now: Date = Date()) {
+                    license: License? = nil, trial: TrialState? = nil, now: Date = Date()) {
             self.cliVersion = cliVersion; self.appPath = appPath; self.appVersion = appVersion; self.appRunning = appRunning
             self.appState = appState; self.setup = setup; self.config = config; self.storedKey = storedKey
             self.antLoggedIn = antLoggedIn; self.lockHolder = lockHolder; self.appleReady = appleReady
-            self.license = license; self.now = now
+            self.license = license; self.trial = trial; self.now = now
         }
     }
 
@@ -239,7 +264,8 @@ extension StatusReport {
         let pro = ProGate.status(i.license, now: i.now).isUnlocked
         let usage = i.appState?.hosted?.current(now: i.now)
         let engine = EngineStatus.current(config: i.config, hasCredential: hasCredential, appleReady: i.appleReady,
-                                          hasLicense: pro, hostedRemaining: usage?.remaining)
+                                          hasLicense: pro, hostedRemaining: usage?.remaining,
+                                          trialRemaining: EngineStatus.trialRemaining(config: i.config, trial: i.trial, isPro: pro))
         let state = i.appRunning ? i.appState : nil
         let folderName = Self.folderName(i.appState?.folder ?? i.config.watchFolder)
 
@@ -332,7 +358,8 @@ extension StatusReport {
             engine: Engine(backend: i.config.backend, active: engine.name, detail: engine.detail),
             credentials: Credentials(claude: Credential(present: hasCredential, source: source), license: license,
                                      hosted: HostedInfo(available: pro, remaining: usage?.remaining, resetsAt: usage?.resetsAt,
-                                                        lastError: usage?.lastError)),
+                                                        lastError: usage?.lastError),
+                                     trial: TrialInfo(enabled: i.config.proTrial, state: i.trial)),
             permissions: permissions,
             watching: watching,
             nextSteps: steps)
