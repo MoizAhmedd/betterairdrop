@@ -102,6 +102,9 @@ h1 em{color:var(--accent)}
 .copy:hover{background:rgba(255,255,255,.18)}
 .alt{margin:12px 0 0;font-size:13.5px;color:var(--muted)}
 .alt code{color:var(--ink-2);overflow-wrap:anywhere}
+.dl{display:inline-block;background:var(--accent);color:var(--paper);font-weight:600;font-size:16px;text-decoration:none;border-radius:10px;padding:12px 26px;margin-bottom:10px}
+.dl:hover{opacity:.92}
+.dl-note{margin:0 0 22px;font-size:13.5px;color:var(--muted)}
 .gh{display:inline-block;margin-top:22px;font-weight:500;text-decoration:none}
 .gh:hover{text-decoration:underline}
 
@@ -173,6 +176,8 @@ footer a{color:var(--muted)}
   </div>
 
   <div id="install">
+    <a class="dl" id="download" href="https://github.com/MoizAhmedd/betterairdrop/releases/latest/download/BetterAirdrop.zip">Download for Mac</a>
+    <p class="dl-note">Unzip, drag it to Applications, open it. If macOS blocks it: System Settings → Privacy &amp; Security → Open Anyway.</p>
     <div class="code"><span class="line"><span class="p">$ </span><span id="cmd">brew install moizahmedd/tap/betterairdrop</span></span><button class="copy" type="button" id="copy">Copy</button></div>
     <p class="alt">No Homebrew? <code>curl -fsSL https://betterairdrop.com/install | sh</code></p>
   </div>
@@ -275,6 +280,8 @@ footer a{color:var(--muted)}
     buy.href = checkout; buy.textContent = 'Buy Pro'; buy.removeAttribute('aria-disabled');
     buy.addEventListener('click', function(){ window.track && window.track('buy_click', {}, { transport: 'sendBeacon', send_instantly: true }); });
   }
+
+  document.getElementById('download').addEventListener('click', function(){ window.track && window.track('download_click', {}, { transport: 'sendBeacon', send_instantly: true }); });
 
   var b = document.getElementById('copy');
   b.addEventListener('click', function(){
