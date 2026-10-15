@@ -14,7 +14,7 @@ Open at login needs no click. macOS shows an informational “Background item ad
 ## 1. Install and set up
 
 ```sh
-curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh -s -- --yes --engine vision --launch-at-login
+curl -fsSL https://betterairdrop.com/install | sh -s -- --yes --engine vision --launch-at-login
 ```
 
 With Homebrew instead:

@@ -1,5 +1,5 @@
 name: Deploy site to GitHub Pages
-# https://moizahmedd.github.io/betterairdrop/: site/public, plus /install (scripts/install.sh) and
+# https://betterairdrop.com/: site/public, plus /install (scripts/install.sh) and
 # /appcast.xml (Sparkle feed, rebuilt from every release's appcast-item.xml). release.yml
 # dispatches this after each release.
 

@@ -2,7 +2,7 @@
 
 **No more IMG_4821.HEIC.** AirDropped photos get names you can search for.
 
-[moizahmedd.github.io/betterairdrop](https://moizahmedd.github.io/betterairdrop/)
+[betterairdrop.com](https://betterairdrop.com/)
 
 ```
 IMG_4821.HEIC  →  2026-09-21_toronto_walnut-lamp-on-oak-sideboard.jpg
@@ -15,7 +15,7 @@ IMG_4822.PNG   →  2026-09-21_screenshot_failed-payment-notice.png
 brew install moizahmedd/tap/betterairdrop
 ```
 
-No Homebrew? `curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh`
+No Homebrew? `curl -fsSL https://betterairdrop.com/install | sh`
 
 macOS 13 or later. It opens in the menu bar and asks for Downloads access once. If
 `ANTHROPIC_API_KEY` is set in your shell (or you're logged in with `ant`), it offers to use it;
@@ -28,7 +28,7 @@ Tell Claude Code or Codex: *"Install BetterAirdrop by following
 https://github.com/MoizAhmedd/betterairdrop/blob/main/docs/install-for-agents.md"*. It runs:
 
 ```sh
-curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh -s -- --yes --engine vision --launch-at-login
+curl -fsSL https://betterairdrop.com/install | sh -s -- --yes --engine vision --launch-at-login
 betterairdrop status --json      # "ready": true, or next_steps says what's left
 ```
 

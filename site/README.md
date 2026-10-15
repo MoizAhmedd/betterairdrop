@@ -11,8 +11,10 @@ Takeaways from Maccy, Rectangle, Ice, Dropover, CleanShot and Hazel:
 
 ## Hosting
 
-GitHub Pages, at https://moizahmedd.github.io/betterairdrop/. `.github/workflows/pages.yml` publishes
-`public/` as the site root, with the installer at `/install` and the Sparkle feed at `/appcast.xml`,
+GitHub Pages, at https://betterairdrop.com/ (the custom domain is set in the repo's Pages settings;
+Actions deploys ignore a CNAME file). The old moizahmedd.github.io/betterairdrop/ URLs redirect there,
+so installed copies still reach their Sparkle feed. `.github/workflows/pages.yml` publishes `public/` as
+the site root, with the installer at `/install` and the Sparkle feed at `/appcast.xml`,
 on every push to main that touches `site/` and after every release.
 
 Drop a 15-second screen recording at `public/demo.mp4` and it replaces the animated mock.
