@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Where do AirDropped photos go on a Mac? · BetterAirdrop</title>
+<meta name="description" content="AirDropped photos land in your Mac's Downloads folder. How to open it, find the newest AirDrop, and what to check when a photo isn't there.">
+<link rel="canonical" href="https://moizahmedd.github.io/betterairdrop/guides/where-do-airdropped-photos-go-mac/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="BetterAirdrop">
+<meta property="og:title" content="Where do AirDropped photos go on a Mac?">
+<meta property="og:description" content="Downloads. In Finder, press Option-Command-L.">
+<meta property="og:url" content="https://moizahmedd.github.io/betterairdrop/guides/where-do-airdropped-photos-go-mac/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%233f7fbf'/%3E%3Cpath d='M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='14' y='38' width='36' height='11' rx='3.5' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../guide.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  "name": "Find AirDropped photos on a Mac",
+  "description": "AirDropped photos are saved to the Downloads folder. Open it and sort by Date Added to see the newest first.",
+  "step": [
+    {"@type": "HowToStep", "name": "Open Downloads", "text": "In Finder, press Option-Command-L, or choose Go > Downloads. The Downloads folder is also in the Dock."},
+    {"@type": "HowToStep", "name": "Sort by Date Added", "text": "Choose View > Show View Options, then set Sort By to Date Added."},
+    {"@type": "HowToStep", "name": "Check Photos", "text": "If you chose to open the photo in Photos when it arrived, look in the Photos app instead."}
+  ]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+<nav class="top">
+  <a class="brand" href="../../">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="var(--accent)"/><path d="M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0" fill="none" stroke="var(--paper)" stroke-width="4" stroke-linecap="round"/><rect x="14" y="38" width="36" height="11" rx="3.5" fill="var(--paper)"/></svg>
+    BetterAirdrop
+  </a>
+  <div class="links">
+    <a href="../">Guides</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/MoizAhmedd/betterairdrop">GitHub</a>
+  </div>
+</nav>
+
+<article>
+  <p class="crumb"><a href="../">Guides</a></p>
+  <h1>Where do AirDropped photos go on a Mac?</h1>
+  <p class="answer">Your <b>Downloads</b> folder. In Finder, press <b>Option-Command-L</b> to open it.</p>
+
+  <h2>Open Downloads</h2>
+  <ul>
+    <li>Finder: <span class="path">Go → Downloads</span> or Option-Command-L</li>
+    <li>Dock: the Downloads folder or stack</li>
+  </ul>
+  <p class="src">Sources: <a href="https://support.apple.com/guide/mac-help/mchl231f08fb/mac">Use folders in the Dock</a> · <a href="https://support.apple.com/en-us/102650">Mac keyboard shortcuts</a></p>
+
+  <h2>Newest first</h2>
+  <p><span class="path">View → Show View Options → Sort By: Date Added</span>. The folder stays sorted that way.</p>
+  <p class="src">Source: <a href="https://support.apple.com/guide/mac-help/mchlp1745/mac">Sort and arrange items in the Finder</a></p>
+
+  <h2>Not in Downloads?</h2>
+  <ul>
+    <li>Your Mac may ask: save to Downloads, or open in Photos. Picked Photos? It's in your library.</li>
+    <li>Same Apple Account on both devices? It's accepted and saved with no prompt.</li>
+  </ul>
+  <p class="src">Source: <a href="https://support.apple.com/guide/mac-help/mh35868/mac">Use AirDrop to send items to nearby Apple devices</a></p>
+
+  <h2>Found them. They're all IMG_.</h2>
+  <div class="rename">
+    <span class="from">IMG_4821.HEIC</span><br>
+    <span class="from">IMG_4822.PNG</span><br>
+    <span class="from">IMG_5277.HEIC</span>
+  </div>
+
+  <section class="cta" id="install">
+    <h2>Name them as they land</h2>
+    <p>BetterAirdrop watches Downloads and names each AirDropped photo from its date, city and contents. Browser downloads are left alone. Undo anything.</p>
+    <div class="rename"><span class="from">IMG_4821.HEIC</span> → 2026-09-21_toronto_walnut-lamp-on-oak-sideboard.jpg</div>
+    <div class="code"><span class="line"><span class="p">$ </span><span id="cmd">brew install moizahmedd/tap/betterairdrop</span></span><button class="copy" type="button" id="copy">Copy</button></div>
+    <p class="alt">No Homebrew? <code>curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh</code></p>
+    <a class="gh" href="https://github.com/MoizAhmedd/betterairdrop">View on GitHub →</a>
+  </section>
+
+  <div class="more">
+    <h3>More guides</h3>
+    <ul>
+      <li><a href="../airdrop-photos-as-jpg/">How to AirDrop photos as JPG, not HEIC</a></li>
+      <li><a href="../rename-photos-by-content-mac/">Rename photos by what's in them on a Mac</a></li>
+    </ul>
+  </div>
+</article>
+
+<footer>
+  <span>BetterAirdrop · MIT licensed · by <a href="https://github.com/MoizAhmedd">Moiz Ahmed</a></span>
+  <span><a href="../">Guides</a></span>
+</footer>
+</div>
+<script src="../guide.js"></script>
+</body>
+</html>
