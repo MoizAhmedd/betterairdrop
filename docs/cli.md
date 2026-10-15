@@ -137,7 +137,7 @@ most once a week, with no account and no server of ours. **Pro stays on when Pol
 reached or answers with an error.** Only an explicit "revoked/invalid" answer starts a 14-day grace
 period, after which Pro turns off until a valid key is activated.
 
-`state` is `free`, `active`, `grace` (Polar said invalid; `grace_until` says when Pro turns off) or `lapsed`.
+`state` is `none`, `active`, `grace` (Polar said invalid; `grace_until` says when Pro turns off) or `invalid` (Pro is off). `betterairdrop status --json` carries the same `state` and `pro` under `credentials.license`.
 
 ## Testing
 

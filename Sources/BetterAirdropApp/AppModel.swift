@@ -527,6 +527,7 @@ final class AppModel: ObservableObject {
         }
         ClaudeAuth.shared.invalidate()
         refreshCredential { [weak self] in self?.rebuildService() }
+        refreshLicense()   // `betterairdrop license activate|deactivate` posts the same signal
     }
 
     /// After a key was stored or removed.

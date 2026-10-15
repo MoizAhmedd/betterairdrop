@@ -23,7 +23,8 @@ struct LicenseCommand: ParsableCommand {
         func run() throws {
             do {
                 let l = try LicenseClient().activate(key: key)
-                print("BetterAirdrop Pro is active on “\(l.label)” (key \(l.maskedKey)). The menu-bar app picks it up the next time its menu opens.")
+                AppSignal.reload.post()   // a running app turns Pro on now
+                print("BetterAirdrop Pro is active on “\(l.label)” (key \(l.maskedKey)).")
             } catch let f as LicenseClient.Failure {
                 stderr(f.description)
                 throw ExitCode(1)
@@ -54,6 +55,7 @@ struct LicenseCommand: ParsableCommand {
             guard store.read() != nil else { print("Pro isn't activated on this Mac."); return }
             do {
                 try LicenseClient(store: store).deactivate()
+                AppSignal.reload.post()
                 print("Deactivated. This Mac's slot is free again; the key works on another Mac.")
             } catch let f as LicenseClient.Failure {
                 stderr(f.description)
@@ -65,7 +67,7 @@ struct LicenseCommand: ParsableCommand {
     /// `license status --json`. Stable keys, for scripts and agents.
     struct Report: Encodable {
         var pro: Bool
-        /// free | active | grace | lapsed
+        /// none | active | grace | invalid (the same values as `status --json` → credentials.license.state)
         var state: String
         var graceUntil: Date?
         var key: String?
@@ -86,10 +88,10 @@ struct LicenseCommand: ParsableCommand {
         init(license: License?, status: ProStatus) {
             pro = status.isUnlocked
             switch status {
-            case .free: state = "free"
+            case .free: state = "none"
             case .active: state = "active"
             case .grace(let until): state = "grace"; graceUntil = until
-            case .lapsed: state = "lapsed"
+            case .lapsed: state = "invalid"
             }
             key = license?.maskedKey
             label = license?.label
@@ -119,12 +121,12 @@ struct LicenseCommand: ParsableCommand {
 
         var text: String {
             switch state {
-            case "free":
+            case "none":
                 return "Pro isn't activated on this Mac. " + (onSale ? "Buy it at \(buyURL!), then run `betterairdrop license activate <key>`." : "It isn't on sale yet.")
             case "grace":
                 let f = DateFormatter(); f.dateStyle = .medium
                 return "Pro is on (key \(key ?? "?"), “\(label ?? "")”), but Polar says the key is no longer valid. It stays on until \(f.string(from: graceUntil!))."
-            case "lapsed":
+            case "invalid":
                 return "Pro is off: Polar says key \(key ?? "?") is no longer valid. Activate a valid key with `betterairdrop license activate <key>`."
             default:
                 let checked = lastValidatedAt.map { " Last checked with Polar \(RelativeTime.string($0))." } ?? ""

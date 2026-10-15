@@ -250,6 +250,54 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
     }
 }
 
+/// `betterairdrop status --json` → credentials.license, beside credentials.claude.
+@Suite struct StatusReportLicenseTests {
+    let now = at("2026-10-15T12:00:00Z")
+
+    func report(_ license: License?) -> StatusReport {
+        let state = AppState(version: "0.4.0", pid: 42, updatedAt: now, folder: "~/Downloads", folderAccess: .granted,
+                             notifications: .allowed, loginItem: .enabled, watch: .watching)
+        return StatusReport.make(.init(cliVersion: "0.4.0", appPath: "/Applications/BetterAirdrop.app", appVersion: "0.4.0",
+                                       appRunning: true, appState: state, setup: SetupRecord(), config: Config(), storedKey: true,
+                                       antLoggedIn: false, lockHolder: nil, license: license, now: now))
+    }
+
+    func license(invalidDaysAgo: Double? = nil) -> License {
+        var l = License(key: "BA_1", activationID: "act", label: "Mac", displayKey: "****-ABCD", activatedAt: now.addingTimeInterval(-30 * 86_400))
+        l.invalidSince = invalidDaysAgo.map { now.addingTimeInterval(-$0 * 86_400) }
+        return l
+    }
+
+    @Test func states() {
+        #expect(report(nil).credentials.license == .init(state: "none", pro: false))
+        #expect(report(license()).credentials.license == .init(state: "active", pro: true, key: "****-ABCD"))
+        #expect(report(license(invalidDaysAgo: 3)).credentials.license
+                == .init(state: "grace", pro: true, key: "****-ABCD", graceUntil: now.addingTimeInterval(11 * 86_400)))
+        #expect(report(license(invalidDaysAgo: 15)).credentials.license == .init(state: "invalid", pro: false, key: "****-ABCD"))
+    }
+
+    @Test func nextStepOnlyForARejectedKey() {
+        #expect(report(nil).nextSteps.isEmpty)               // no Pro nag for free users
+        #expect(report(license()).nextSteps.isEmpty)
+        for l in [license(invalidDaysAgo: 3), license(invalidDaysAgo: 15)] {
+            let steps = report(l).nextSteps
+            #expect(steps.count == 1)
+            #expect(steps[0].who == "human" && !steps[0].required)
+            #expect(steps[0].command == "betterairdrop license activate <key>")
+        }
+        #expect(report(license()).ready)                      // Pro never affects `ready`
+    }
+
+    @Test func jsonShape() throws {
+        let obj = try JSONSerialization.jsonObject(with: Data(report(license(invalidDaysAgo: 3)).json().utf8)) as! [String: Any]
+        let lic = (obj["credentials"] as! [String: Any])["license"] as! [String: Any]
+        #expect(Set(lic.keys) == ["state", "pro", "key", "grace_until"])
+        #expect(lic["state"] as? String == "grace" && lic["pro"] as? Bool == true)
+        let none = try JSONSerialization.jsonObject(with: Data(report(nil).json().utf8)) as! [String: Any]
+        #expect(((none["credentials"] as! [String: Any])["license"] as! [String: Any]).keys.sorted() == ["pro", "state"])
+    }
+}
+
 @Suite struct ProMentionTests {
     @Test func onceAfterTwentyRenames() {
         #expect(!ProMention.shouldShow(renames: 19, isPro: false, alreadyShown: false))
