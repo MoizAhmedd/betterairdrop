@@ -18,18 +18,21 @@ protocol PanelActions: AnyObject {
     func redo(_ item: RecentItem)
     func previewBacklog()
     func addClaudeKey()
+    func showPro()
     func quit()
 }
 
 struct PanelView: View {
     @ObservedObject var model: AppModel
     let actions: PanelActions
+    @State private var dropTargeted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             bars
             firstRunRows
+            proRows
             HStack {
                 Text("Recent").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                 Spacer()
@@ -68,6 +71,31 @@ struct PanelView: View {
         }
         .padding(6)
         .frame(width: 340)
+        // Photos (or, with Pro, folders) dropped anywhere on the open menu, like on the icon.
+        .overlay {
+            if dropTargeted {
+                RoundedRectangle(cornerRadius: 10).strokeBorder(Color.accentColor, lineWidth: 2)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.accentColor.opacity(0.08)))
+                    .overlay(Text("Drop photos to rename them").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.accentColor))
+                    .padding(3)
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
+            let collected = DroppedURLs()
+            let group = DispatchGroup()
+            for p in providers {
+                group.enter()
+                _ = p.loadObject(ofClass: URL.self) { url, _ in
+                    if let url, url.isFileURL { collected.append(url) }
+                    group.leave()
+                }
+            }
+            group.notify(queue: .main) { [actions] in
+                let urls = collected.urls
+                if !urls.isEmpty { actions.renameFiles(urls) }
+            }
+            return true
+        }
     }
 
     static var monthName: String {
@@ -153,6 +181,48 @@ extension PanelView {
                 actions.previewBacklog()
             }
         }
+    }
+}
+
+/// URLs collected from several drag providers (their callbacks run on arbitrary queues).
+final class DroppedURLs: @unchecked Sendable {
+    private let lock = NSLock()
+    private var items: [URL] = []
+    func append(_ u: URL) { lock.lock(); items.append(u); lock.unlock() }
+    var urls: [URL] { lock.lock(); defer { lock.unlock() }; return items }
+}
+
+extension PanelView {
+    /// The only places the menu mentions Pro: once after the 20th rename, and right after a free
+    /// user drops a folder. Both are one line and go away on their own.
+    @ViewBuilder var proRows: some View {
+        if let hint = model.proHint {
+            ProNoteRow(text: hint, link: "Learn more ›", open: { actions.showPro() }, close: { model.proHint = nil })
+        } else if model.showProMention {
+            ProNoteRow(text: "Pro also names your screenshots and photos in other folders.", link: "Learn more ›",
+                       open: { actions.showPro() }, close: { model.dismissProMention() })
+        }
+    }
+}
+
+struct ProNoteRow: View {
+    let text: String
+    let link: String
+    let open: () -> Void
+    let close: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(text).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button(link, action: open).buttonStyle(.link)
+            }
+            .font(.system(size: 11.5))
+            Spacer(minLength: 0)
+            Button(action: close) { Image(systemName: "xmark").font(.system(size: 9, weight: .semibold)) }
+                .buttonStyle(.plain).foregroundStyle(.secondary).help("Dismiss")
+        }
+        .padding(.horizontal, 10).padding(.bottom, 6)
     }
 }
 

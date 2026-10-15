@@ -34,6 +34,21 @@ final class AppModel: ObservableObject {
     var probingAccess = false
     private var shellKey: String?
 
+    // MARK: Pro
+    @Published private(set) var license: License?
+    @Published private(set) var proStatus: ProStatus = .free
+    /// The Pro watchers (screenshots, other folders) by folder path, and what each is doing.
+    @Published private(set) var proWatchStates: [String: WatchService.State] = [:]
+    /// The folder screenshots are saved to (re-read whenever the watchers are rebuilt).
+    @Published private(set) var screenshotFolder = ScreenshotFolder.current()
+    /// The one-time "Pro also names screenshots…" row (after the 20th rename).
+    @Published private(set) var showProMention = false
+    /// A one-line note in the menu after a free user drops a folder.
+    @Published var proHint: String?
+    private var lifetimeRenames = 0
+    private var extraServices: [WatchService] = []
+    private var buildGeneration = 0
+
     struct CredentialInfo: Equatable {
         var storedKey = false
         var environmentKey = false
@@ -61,6 +76,8 @@ final class AppModel: ObservableObject {
             pausedUntil = d > Date() ? d : nil
             if d <= Date() { defaults.removeObject(forKey: "pausedUntil") }
         }
+        license = LicenseStore().read()
+        proStatus = ProGate.status(license)
     }
 
     // MARK: - Derived
@@ -77,6 +94,19 @@ final class AppModel: ObservableObject {
         EngineStatus.current(config: config, hasCredential: credential.any, appleReady: AppleIntelligenceStatus.current.isAvailable)
     }
     var needsAttention: Bool { state == .noAccess }
+
+    /// Pro is unlocked (active, or in the grace period after Polar said the key is invalid).
+    var isPro: Bool { proStatus.isUnlocked }
+
+    /// Settings' paths: `~/…` under the home folder.
+    nonisolated static func expand(_ path: String) -> URL {
+        URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
+    }
+
+    nonisolated static func tilde(_ url: URL) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return url.path.hasPrefix(home + "/") ? "~" + url.path.dropFirst(home.count) : url.path
+    }
 
     /// "● Ready: watching Downloads"
     var statusLine: String {
@@ -107,34 +137,126 @@ final class AppModel: ObservableObject {
         rebuildService()
         refreshRecent()
         scheduleResumeTimer()
+        refreshLicense()
     }
 
     /// Builds the planner (which may run `ant` or read the key file, so off the main thread) and
-    /// restarts the watcher with the current config.
+    /// restarts the watchers with the current config: the AirDrop folder always, plus (Pro) the
+    /// screenshot folder and the user's other folders. Only the AirDrop watcher takes the shared
+    /// lock that `betterairdrop watch` also uses.
     func rebuildService() {
         service?.stop()
         service = nil
+        for s in extraServices { s.stop() }
+        extraServices = []
+        buildGeneration += 1
+        let generation = buildGeneration
         let config = self.config, folder = self.folder, journal = self.journal
-        let paused = isPaused
+        let paused = isPaused, pro = isPro
         DispatchQueue.global(qos: .userInitiated).async {
             let planner = Self.makePlanner(config: config)
-            let committer = Committer(config: config, journal: journal)
-            committer.backend = planner.namer?.id ?? "none"
-            var options = Watcher.Options(folder: folder)
-            options.airdropOnly = config.watchAirdropOnly
-            let watcher = Watcher(options: options, planner: planner, committer: committer)
-            let svc = WatchService(watcher: watcher, monitor: FSEventsFolderMonitor(folder: folder.resolvingSymlinksInPath()))
+            let shots = ScreenshotFolder.current()
+            let plan = WatchPlan.make(main: folder, mainAirdropOnly: config.watchAirdropOnly,
+                                      screenshots: pro && config.watchScreenshots ? shots : nil,
+                                      extras: pro ? config.watchExtraFolders.map(Self.expand) : [])
+            let built = plan.entries.enumerated().map { i, e -> (WatchPlan.Entry, Watcher, WatchService) in
+                let committer = Committer(config: config, journal: journal)
+                committer.backend = planner.namer?.id ?? "none"
+                var options = Watcher.Options(folder: e.folder)
+                options.intake = e.intake
+                options.movies = e.movies
+                let watcher = Watcher(options: options, planner: planner, committer: committer)
+                let monitor = FSEventsFolderMonitor(folder: e.folder.resolvingSymlinksInPath())
+                let svc = i == 0 ? WatchService(watcher: watcher, monitor: monitor) : WatchService(watcher: watcher, monitor: monitor, lockURL: nil)
+                return (e, watcher, svc)
+            }
             DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                watcher.onBatch = { [weak self] b in DispatchQueue.main.async { self?.handle(b) } }
-                svc.onStateChange = { [weak self] s in DispatchQueue.main.async { self?.stateChanged(s) } }
-                svc.onBusy = { [weak self] b in DispatchQueue.main.async { self?.busy = b } }
-                if paused { svc.pause() }
-                svc.start()
-                self.service = svc
+                guard let self, generation == self.buildGeneration else { return }   // a newer rebuild won
+                self.screenshotFolder = shots
+                var states: [String: WatchService.State] = [:]
+                for (i, (entry, watcher, svc)) in built.enumerated() {
+                    watcher.onBatch = { [weak self] b in DispatchQueue.main.async { self?.handle(b) } }
+                    svc.onBusy = { [weak self] b in DispatchQueue.main.async { self?.busy = b } }
+                    if i == 0 {
+                        svc.onStateChange = { [weak self] s in DispatchQueue.main.async { self?.stateChanged(s) } }
+                        self.service = svc
+                    } else {
+                        let path = entry.folder.path
+                        states[path] = .stopped
+                        svc.onStateChange = { [weak self] s in DispatchQueue.main.async { self?.proWatchStates[path] = s } }
+                        self.extraServices.append(svc)
+                    }
+                    if paused { svc.pause() }
+                    svc.start()
+                }
+                self.proWatchStates = states
             }
         }
     }
+
+    // MARK: - Pro license
+
+    /// Reads the license (the CLI may have changed it) and, at most once a week, re-checks it with
+    /// Polar in the background. Turning Pro on or off restarts the watchers.
+    func refreshLicense() {
+        DispatchQueue.global(qos: .utility).async {
+            let client = LicenseClient()
+            let stored = client.store.read()
+            DispatchQueue.main.async { [weak self] in self?.setLicense(stored) }
+            guard let l = stored, ProGate.needsRevalidation(l) else { return }
+            client.revalidateIfDue()
+            let after = client.store.read()
+            DispatchQueue.main.async { [weak self] in self?.setLicense(after) }
+        }
+    }
+
+    private func setLicense(_ l: License?) {
+        let wasPro = isPro
+        license = l
+        proStatus = ProGate.status(l)
+        if isPro != wasPro { rebuildService() }
+    }
+
+    /// Settings → Pro → Activate. Completion gets an error message, or nil on success.
+    func activateLicense(_ key: String, completion: @escaping (String?) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let client = LicenseClient()
+            var failure: String?
+            do { try client.activate(key: key) } catch { failure = "\(error)" }
+            let stored = client.store.read()
+            DispatchQueue.main.async { [weak self] in
+                self?.setLicense(stored)
+                completion(failure)
+            }
+        }
+    }
+
+    func deactivateLicense(completion: @escaping (String?) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let client = LicenseClient()
+            var failure: String?
+            do { try client.deactivate() } catch { failure = "\(error)" }
+            let stored = client.store.read()
+            DispatchQueue.main.async { [weak self] in
+                self?.setLicense(stored)
+                completion(failure)
+            }
+        }
+    }
+
+    /// The menu opened: the one-time Pro row shows on the first opening after the 20th rename and
+    /// is gone from the next one on.
+    func panelOpened() {
+        refreshLicense()
+        proHint = nil
+        let key = "proMentionShown"
+        if showProMention { showProMention = false; return }
+        guard ProMention.shouldShow(renames: lifetimeRenames, isPro: isPro, alreadyShown: defaults.bool(forKey: key)) else { return }
+        showProMention = true
+        defaults.set(true, forKey: key)
+    }
+
+    func dismissProMention() { showProMention = false }
 
     nonisolated static func makePlanner(config: Config, backend: String? = nil) -> Planner {
         var planner = Planner(config: config)
@@ -186,6 +308,7 @@ final class AppModel: ObservableObject {
     /// Re-checks folder access and the lock now (menu opened, onboarding saw a grant, Retry).
     func recheck() {
         service?.recheck()
+        for s in extraServices { s.recheck() }
         if state == .lockedByOther { refreshLockHolder() }
     }
 
@@ -196,6 +319,7 @@ final class AppModel: ObservableObject {
         defaults.set(pausedUntil, forKey: "pausedUntil")
         defaults.set(d == .indefinitely, forKey: "pausedIndefinitely")
         service?.pause()
+        for s in extraServices { s.pause() }
         scheduleResumeTimer()
         objectWillChange.send()
     }
@@ -206,6 +330,7 @@ final class AppModel: ObservableObject {
         defaults.set(false, forKey: "pausedIndefinitely")
         resumeTimer?.invalidate()
         service?.resume()
+        for s in extraServices { s.resume() }
         objectWillChange.send()
     }
 
@@ -224,13 +349,17 @@ final class AppModel: ObservableObject {
     func refreshRecent() {
         let journal = self.journal
         let monthStart = Calendar.current.dateInterval(of: .month, for: Date())?.start ?? Date()
+        // Only counted while the one-time Pro row could still be shown.
+        let countAll = !isPro && !defaults.bool(forKey: "proMentionShown")
         DispatchQueue.global(qos: .userInitiated).async {
             let batches = journal.recentBatches(limit: 30)
             let items = Recent.items(batches, limit: 5)
             let last = Recent.lastUndoable(batches)
             let stats = journal.stats(since: monthStart)
+            let lifetime = countAll ? journal.stats(since: .distantPast).photos : 0
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+                self.lifetimeRenames = lifetime
                 self.recent = items
                 self.lastUndoableID = last?.id
                 self.lastUndoableCount = last?.count ?? 0
@@ -380,7 +509,8 @@ final class AppModel: ObservableObject {
         if old.watchFolder != c.watchFolder || old.backend != c.backend || old.claudeModel != c.claudeModel
             || old.claudeInAuto != c.claudeInAuto || old.watchAirdropOnly != c.watchAirdropOnly
             || old.template != c.template || old.kindTemplates != c.kindTemplates || old.convertHEIC != c.convertHEIC
-            || old.originals != c.originals || old.placeProvider != c.placeProvider || old.stripGPSFromOutput != c.stripGPSFromOutput {
+            || old.originals != c.originals || old.placeProvider != c.placeProvider || old.stripGPSFromOutput != c.stripGPSFromOutput
+            || old.watchScreenshots != c.watchScreenshots || old.watchExtraFolders != c.watchExtraFolders || old.dateFormat != c.dateFormat {
             rebuildService()
         }
     }

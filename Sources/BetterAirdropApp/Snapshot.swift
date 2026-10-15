@@ -54,8 +54,10 @@ enum Snapshot {
     }
 
     /// Runs `steps` one after another, `delay` seconds apart, then quits if asked to.
+    /// BETTERAIRDROP_SNAPSHOT_STEPS=settings,tab-pro runs only the steps whose names start with one of these.
     static func run(_ steps: [(String, () -> Void)], delay: TimeInterval = 1.2) {
-        var remaining = steps
+        let only = ProcessInfo.processInfo.environment["BETTERAIRDROP_SNAPSHOT_STEPS"]?.split(separator: ",").map(String.init)
+        var remaining = only.map { prefixes in steps.filter { s in prefixes.contains { s.0.hasPrefix($0) } } } ?? steps
         func next() {
             guard !remaining.isEmpty else {
                 if ProcessInfo.processInfo.environment["BETTERAIRDROP_SNAPSHOT_QUIT"] == "1" { NSApp.terminate(nil) }

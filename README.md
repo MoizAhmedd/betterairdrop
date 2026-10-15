@@ -74,6 +74,17 @@ betterairdrop undo
 
 `brew` and the installer link it; Settings → Advanced can too. Reference: [docs/cli.md](docs/cli.md).
 
+## Pro
+
+Free does everything above. Pro, $19 once for 3 Macs, adds:
+
+- Screenshots, named as you take them
+- Any folder you choose
+- A name builder
+- Whole folders renamed at once
+
+[Details](docs/cli.md#betterairdrop-pro).
+
 ## License
 
 MIT. City data © [GeoNames](https://www.geonames.org), CC BY 4.0.

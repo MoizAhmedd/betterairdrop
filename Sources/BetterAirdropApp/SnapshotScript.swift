@@ -40,12 +40,17 @@ extension AppDelegate {
             ("panel-2-capture", { Snapshot.capture(self.status.panelWindow, "panel-undone-paused"); self.status.close(); self.model.resume() }),
             ("settings", { self.showSettings() }),
         ]
-        for (i, name) in ["general", "naming", "advanced", "about"].enumerated() {
+        for (i, name) in ["general", "naming", "pro", "advanced", "about"].enumerated() {
             steps += [
                 ("tab-\(name)", { (self.settingsWindow?.contentViewController as? NSTabViewController)?.selectedTabViewItemIndex = i }),
                 ("tab-\(name)-capture", { Snapshot.capture(self.settingsWindow, "settings-\(name)") }),
             ]
         }
+        // Pro: the menu's one-line note after a free user drops a folder.
+        steps += [
+            ("pro-hint", { self.settingsWindow?.close(); self.status.open(); self.model.proHint = "Renaming whole folders is part of BetterAirdrop Pro." }),
+            ("pro-hint-capture", { Snapshot.capture(self.status.panelWindow, "panel-pro-folder-note"); self.status.close() }),
+        ]
         steps += [
             // Notifications turned off in System Settings while the config still has them on.
             ("notify-off-tab", { (self.settingsWindow?.contentViewController as? NSTabViewController)?.selectedTabViewItemIndex = 0 }),
