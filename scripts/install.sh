@@ -1,12 +1,12 @@
 #!/bin/sh
 # BetterAirdrop installer: puts BetterAirdrop.app in ~/Applications and opens it.
 #
-#   curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh
+#   curl -fsSL https://betterairdrop.com/install | sh
 #
 # Scripted (for AI agents and dotfiles): other flags go to `betterairdrop setup`, which runs before
 # the app opens, so the app only shows macOS's permission prompts. See docs/install-for-agents.md.
 #
-#   curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh -s -- --yes --engine vision
+#   curl -fsSL https://betterairdrop.com/install | sh -s -- --yes --engine vision
 #
 # No sudo. Checks the zip's SHA-256 against the release's SHA256SUMS before installing.
 set -eu
@@ -15,7 +15,7 @@ usage() {
   cat <<'USAGE'
 Installs BetterAirdrop.app in ~/Applications, links `betterairdrop` into ~/.local/bin, and opens it.
 
-  curl -fsSL https://moizahmedd.github.io/betterairdrop/install | sh -s -- [flags]
+  curl -fsSL https://betterairdrop.com/install | sh -s -- [flags]
 
 Installer flags:
   --version X        a specific release, pre-releases too (or BETTERAIRDROP_VERSION=X)
