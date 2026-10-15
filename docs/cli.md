@@ -65,6 +65,7 @@ betterairdrop auth claude | status | login | logout        set up the Claude cre
 betterairdrop setup [--engine auto|claude|vision|apple]    set up without the app's windows (scripts, AI agents)
         [--api-key-env VAR | --api-key-stdin] [--no-verify] [--[no-]launch-at-login] [--[no-]notify] [--no-open] [--yes]
 betterairdrop status [--json]                              is anything renaming AirDrops, what's missing, this month's totals
+betterairdrop license activate <key> | status [--json] | deactivate   BetterAirdrop Pro on this Mac
 betterairdrop uninstall [--purge]                          remove the app, login item, key, CLI link and permission
 ```
 
@@ -104,15 +105,39 @@ backend = "auto"                        # auto | claude | vision | apple
 template = "{date}_{place}_{subject}"   # tokens: date time place country subject kind device merchant total orig
 originals = "trash"                     # trash | keep | delete
 convert_heic = true
+date_format = "yyyy-mm-dd"              # yyyy-mm-dd | yyyymmdd | yyyy-mm | dd-mm-yyyy | mm-dd-yyyy
 
 [watch]
 folder = "~/Downloads"
 notify = true
+screenshots = false                     # Pro, menu-bar app only: also name new screenshots
+extra_folders = []                      # Pro, menu-bar app only: e.g. ["~/Pictures/Inbox"]
 
 [claude]
 model = "claude-haiku-4-5"              # any Messages API model id
 auto = true                             # let backend = "auto" use Claude when a credential exists
 ```
+
+## BetterAirdrop Pro
+
+Everything above is free. Pro ($19 once, 3 Macs, lifetime updates, sold through Polar) adds to the
+menu-bar app: naming new screenshots, watching other folders (new images only, same settle rules
+and undo), the name builder (parts, order, separator, date format) and renaming whole folders
+(drop a folder on the menu, or Finder → Services). The command-line tool is the same with or without it.
+
+```sh
+betterairdrop license activate BA_XXXX-XXXX   # uses one of the key's 3 Macs; label = this Mac's name
+betterairdrop license status --json           # {"pro": true, "state": "active", "key": "****-ABCD", …}
+betterairdrop license deactivate              # frees this Mac's slot
+```
+
+The key and this Mac's activation ID are kept in
+`~/Library/Application Support/betterairdrop/license` (0600). The app asks Polar about the key at
+most once a week, with no account and no server of ours. **Pro stays on when Polar can't be
+reached or answers with an error.** Only an explicit "revoked/invalid" answer starts a 14-day grace
+period, after which Pro turns off until a valid key is activated.
+
+`state` is `free`, `active`, `grace` (Polar said invalid; `grace_until` says when Pro turns off) or `lapsed`.
 
 ## Testing
 
