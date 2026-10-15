@@ -44,16 +44,13 @@ export class RequestError extends Error {
 }
 
 /** The license key from `Authorization: Bearer <key>`, or null. */
-export function bearerKey(req: Request): string | null {
-  const h = req.headers.get("authorization") ?? "";
-  const m = /^Bearer\s+(\S+)\s*$/i.exec(h);
-  return m?.[1] ?? null;
-}
+export const bearerKey = (req: Request) => authorization(req, "Bearer");
 
 /** The free trial's install ID from `Authorization: Trial <id>`, or null. */
-export function trialId(req: Request): string | null {
-  const h = req.headers.get("authorization") ?? "";
-  const m = /^Trial\s+(\S+)\s*$/i.exec(h);
+export const trialId = (req: Request) => authorization(req, "Trial");
+
+function authorization(req: Request, scheme: string): string | null {
+  const m = new RegExp(`^${scheme}\\s+(\\S+)\\s*$`, "i").exec(req.headers.get("authorization") ?? "");
   return m?.[1] ?? null;
 }
 

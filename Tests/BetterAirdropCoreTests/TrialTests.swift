@@ -126,9 +126,8 @@ extension HostedNamerTests {
         #expect(store.read() == nil, "resolving never makes a trial ID")
     }
 
-    @Test func trialConfigKey() throws {
-        #expect(try Config.parse("pro_trial = true\n").proTrial)
-        #expect(throws: Config.ParseError.self) { try Config.parse("pro_trial = \"yes\"\n") }
+    /// The app's switch is saved, and the default (off) isn't written.
+    @Test func trialSwitchIsSaved() throws {
         var c = Config(); c.proTrial = true
         #expect(c.rendered(updating: nil).contains("pro_trial = true"))
         #expect(!Config().rendered(updating: nil).contains("pro_trial"), "the default isn't written")

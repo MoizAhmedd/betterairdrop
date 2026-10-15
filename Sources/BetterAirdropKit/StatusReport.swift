@@ -153,6 +153,8 @@ public struct StatusReport: Codable, Equatable, Sendable {
         public var usedUp: Bool
         enum CodingKeys: String, CodingKey { case enabled, remaining, usedUp = "used_up" }
 
+        public static let none = TrialInfo(enabled: false, state: nil)
+
         public init(enabled: Bool, state: TrialState?) {
             self.enabled = enabled; remaining = state?.remaining; usedUp = state?.usedUp ?? false
         }
@@ -168,8 +170,7 @@ public struct StatusReport: Codable, Equatable, Sendable {
         public var claude: Credential
         public var license = LicenseInfo.none
         public var hosted = HostedInfo.none
-        /// Added in 0.4.1; optional so reports from older versions still decode.
-        public var trial: TrialInfo?
+        public var trial = TrialInfo.none
     }
     public struct Permissions: Codable, Equatable, Sendable {
         /// granted, denied, waiting, or unknown (the app hasn't reported yet).

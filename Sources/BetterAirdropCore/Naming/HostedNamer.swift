@@ -210,7 +210,7 @@ public struct HostedNamer: Namer {
     /// and the names left this month (for the trial: trial names left). The trial's own count goes to
     /// `trial`, never to `usage` (which is the Pro license's month).
     func call(_ path: String, _ body: [String: String], credential c: Credential, timings: inout StageTimings) throws -> (Data, Int?) {
-        let usage = c.isTrial ? UsageBox() : Self.usage
+        let usage = c.isTrial ? nil : Self.usage   // the trial's count is in `trial`
         var req = URLRequest(url: baseURL.appendingPathComponent(path), timeoutInterval: timeout)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "content-type")
@@ -226,7 +226,7 @@ public struct HostedNamer: Namer {
             } catch {
                 if attempt < maxAttempts { timings.time(.hosted) { sleep(CloudUpload.backoff(attempt, retryAfter: nil)) }; continue }
                 let failure = Error.network((error as NSError).localizedDescription)
-                usage.record(error: failure.description, now: now())
+                usage?.record(error: failure.description, now: now())
                 throw failure
             }
             let status = response.statusCode
@@ -245,7 +245,6 @@ public struct HostedNamer: Namer {
             let failure: Error
             switch status {
             case 403 where type == "trial_used_up": failure = .trialUsedUp; trial?.markUsedUp()
-            case 403 where type == "trial_photos_only": failure = .noLicense
             case 401, 403: failure = .licenseInvalid
             case 429 where type == "trial_daily_limit": failure = .trialDailyLimit(resets: resets)
             case 429: failure = type == "daily_limit" ? .dailyLimit(resets: resets) : .monthlyLimit(resets: resets)
@@ -258,9 +257,9 @@ public struct HostedNamer: Namer {
             }
             Self.blocks.record(failure, key: c.block)
             if case .monthlyLimit(let d) = failure {
-                usage.record(remaining: 0, resets: d, error: failure.description, now: now())
+                usage?.record(remaining: 0, resets: d, error: failure.description, now: now())
             } else {
-                usage.record(error: failure.description, now: now())
+                usage?.record(error: failure.description, now: now())
             }
             throw failure
         }

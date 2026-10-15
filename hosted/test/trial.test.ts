@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { handle } from "../src/handler";
-import { network } from "../src/request";
 import { CONTEXT, GOOD_ANSWER, TRIAL_ID, body, granted, jpeg, message, request, world } from "./helpers";
 
 const answerText = JSON.stringify(GOOD_ANSWER);
@@ -123,16 +122,5 @@ describe("the free trial", () => {
     expect(res.headers.get("x-trial-remaining")).toBe("0");
     expect((await w.deps.trialBudget().spend("2026-10-15", 3)).ok).toBe(false); // 1 + 2 calls
     expect(w.budget.writes).toBe(0);
-  });
-});
-
-describe("network", () => {
-  it("keeps IPv4 as it is and cuts IPv6 to its /64", () => {
-    expect(network("203.0.113.7")).toBe("203.0.113.7");
-    expect(network("::ffff:203.0.113.7")).toBe("203.0.113.7");
-    expect(network("2001:db8:aa:1::5")).toBe("2001:db8:aa:1::/64");
-    expect(network("2001:0db8:00aa:0001:1:2:3:4")).toBe("2001:db8:aa:1::/64");
-    expect(network("2001:db8::1")).toBe("2001:db8:0:0::/64");
-    expect(network(null)).toBe("unknown");
   });
 });

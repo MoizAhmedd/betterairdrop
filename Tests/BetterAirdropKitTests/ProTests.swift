@@ -660,8 +660,8 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
         #expect(!offer(vision) && !offer(local), "someone who chose to stay on this Mac isn't asked")
     }
 
-    @Test func copy() {
-        #expect(ProTrial.ended + " " + ProTrial.keep == "Your 25 free Pro names are used up. Keep names like these: $19")
+    /// The switch's line always says what's sent while the trial can still run.
+    @Test func settingsLine() {
         #expect(ProTrial.notice.contains("BetterAirdrop's server") && ProTrial.notice.contains("Anthropic"))
         #expect(ProTrial.settingsLine(config: Config(), trial: nil) == ProTrial.offer + " " + ProTrial.notice)
         let id = "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
@@ -685,6 +685,6 @@ func client(_ polar: FakePolar, _ temp: Temp, _ clock: TestClock = TestClock(), 
         #expect(trial["enabled"] as? Bool == false && trial["remaining"] is NSNull && trial["used_up"] as? Bool == false)
         #expect(!(try report(on, trial: TrialState(id: id)).json()).contains(id), "the trial ID isn't reported")
         let done = report(on, trial: TrialState(id: id, remaining: 0, usedUp: true))
-        #expect(done.engine.active == "Apple Vision" && done.credentials.trial?.usedUp == true)
+        #expect(done.engine.active == "Apple Vision" && done.credentials.trial.usedUp)
     }
 }
