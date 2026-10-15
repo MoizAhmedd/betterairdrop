@@ -67,6 +67,8 @@ td{color:var(--ink-2)}
 
 footer{margin-top:96px;border-top:1px solid var(--rule);padding:28px 0 48px;font-size:13.5px;color:var(--muted);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 footer a{color:var(--muted)}
+.pnote{flex-basis:100%}
+.pnote button{font:inherit;color:inherit;background:none;border:0;padding:0;text-decoration:underline;cursor:pointer}
 
 @media (max-width:520px){
   .wrap{padding:0 16px}
