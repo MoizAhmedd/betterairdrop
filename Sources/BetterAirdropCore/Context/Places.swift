@@ -59,7 +59,7 @@ public final class Places: @unchecked Sendable {
     public static func load() throws -> Places {
         var candidates: [URL] = []
         if let env = ProcessInfo.processInfo.environment["BETTERAIRDROP_CITIES"] { candidates.append(URL(fileURLWithPath: env)) }
-        let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
+        let exe = Executable.url.deletingLastPathComponent()
         candidates.append(exe.appendingPathComponent("../share/betterairdrop/cities.bin").standardized)
         // Inside BetterAirdrop.app: Contents/MacOS/BetterAirdrop and Contents/Helpers/betterairdrop
         // both find Contents/Resources/cities.bin.
@@ -67,9 +67,13 @@ public final class Places: @unchecked Sendable {
         for url in candidates where FileManager.default.fileExists(atPath: url.path) {
             return try Places(packed: Data(contentsOf: url))
         }
+        // SwiftPM's accessor calls fatalError when its bundle is missing, so release builds (the app,
+        // brew) never touch it: they ship cities.bin in Contents/Resources, found above.
+        #if DEBUG
         if let url = Bundle.module.url(forResource: "cities", withExtension: "bin") {
             return try Places(packed: Data(contentsOf: url))
         }
+        #endif
         throw Error.notFound
     }
 

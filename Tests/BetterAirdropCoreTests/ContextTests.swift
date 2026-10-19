@@ -164,6 +164,14 @@ import Testing
     @Test func rejectsGarbage() {
         #expect(throws: Places.Error.self) { try Places(packed: Data("nope".utf8)) }
     }
+
+    /// Places.load() finds cities.bin relative to this; it must not depend on how the CLI was invoked.
+    @Test func executableURLIsAbsoluteAndResolved() {
+        let url = Executable.url
+        #expect(url.path.hasPrefix("/"))
+        #expect(url.path == url.resolvingSymlinksInPath().path)
+        #expect(FileManager.default.isExecutableFile(atPath: url.path))
+    }
 }
 
 @Suite struct QuarantineTests {

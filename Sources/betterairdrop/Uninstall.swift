@@ -35,14 +35,14 @@ struct Uninstall: ParsableCommand {
         }
         // No app (a CLI-only build): the steps that don't need it.
         var u = Uninstaller()
-        let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        let exe = Executable.url
         u.cliLink = CLILink(target: exe)
         for s in u.uninstall(purge: purge) { print("\(s.ok ? "✓" : "✗") \(s.name)\(s.detail.map { ": \($0)" } ?? "")") }
     }
 
     /// The app this CLI lives in, else the usual install locations.
     static func findApp() -> URL? {
-        let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        let exe = Executable.url
         let bundle = exe.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         if bundle.pathExtension == "app" { return bundle }
         let home = FileManager.default.homeDirectoryForCurrentUser
