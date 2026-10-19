@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rename screenshots automatically on a Mac, by what's in them · BetterAirdrop</title>
+<meta name="description" content="Mac screenshots are named by date and time, not by what's on screen. Free ways to give them useful names: change where they save, Finder's batch rename, a Shortcuts quick action, or BetterAirdrop reading the text in each one.">
+<link rel="canonical" href="https://betterairdrop.com/guides/rename-screenshots-mac/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="BetterAirdrop">
+<meta property="og:title" content="Rename screenshots by what's in them on a Mac">
+<meta property="og:description" content="Screenshot 2026-10-19 at 10.42.03.png tells you nothing. Free ways to fix it.">
+<meta property="og:url" content="https://betterairdrop.com/guides/rename-screenshots-mac/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%233f7fbf'/%3E%3Cpath d='M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='14' y='38' width='36' height='11' rx='3.5' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../guide.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "How are screenshots named on a Mac?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Screenshot file names begin with Screenshot and include the date and time. Screenshots taken with the keyboard shortcuts are saved to the desktop. You can choose another folder in the Options menu of the Screenshot app (Shift-Command-5)."}},
+    {"@type": "Question", "name": "Can Finder rename screenshots by what's in them?",
+     "acceptedAnswer": {"@type": "Answer", "text": "No. Finder's Rename for several items replaces text, adds text, or applies a name with an index, counter or date. It doesn't look at the image."}},
+    {"@type": "Question", "name": "Is there a free way to rename screenshots by their contents on a Mac?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Yes. A Shortcuts quick action with Apple Intelligence's Use Model action can describe an image and rename it, on Macs with Apple Intelligence. BetterAirdrop, free and open source, reads the text in screenshots with Apple Vision on your Mac and names iPhone screenshots as they arrive by AirDrop; its Pro version names the Mac's own screenshots as they're taken."}}
+  ]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+<nav class="top">
+  <a class="brand" href="../../">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="var(--accent)"/><path d="M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0" fill="none" stroke="var(--paper)" stroke-width="4" stroke-linecap="round"/><rect x="14" y="38" width="36" height="11" rx="3.5" fill="var(--paper)"/></svg>
+    BetterAirdrop
+  </a>
+  <div class="links">
+    <a href="../">Guides</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/MoizAhmedd/betterairdrop">GitHub</a>
+  </div>
+</nav>
+
+<article>
+  <p class="crumb"><a href="../">Guides</a></p>
+  <h1>Rename screenshots automatically on a Mac</h1>
+  <p class="answer">macOS names every screenshot by date and time, never by what's on screen. Finder can't read them, but a Shortcuts quick action or BetterAirdrop can, free and on your Mac.</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th></th><th>Reads the screenshot</th><th>Many at once</th><th>Stays on your Mac</th><th>Setup</th></tr></thead>
+    <tbody>
+      <tr><td>Own folder</td><td>No</td><td>Every new one</td><td>Yes</td><td>One setting</td></tr>
+      <tr><td>Finder Rename</td><td>No</td><td>Yes</td><td>Yes</td><td>None</td></tr>
+      <tr><td>Shortcuts + Use Model</td><td>Yes</td><td>What you select</td><td>With On-Device</td><td>Build it; Apple Intelligence Mac</td></tr>
+      <tr><td>BetterAirdrop</td><td>Yes, Apple Vision text</td><td>Yes</td><td>Yes, with Vision</td><td>One install</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>How macOS names them</h2>
+  <ul>
+    <li>Names start with <b>Screenshot</b>, then the date and time.</li>
+    <li>Shift-Command-3, -4 and -5 save to the desktop by default.</li>
+    <li>Shift-Command-5 → <b>Options</b> → <b>Save to</b> picks another folder.</li>
+  </ul>
+  <p>A folder of their own keeps the desktop clear. It doesn't tell you which one is the invoice.</p>
+  <p class="src">Sources: <a href="https://support.apple.com/en-us/102646">How to take a screenshot on your Mac</a> · <a href="https://support.apple.com/guide/mac-help/mh26782/mac">Take screenshots or screen recordings on Mac</a></p>
+
+  <h2>Can Finder do it?</h2>
+  <p>Select the screenshots, Control-click, choose <b>Rename</b>. Replace text, add text, or a name plus a number or date.</p>
+  <p>Good for swapping <b>Screenshot</b> for a project name. Every file still gets the same words.</p>
+  <p class="src">Source: <a href="https://support.apple.com/guide/mac-help/mchlp1144/mac">Rename files, folders, and disks on Mac</a></p>
+
+  <h2>Can Shortcuts do it?</h2>
+  <p>Yes, if you build it. Needs macOS 26 or later with Apple Intelligence (a Mac with M1 or later).</p>
+  <ol>
+    <li>New shortcut → Details → <b>Use as Quick Action</b>.</li>
+    <li>Add <b>Use Model</b>, choose <b>On-Device</b>. Prompt: <em>“Name this screenshot in 3 to 5 words for a filename.”</em></li>
+    <li>Add an action that renames the file to the reply.</li>
+    <li>Turn it on: <span class="path">System Settings → Privacy &amp; Security → Extensions → Finder</span>.</li>
+    <li>Control-click screenshots → Quick Actions → your shortcut.</li>
+  </ol>
+  <p>You run it on the files you select. Name clashes are yours to handle.</p>
+  <p class="src">Sources: <a href="https://support.apple.com/guide/shortcuts-mac/mchl91750563/mac">Use Apple Intelligence in Shortcuts on Mac</a> · <a href="https://support.apple.com/guide/shortcuts-mac/apd163eb9f95/mac">Run a shortcut while working on your Mac</a> · <a href="https://support.apple.com/en-us/121115">How to get Apple Intelligence</a></p>
+
+  <h2>Or BetterAirdrop</h2>
+  <ul>
+    <li>Reads the text in each screenshot with Apple Vision, on your Mac</li>
+    <li>Keeps the date at the front</li>
+    <li>Renames PNGs without re-encoding them</li>
+    <li>Undo anything</li>
+  </ul>
+  <div class="rename"><span class="from">IMG_4822.PNG</span> → 2026-09-21_screenshot_failed-payment-notice.png</div>
+  <p>Free: iPhone screenshots you AirDrop to your Mac are named as they arrive.</p>
+  <p>Pro names your Mac's own screenshots as you take them.</p>
+
+  <section class="cta" id="install">
+    <h2>Install</h2>
+    <p>Free and open source. macOS 13 or later.</p>
+    <div class="code"><span class="line"><span class="p">$ </span><span id="cmd">brew install moizahmedd/tap/betterairdrop</span></span><button class="copy" type="button" id="copy">Copy</button></div>
+    <p class="alt">No Homebrew? <code>curl -fsSL https://betterairdrop.com/install | sh</code></p>
+    <a class="gh" href="https://github.com/MoizAhmedd/betterairdrop">View on GitHub →</a>
+  </section>
+
+  <div class="more">
+    <h3>More guides</h3>
+    <ul>
+      <li><a href="../rename-photos-by-content-mac/">Rename photos by what's in them on a Mac</a></li>
+      <li><a href="../where-do-airdropped-photos-go-mac/">Where do AirDropped photos go on a Mac?</a></li>
+    </ul>
+  </div>
+</article>
+
+<footer>
+  <span>BetterAirdrop · MIT licensed · by <a href="https://github.com/MoizAhmedd">Moiz Ahmed</a></span>
+  <span><a href="../">Guides</a></span>
+  <span class="pnote" id="pnote"></span>
+</footer>
+</div>
+<script src="../guide.js"></script>
+<script src="../../analytics.js"></script>
+</body>
+</html>
