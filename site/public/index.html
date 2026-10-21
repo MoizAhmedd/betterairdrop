@@ -285,7 +285,11 @@ footer a{color:var(--muted)}
   // Pro's Buy button goes live once #buy's data-checkout holds a real Polar link (see the CHECKOUT comment above it).
   var buy = document.getElementById('buy'), checkout = buy.getAttribute('data-checkout');
   if (checkout.indexOf('TODO') < 0) {
-    buy.href = checkout; buy.textContent = 'Buy Pro'; buy.removeAttribute('aria-disabled');
+    // Attribution for Polar: it stores utm_* from the checkout link in the checkout's and the order's metadata.
+    var a = window.baAttribution, u = new URL(checkout);
+    if (a) { u.searchParams.set('utm_source', a.first_ref); u.searchParams.set('utm_campaign', a.first_from);
+             u.searchParams.set('utm_content', a.ref); u.searchParams.set('utm_medium', a.from); }
+    buy.href = u.toString(); buy.textContent = 'Buy Pro'; buy.removeAttribute('aria-disabled');
     buy.addEventListener('click', function(){ window.track && window.track('buy_click', {}, { transport: 'sendBeacon', send_instantly: true }); });
   }
 

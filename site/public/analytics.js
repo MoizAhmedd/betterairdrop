@@ -32,6 +32,19 @@
     var u = new URL(location.href); u.searchParams.delete('from'); u.searchParams.delete('internal');
     history.replaceState(history.state, '', u);
   }
+  // Attribution: the site that sent this visit (`ref`, a hostname or 'direct'), and the first-ever tag and referrer for
+  // this browser (`first_from`, `first_ref`), so a buy weeks after a creator's video still credits the video. The Buy
+  // button hands these to Polar as utm_* (window.baAttribution), so orders carry them too. Hostnames only, no paths.
+  var ref = 'direct';
+  try {
+    var rh = document.referrer ? new URL(document.referrer).hostname.replace(/^www\./, '') : '';
+    if (rh && !/(^|\.)betterairdrop\.com$|(^|\.)polar\.sh$/.test(rh)) ref = rh.slice(0, 64);
+  } catch (e) {}
+  if (!localStorage.getItem('ba:first_ref')) {
+    localStorage.setItem('ba:first_ref', ref);
+    localStorage.setItem('ba:first_from', from);
+  }
+  var firstRef = localStorage.getItem('ba:first_ref'), firstFrom = localStorage.getItem('ba:first_from') || from;
   var TEST = params.get('analytics') === 'test';
   var DNT = navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.globalPrivacyControl === true;
   var base = Object.prototype.hasOwnProperty.call(SITES, location.hostname) ? SITES[location.hostname] : null;
@@ -41,10 +54,13 @@
     return KEY.indexOf('TODO') < 0 && (TEST || !(DNT || !LIVE || flag.get('internal') || flag.get('nocount')));
   };
 
+  // Only when this visit may be counted (no DNT/GPC, not "Don't count me", not Moiz's devices).
+  if (allowed()) window.baAttribution = { from: from, ref: ref, first_ref: firstRef, first_from: firstFrom };
+
   var ph = null, loading = false, sent = 0, queue = [];
   function track(name, props, opts) {
     if (!allowed() || sent++ >= MAX_EVENTS) return;
-    var p = Object.assign({}, props, { path: path, from: from }, TEST ? { test: true } : {});
+    var p = Object.assign({}, props, { path: path, from: from, ref: ref, first_ref: firstRef, first_from: firstFrom }, TEST ? { test: true } : {});
     ph ? ph.capture(name, p, opts) : queue.push([name, p, opts]);
   }
   window.track = track;
