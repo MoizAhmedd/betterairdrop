@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, PanelActions {
         notifications = Notifications(app: self)
         model.onBatch = { [weak self] b in self?.notifications.post(b) }
         model.onTrialEnded = { [weak self] in self?.notifications.postTrialEnded() }
+        model.onClaudeProblem = { [weak self] p in self?.notifications.postClaudeProblem(p) }
         model.onLostAccess = { [weak self] in
             guard let self, UserDefaults.standard.bool(forKey: "onboardingDone") else { return }
             self.notifications.postLostAccess()

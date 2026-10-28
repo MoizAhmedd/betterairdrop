@@ -40,6 +40,9 @@ public enum Backends {
     /// network or the model: Claude and Apple Intelligence to Vision; hosted (Pro) to Apple
     /// Intelligence when it's ready, else Vision. Hosted is chosen whenever the license is there,
     /// even while it's over a limit, so it picks up again after the reset without a rebuild.
+    /// While Claude's credential is rejected (`ClaudeAuth.blockingProblem`), `auto` names photos
+    /// with what it would use without Claude (hosted, else Apple Intelligence or Vision), and goes
+    /// back to Claude by itself once the login works again.
     /// An explicit backend that isn't available is an error. `license` is BetterAirdropKit's
     /// `LicenseStore` in the app and the CLI; without it there's no hosted naming.
     ///
@@ -50,15 +53,19 @@ public enum Backends {
                                apple: AppleFMNamer = AppleFMNamer(),
                                license: any LicenseKeySource = NoLicenseKey(), trial: TrialStore? = nil) throws -> any Namer {
         if id == "auto" {
-            if config.claudeInAuto, auth.resolve() != nil {
-                return FallbackNamer(primary: ClaudeNamer(model: config.claudeModel, auth: auth), fallback: VisionNamer())
-            }
+            // What `auto` uses without Claude: hosted (Pro, or the trial), else on-device.
+            var hosted: (any Namer)?
             if config.claudeInAuto, license.licenseKey() != nil {
-                return FallbackNamer(primary: HostedNamer(baseURL: config.hostedURL, license: license), fallback: onDevice(apple))
+                hosted = FallbackNamer(primary: HostedNamer(baseURL: config.hostedURL, license: license), fallback: onDevice(apple))
+            } else if config.claudeInAuto, config.proTrial, let trial, !trial.isUsedUp {
+                hosted = FallbackNamer(primary: HostedNamer(baseURL: config.hostedURL, trial: trial), fallback: onDevice(apple))
             }
-            if config.claudeInAuto, config.proTrial, let trial, !trial.isUsedUp {
-                return FallbackNamer(primary: HostedNamer(baseURL: config.hostedURL, trial: trial), fallback: onDevice(apple))
+            if config.claudeInAuto, auth.resolve() != nil {
+                // While Claude's login is expired or its key rejected, that takes over instead of Vision.
+                return FallbackNamer(primary: ClaudeNamer(model: config.claudeModel, auth: auth), fallback: VisionNamer(),
+                                     whenUnavailable: hosted ?? onDevice(apple))
             }
+            if let hosted { return hosted }
             if case .ready = apple.availability() { return FallbackNamer(primary: apple, fallback: VisionNamer()) }
             return VisionNamer()
         }
@@ -88,7 +95,12 @@ public enum Backends {
         let hosted = HostedNamer(baseURL: config.hostedURL, license: license)
         switch id {
         case "auto":
-            if config.claudeInAuto, auth.resolve() != nil { return withFallback(claude) }
+            if config.claudeInAuto, auth.resolve() != nil {
+                // While Claude's credential is rejected: hosted with a Pro license, else on-device.
+                let without = license.licenseKey() != nil ? withFallback(hosted) : onDevice
+                guard let without else { return claude }
+                return FallbackNamer(primary: claude, fallback: onDevice ?? without, whenUnavailable: without)
+            }
             if config.claudeInAuto, license.licenseKey() != nil { return withFallback(hosted) }
             return onDevice
         case "claude": return auth.resolve() != nil ? withFallback(claude) : onDevice

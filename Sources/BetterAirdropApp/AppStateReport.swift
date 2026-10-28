@@ -33,7 +33,8 @@ extension AppModel {
                          notifications: notificationStatus ?? .notAsked,
                          loginItem: AppState.LoginItem(SMAppService.mainApp.status),
                          watch: reportedWatch,
-                         hosted: hostedUsage)
+                         hosted: hostedUsage,
+                         claude: ClaudeAuth.shared.currentProblem())
         Self.stateWrites.async { try? s.save() }
     }
 

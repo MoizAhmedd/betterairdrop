@@ -25,16 +25,20 @@ public struct AppState: Codable, Equatable, Sendable {
     /// What hosted naming last heard from the server in the app (names left, the last error). Nil
     /// until the app has used it.
     public var hosted: HostedUsage?
+    /// Claude's credential was rejected in the app (an expired `ant` login, a revoked key). Nil
+    /// while it works, or before the app has used it.
+    public var claude: ClaudeAuth.Problem?
 
     public init(version: String, pid: Int32 = getpid(), updatedAt: Date = Date(), folder: String, folderAccess: Access,
-                notifications: Notifications, loginItem: LoginItem, watch: Watch, hosted: HostedUsage? = nil) {
+                notifications: Notifications, loginItem: LoginItem, watch: Watch, hosted: HostedUsage? = nil,
+                claude: ClaudeAuth.Problem? = nil) {
         self.version = version; self.pid = pid; self.updatedAt = updatedAt; self.folder = folder
         self.folderAccess = folderAccess; self.notifications = notifications; self.loginItem = loginItem; self.watch = watch
-        self.hosted = hosted
+        self.hosted = hosted; self.claude = claude
     }
 
     enum CodingKeys: String, CodingKey {
-        case schema, version, pid, folder, notifications, watch, hosted
+        case schema, version, pid, folder, notifications, watch, hosted, claude
         case updatedAt = "updated_at", folderAccess = "folder_access", loginItem = "login_item"
     }
 
@@ -92,6 +96,22 @@ public struct StatusReport: Codable, Equatable, Sendable {
         public var present: Bool
         /// "stored", "ant" or nil.
         public var source: String?
+        /// Why the credential isn't working (an expired `ant` login, a rejected key), in plain words; null while it works.
+        public var problem: String?
+
+        public init(present: Bool, source: String?, problem: String? = nil) {
+            self.present = present; self.source = source; self.problem = problem
+        }
+
+        enum CodingKeys: String, CodingKey { case present, source, problem }
+
+        // Always written, null included, so agents can rely on the keys.
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(present, forKey: .present)
+            try c.encode(source, forKey: .source)
+            try c.encode(problem, forKey: .problem)
+        }
     }
     /// BetterAirdrop Pro on this Mac (`betterairdrop license` manages it).
     public struct LicenseInfo: Codable, Equatable, Sendable {
@@ -243,15 +263,17 @@ extension StatusReport {
         public var license: License?
         /// The free trial's state (`TrialStore`), if it has started.
         public var trial: TrialState?
+        /// Claude's credential was rejected: as the app reported it, or an expired `ant` login `status` saw itself.
+        public var claudeProblem: ClaudeAuth.Problem?
         public var now: Date
 
         public init(cliVersion: String, appPath: String?, appVersion: String?, appRunning: Bool, appState: AppState?,
                     setup: SetupRecord?, config: Config, storedKey: Bool, antLoggedIn: Bool, lockHolder: ProcessLock.Owner?, appleReady: Bool = false,
-                    license: License? = nil, trial: TrialState? = nil, now: Date = Date()) {
+                    license: License? = nil, trial: TrialState? = nil, claudeProblem: ClaudeAuth.Problem? = nil, now: Date = Date()) {
             self.cliVersion = cliVersion; self.appPath = appPath; self.appVersion = appVersion; self.appRunning = appRunning
             self.appState = appState; self.setup = setup; self.config = config; self.storedKey = storedKey
             self.antLoggedIn = antLoggedIn; self.lockHolder = lockHolder; self.appleReady = appleReady
-            self.license = license; self.trial = trial; self.now = now
+            self.license = license; self.trial = trial; self.claudeProblem = claudeProblem; self.now = now
         }
     }
 
@@ -265,7 +287,8 @@ extension StatusReport {
         let usage = i.appState?.hosted?.current(now: i.now)
         let engine = EngineStatus.current(config: i.config, hasCredential: hasCredential, appleReady: i.appleReady,
                                           hasLicense: pro, hostedRemaining: usage?.remaining,
-                                          trialRemaining: EngineStatus.trialRemaining(config: i.config, trial: i.trial, isPro: pro))
+                                          trialRemaining: EngineStatus.trialRemaining(config: i.config, trial: i.trial, isPro: pro),
+                                          claudeProblem: hasCredential ? i.claudeProblem?.message : nil)
         let state = i.appRunning ? i.appState : nil
         let folderName = Self.folderName(i.appState?.folder ?? i.config.watchFolder)
 
@@ -338,6 +361,10 @@ extension StatusReport {
                               command: "betterairdrop setup --api-key-env ANTHROPIC_API_KEY --yes"))
         }
 
+        if hasCredential, let p = i.claudeProblem, i.config.backend == "claude" || (i.config.backend == "auto" && i.config.claudeInAuto) {
+            steps.append(Step(who: "human", required: true, text: p.message + " " + engine.untilClaudeWorks, command: p.command))
+        }
+
         // Pro is never suggested here; only a key Polar has rejected gets a (optional) step.
         let license = LicenseInfo(i.license, now: i.now)
         if license.state == "grace" || license.state == "invalid" {
@@ -356,7 +383,8 @@ extension StatusReport {
             app: App(installed: i.appPath != nil, path: i.appPath, version: i.appVersion, running: i.appRunning),
             setup: Setup(done: i.setup != nil, completedAt: i.setup?.completedAt),
             engine: Engine(backend: i.config.backend, active: engine.name, detail: engine.detail),
-            credentials: Credentials(claude: Credential(present: hasCredential, source: source), license: license,
+            credentials: Credentials(claude: Credential(present: hasCredential, source: source,
+                                                        problem: hasCredential ? i.claudeProblem?.message : nil), license: license,
                                      hosted: HostedInfo(available: pro, remaining: usage?.remaining, resetsAt: usage?.resetsAt,
                                                         lastError: usage?.lastError),
                                      trial: TrialInfo(enabled: i.config.proTrial, state: i.trial)),

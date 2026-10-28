@@ -245,6 +245,63 @@ func hostedError(_ type: String, _ message: String, resets: String? = nil) -> St
         HostedNamer.blocks.reset()
     }
 
+    /// Claude's credential rejected: `auto` uses hosted naming (Pro, or the trial) before Apple
+    /// Intelligence or Vision, and Claude again once it works.
+    @Test func rejectedClaudeKeyUsesHostedNaming() throws {
+        final class Key: @unchecked Sendable { var value = "sk-ant-old" }
+        let key = Key()
+        let auth = ClaudeAuth(environment: [:], storedKey: { key.value }, antPath: { nil }, antStamp: { nil })
+        let pro = FixedLicense(key: Self.key), none = FixedLicense(key: nil)
+
+        // What `auto` builds: Claude, with hosted (else on-device) for while Claude's credential is rejected.
+        let auto = try #require(try Backends.resolve("auto", auth: auth, apple: Self.apple(true), license: pro) as? FallbackNamer)
+        #expect(auto.id == "claude" && auto.fallback.id == "vision" && auto.whenUnavailable?.id == "hosted")
+        let trial = TrialStore(directory: dir.url)
+        var config = Config(); config.proTrial = true
+        let withTrial = try Backends.resolve("auto", config: config, auth: auth, apple: Self.apple(false), license: none, trial: trial) as? FallbackNamer
+        #expect(withTrial?.whenUnavailable?.id == "hosted")
+        let free = try Backends.resolve("auto", auth: auth, apple: Self.apple(true), license: none) as? FallbackNamer
+        #expect(free?.whenUnavailable?.id == "apple")
+        let pdfs = Backends.resolveDocuments("auto", auth: auth, apple: Self.apple(true), license: pro) as? FallbackNamer
+        #expect(pdfs?.id == "claude" && pdfs?.whenUnavailable?.id == "hosted")
+
+        // The same chain with scripted transports: a 401 from Claude, then hosted names it.
+        ClaudeNamer.structuredOutput.value = true
+        HostedNamer.blocks.reset()
+        let claudeHTTP = Scripted([(401, #"{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}"#)])
+        let hostedHTTP = Scripted([(200, goodAnswer), (200, goodAnswer)])
+        var hosted = HostedNamer(license: pro, transport: hostedHTTP)
+        hosted.sleep = { _ in }
+        let chain = FallbackNamer(primary: ClaudeNamer(auth: auth, transport: claudeHTTP), fallback: VisionNamer(),
+                                  whenUnavailable: FallbackNamer(primary: hosted, fallback: Backends.onDevice(Self.apple(false))))
+        let (url, ctx) = photo()
+        let first = try chain.suggest(for: url, context: ctx)
+        #expect(first.backend == "hosted")
+        #expect(first.why.first?.contains("so hosted named it") == true)
+        #expect(chain.active.id == "hosted")
+        // While the key is skipped: straight to hosted, no Claude request.
+        #expect(try chain.suggest(for: url, context: ctx).backend == "hosted")
+        #expect(claudeHTTP.sent == 1 && hostedHTTP.sent == 2)
+
+        // A new key: Claude again.
+        key.value = "sk-ant-new"
+        claudeHTTP.replies = [(200, message(goodAnswer))]
+        #expect(try chain.suggest(for: url, context: ctx).backend == "claude")
+        #expect(claudeHTTP.sent == 2 && hostedHTTP.sent == 2)
+    }
+
+    /// Canned replies in order, with no state shared between suites.
+    final class Scripted: HTTPTransport, @unchecked Sendable {
+        var replies: [(Int, String)]
+        var sent = 0
+        init(_ replies: [(Int, String)]) { self.replies = replies }
+        func send(_ request: URLRequest) throws -> (HTTPURLResponse, Data) {
+            sent += 1
+            let (status, body) = replies.isEmpty ? (500, "{}") : replies.removeFirst()
+            return (HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!, Data(body.utf8))
+        }
+    }
+
     static func appleNamer(_ subject: String = "walnut lamp on sideboard") -> AppleFMNamer {
         var a = apple(true)
         a.generate = { _, _ in ClaudePrompt.Answer(subject: subject, kind: "photo", confidence: 0.8) }

@@ -55,6 +55,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var showTrialEnded = false
     /// Hook for the notification layer: the trial just ran out.
     var onTrialEnded: (() -> Void)?
+    /// Claude's credential was rejected (an expired `ant` login, a revoked key), until it works again.
+    @Published private(set) var claudeProblem: ClaudeAuth.Problem?
+    /// Hook for the notification layer: Claude's credential just stopped working (once per episode).
+    var onClaudeProblem: ((ClaudeAuth.Problem) -> Void)?
     private var lifetimeRenames = 0
     private var extraServices: [WatchService] = []
     private var buildGeneration = 0
@@ -108,7 +112,8 @@ final class AppModel: ObservableObject {
             : trialLeft != nil ? HostedNamer.currentTrialProblem(id: trial?.id) : nil
         return EngineStatus.current(config: config, hasCredential: credential.any, appleReady: AppleIntelligenceStatus.current.isAvailable,
                                     hasLicense: isPro, hostedProblem: problem,
-                                    hostedRemaining: isPro ? hostedUsage?.remaining : nil, trialRemaining: trialLeft)
+                                    hostedRemaining: isPro ? hostedUsage?.remaining : nil, trialRemaining: trialLeft,
+                                    claudeProblem: claudeProblem?.message)
     }
 
     /// The menu offers the free trial (ProTrial.shouldOffer).
@@ -282,6 +287,7 @@ final class AppModel: ObservableObject {
     /// is gone from the next one on.
     func panelOpened() {
         refreshLicense()
+        refreshClaudeProblem()
         proHint = nil
         let key = "proMentionShown"
         if showProMention { showProMention = false; return }
@@ -350,10 +356,22 @@ final class AppModel: ObservableObject {
     /// `status --json` (via app-state.json), and the trial's count.
     func refreshHostedUsage() {
         refreshTrial()
+        refreshClaudeProblem()
         let u = HostedNamer.lastUsage()
         guard u != hostedUsage else { return }
         hostedUsage = u
         writeAppState()
+    }
+
+    /// Picks up a Claude auth failure (or its end: a success, `ant auth login`, a new key) for the
+    /// panel and `status`. The first failure of an episode gets one notification.
+    func refreshClaudeProblem() {
+        let p = ClaudeAuth.shared.currentProblem()
+        guard p != claudeProblem else { return }
+        let started = claudeProblem == nil
+        claudeProblem = p
+        writeAppState()
+        if started, let p { onClaudeProblem?(p) }
     }
 
     // MARK: - Free trial

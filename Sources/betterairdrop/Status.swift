@@ -64,13 +64,19 @@ struct Status: ParsableCommand {
                 if let s = AppState.load(), s != before { state = s; break }
             }
         }
+        // The app reports a rejected credential; an expired `ant` login shows up here even without it.
+        let storedKey = CredentialStore().hasAPIKey()
+        let ant = ClaudeAuth.shared.antLogin()
+        let expired = !storedKey && ant == .expired
+            ? ClaudeAuth.Problem(kind: .antLogin, detail: ClaudeAuth.Problem.antExpired) : nil
         let version = app.flatMap { Bundle(url: $0)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String }
         return StatusReport.make(.init(
             cliVersion: BetterAirdropVersion.current, appPath: app?.path, appVersion: version, appRunning: running,
             appState: state, setup: SetupRecord.load(), config: config,
-            storedKey: CredentialStore().hasAPIKey(), antLoggedIn: ClaudeAuth.shared.antToken() != nil,
+            storedKey: storedKey, antLoggedIn: ant != .none,
             lockHolder: ProcessLock.holder(), appleReady: AppleIntelligenceStatus.current.isAvailable,
-            license: LicenseStore().read(), trial: TrialStore().read()))
+            license: LicenseStore().read(), trial: TrialStore().read(),
+            claudeProblem: (running ? state?.claude : nil) ?? expired))
     }
 
     static func isApp(pid: Int32) -> Bool {
