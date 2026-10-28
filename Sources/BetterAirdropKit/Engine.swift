@@ -37,9 +37,11 @@ public struct EngineStatus: Equatable, Sendable {
     /// limit. `hostedRemaining`: names left this month, as the server last said. `trialRemaining`:
     /// the free trial is on and has this many names left (`trialRemaining(...)`); nil = no trial.
     /// `auto` follows `Backends.resolve`: Claude, hosted, the trial, Apple Intelligence, Vision.
+    /// `claudeProblem`: Claude's credential was rejected (`ClaudeAuth.Problem.message`), so photos
+    /// are named the way they would be without it, with the problem as the detail.
     public static func current(config: Config, hasCredential: Bool, appleReady: Bool = false,
                                hasLicense: Bool = false, hostedProblem: String? = nil, hostedRemaining: Int? = nil,
-                               trialRemaining: Int? = nil) -> EngineStatus {
+                               trialRemaining: Int? = nil, claudeProblem: String? = nil) -> EngineStatus {
         let claude = EngineStatus(name: modelName(config.claudeModel), detail: "Vision if offline", isClaude: true,
                                   shownDetail: "Apple Vision if offline")
         // Hosted falls back to Apple Intelligence when it's ready, else Vision (Backends.onDevice).
@@ -48,19 +50,22 @@ public struct EngineStatus: Equatable, Sendable {
         let hosted = hostedProblem.map { EngineStatus(name: onDevice, detail: $0) }
             ?? EngineStatus(name: hostedName, detail: left ?? "Pro, \(onDevice) if offline", shownDetail: left ?? "\(onDevice) if offline")
         switch config.backend {
-        case "claude": return hasCredential ? claude : EngineStatus(name: "Apple Vision", detail: "Claude has no key")
+        case "claude":
+            if !hasCredential { return EngineStatus(name: "Apple Vision", detail: "Claude has no key") }
+            return claudeProblem.map { EngineStatus(name: "Apple Vision", detail: $0) } ?? claude
         case "hosted": return hasLicense ? hosted : EngineStatus(name: "Apple Vision", detail: "no Pro license")
         case "vision": return EngineStatus(name: "Apple Vision", detail: nil)
         case "apple": return appleReady ? EngineStatus(name: "Apple Intelligence", detail: nil) : EngineStatus(name: "Apple Vision", detail: "Apple Intelligence unavailable")
         default:
-            if config.claudeInAuto && hasCredential { return claude }
+            let claudeProblem = config.claudeInAuto && hasCredential ? claudeProblem : nil
+            if config.claudeInAuto && hasCredential && claudeProblem == nil { return claude }
             if config.claudeInAuto && hasLicense { return hosted }
             if config.claudeInAuto, let left = trialRemaining {
                 return hostedProblem.map { EngineStatus(name: onDevice, detail: $0) }
                     ?? EngineStatus(name: hostedName, detail: "free trial, \(left) name\(left == 1 ? "" : "s") left")
             }
-            if appleReady { return EngineStatus(name: "Apple Intelligence", detail: nil) }
-            return EngineStatus(name: "Apple Vision", detail: nil)
+            if appleReady { return EngineStatus(name: "Apple Intelligence", detail: claudeProblem) }
+            return EngineStatus(name: "Apple Vision", detail: claudeProblem)
         }
     }
 
@@ -75,6 +80,11 @@ public struct EngineStatus: Equatable, Sendable {
     public static func trialRemaining(config: Config, trial: TrialState?, isPro: Bool) -> Int? {
         guard config.proTrial, !isPro, trial?.usedUp != true else { return nil }
         return trial?.remaining ?? TrialStore.names
+    }
+
+    /// What names photos while Claude's credential is rejected, after `ClaudeAuth.Problem.message`.
+    public var untilClaudeWorks: String {
+        isHosted ? "Until then, Pro naming names your photos." : "Until then, photos are named on this Mac with \(title)."
     }
 
     /// Hosted naming is what names the next photo.

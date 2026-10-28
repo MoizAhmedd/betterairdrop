@@ -101,6 +101,14 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         deliver(UNNotificationRequest(identifier: "trial-ended", content: content, trigger: nil), ask: false)
     }
 
+    /// Claude's credential stopped working: one banner per episode (the menu keeps a bar until it works again).
+    func postClaudeProblem(_ p: ClaudeAuth.Problem) {
+        let content = UNMutableNotificationContent()
+        content.title = "Claude isn't naming photos"
+        content.body = [p.message, app?.model.engine.untilClaudeWorks].compactMap { $0 }.joined(separator: " ")
+        deliver(UNNotificationRequest(identifier: "claude-problem", content: content, trigger: nil), ask: false)
+    }
+
     /// Replaces the batch's banner with "Undone".
     func postUndone(batch: String, restored: Int) {
         guard enabled else { return }

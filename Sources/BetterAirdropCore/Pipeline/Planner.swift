@@ -93,7 +93,8 @@ public struct Planner: Sendable {
     /// from the pixels alone, but gets Vision's OCR for screenshots and images of unknown origin,
     /// and the Vision namer needs it whenever Claude isn't there or fails.
     func needsVision(_ ctx: PhotoContext) -> Bool {
-        guard let namer, Backends.isCloud(namer), case .ready = namer.availability() else { return true }
+        guard let namer, case .ready = namer.availability(),
+              Backends.isCloud((namer as? FallbackNamer)?.active ?? namer) else { return true }
         return !Self.isCameraPhoto(ctx.metadata)
     }
 
@@ -195,9 +196,10 @@ public struct Planner: Sendable {
             suggestion = try? namer.suggest(for: url, context: ctx)
         }
         t.merge(suggestion?.timings)
-        // Claude failed on a photo Vision skipped: analyse it now and let the fallback name it.
+        // Claude failed on a photo Vision skipped: analyse it now and let the fallback name it
+        // (unless hosted naming already named it, for Claude's expired login).
         if let first = suggestion, let why = first.fallbackFrom, ctx.vision == nil, analyzer != nil,
-           let fallback = (namer as? FallbackNamer)?.fallback {
+           first.backend != "hosted", let fallback = (namer as? FallbackNamer)?.onDeviceFallback {
             addVision(&ctx, url: url, timings: &t)
             if var s = try? fallback.suggest(for: url, context: ctx) {
                 s.fallbackFrom = why

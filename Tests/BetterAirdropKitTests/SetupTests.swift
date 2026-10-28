@@ -230,6 +230,38 @@ private func error(_ r: SetupRequest, _ c: SetupContext) -> String? {
         #expect(r2.nextSteps.isEmpty)
     }
 
+    /// An expired `ant` login (or a rejected key) is a "Needs you" step with the fix, and the engine
+    /// is what names photos meanwhile: hosted with Pro, else on this Mac.
+    @Test func rejectedClaudeCredentialNeedsYou() throws {
+        let p = ClaudeAuth.Problem(kind: .antLogin, detail: ClaudeAuth.Problem.antExpired)
+        var i = inputs(state: state(), stored: false)
+        i.antLoggedIn = true
+        i.claudeProblem = p
+        let r = StatusReport.make(i)
+        #expect(r.engine.active == "Apple Vision")
+        #expect(r.engine.detail == p.message)
+        #expect(r.credentials.claude == .init(present: true, source: "ant", problem: p.message))
+        #expect(r.nextSteps.count == 1)
+        let step = try #require(r.nextSteps.first)
+        #expect(step.who == "human" && step.required && step.command == "ant auth login")
+        #expect(step.text == "Claude login expired. Run `ant auth login` in Terminal. Until then, photos are named on this Mac with Apple Vision.")
+        #expect(!step.text.contains("—"))
+
+        i.license = License(key: "BA_1234ABCD-5678-EF90", activationID: "a", label: "Mac", activatedAt: t0)
+        i.now = t0
+        let pro = StatusReport.make(i)
+        #expect(pro.engine.active == EngineStatus.hostedName)
+        #expect(pro.nextSteps.last?.text.hasSuffix("Until then, Pro naming names your photos.") == true)
+
+        // It round-trips through app-state.json, and `problem` is always in the JSON.
+        var s = state(); s.claude = p
+        let t = Temp(), url = t.url.appendingPathComponent("app-state.json")
+        try s.save(to: url)
+        #expect(AppState.load(from: url)?.claude == p)
+        let json = try StatusReport.make(inputs(state: state())).json()
+        #expect(json.contains("\"problem\" : null"))
+    }
+
     @Test func appStateRoundTrip() throws {
         let t = Temp()
         let url = t.url.appendingPathComponent("app-state.json")

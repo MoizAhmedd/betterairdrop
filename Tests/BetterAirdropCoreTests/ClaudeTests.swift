@@ -173,6 +173,108 @@ let goodAnswer = #"{"subject":"Walnut lamp on oak sideboard","kind":"photo","mer
         #expect(StubURLProtocol.captured.map { $0.0.value(forHTTPHeaderField: "authorization") } == ["Bearer tok-1", "Bearer tok-2"])
     }
 
+    /// What an expired `ant` refresh token looks like: `ant` hands back the old token, past its expiry.
+    final class AntState: @unchecked Sendable {
+        var calls = 0
+        var clock = Date(timeIntervalSince1970: 1_800_000_000)
+        var expiresAt: Double = 1_800_000_000 - 3600
+        var stamp = Date(timeIntervalSince1970: 1)
+        var storedKey: String?
+    }
+
+    func antAuth(_ st: AntState) -> ClaudeAuth {
+        ClaudeAuth(environment: [:], storedKey: { st.storedKey }, antPath: { "/fake/ant" },
+                   runAnt: { _, _ in
+                       st.calls += 1
+                       return #"{"access_token":"tok-\#(st.calls)","expires_at":\#(Int(st.expiresAt))}"#
+                   },
+                   now: { st.clock }, antStamp: { st.stamp })
+    }
+
+    @Test func expiredAntLoginSkipsClaudeWithoutARequest() throws {
+        StubURLProtocol.reset([])
+        let st = AntState()
+        let auth = antAuth(st)
+        let n = FallbackNamer(primary: namer(auth), fallback: VisionNamer())
+        let (url, ctx) = photo()
+        let s = try n.suggest(for: url, context: ctx)
+        #expect(s.backend == "vision")
+        #expect(s.fallbackFrom?.contains("Claude login expired. Run `ant auth login`") == true)
+        #expect(auth.currentProblem()?.kind == .antLogin)
+        #expect(StubURLProtocol.captured.isEmpty, "an expired token is never sent")
+        // Later photos in the window: no request, no `ant` run.
+        _ = try n.suggest(for: url, context: ctx)
+        st.clock += ClaudeAuth.retryInterval - 1
+        _ = try n.suggest(for: url, context: ctx)
+        #expect(st.calls == 1)
+        #expect(StubURLProtocol.captured.isEmpty)
+        // After the window it asks `ant` again; still expired, so still skipped.
+        st.clock += 2
+        #expect(try n.suggest(for: url, context: ctx).backend == "vision")
+        #expect(st.calls == 2)
+    }
+
+    @Test func antLoginRecoversWithoutARestart() throws {
+        let st = AntState()
+        let auth = antAuth(st)
+        let n = FallbackNamer(primary: namer(auth), fallback: VisionNamer())
+        let (url, ctx) = photo()
+        StubURLProtocol.reset([])
+        #expect(try n.suggest(for: url, context: ctx).backend == "vision")
+        // `ant auth login`: a fresh token, and its credentials folder changes. Claude is back at once.
+        st.expiresAt = st.clock.timeIntervalSince1970 + 3600
+        st.stamp = Date(timeIntervalSince1970: 2)
+        #expect(auth.blockingProblem() == nil && auth.currentProblem() == nil)
+        StubURLProtocol.reset([.init(status: 200, body: message(goodAnswer))])
+        let s = try n.suggest(for: url, context: ctx)
+        #expect(s.backend == "claude" && s.fallbackFrom == nil)
+        #expect(StubURLProtocol.captured.map { $0.0.value(forHTTPHeaderField: "authorization") } == ["Bearer tok-2"])
+        #expect(auth.currentProblem() == nil)
+    }
+
+    @Test func rejectedKeyIsSkippedUntilItChanges() throws {
+        let st = AntState()
+        st.storedKey = "sk-ant-old"
+        let auth = antAuth(st)
+        let n = FallbackNamer(primary: namer(auth), fallback: VisionNamer())
+        let (url, ctx) = photo()
+        StubURLProtocol.reset([.init(status: 401, body: #"{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}"#)])
+        #expect(try n.suggest(for: url, context: ctx).backend == "vision")
+        #expect(StubURLProtocol.captured.count == 1, "an API key isn't retried")
+        let p = try #require(auth.currentProblem())
+        #expect(p.kind == .storedKey && p.command == "betterairdrop auth claude")
+        #expect(p.detail == "Anthropic API returned 401: invalid x-api-key")
+        #expect(!p.detail.contains("sk-ant"))
+        #expect(try n.suggest(for: url, context: ctx).fallbackFrom?.contains("Anthropic rejected your Claude key") == true)
+        #expect(StubURLProtocol.captured.count == 1, "skipped without a request")
+        // A new key is tried at once; a success ends the problem.
+        st.storedKey = "sk-ant-new"
+        StubURLProtocol.reset([.init(status: 200, body: message(goodAnswer))])
+        #expect(try n.suggest(for: url, context: ctx).backend == "claude")
+        #expect(StubURLProtocol.captured.first?.0.value(forHTTPHeaderField: "x-api-key") == "sk-ant-new")
+        #expect(auth.currentProblem() == nil)
+        #expect(st.calls == 0, "a key never runs ant")
+    }
+
+    @Test func oauthRejectedTwiceBacksOff() throws {
+        // `ant` gives no expiry (the --access-token fallback), so only the 401s tell.
+        final class Counter: @unchecked Sendable { var n = 0 }
+        let c = Counter()
+        let auth = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { "/fake/ant" }, runAnt: { _, a in
+            guard a.contains("--access-token") else { return nil }
+            c.n += 1; return "tok-\(c.n)"
+        }, antStamp: { nil })
+        let reject = StubURLProtocol.Reply(status: 401, body: #"{"type":"error","error":{"type":"authentication_error","message":"OAuth access token has expired"}}"#)
+        StubURLProtocol.reset([reject, reject])
+        let n = FallbackNamer(primary: namer(auth), fallback: VisionNamer())
+        let (url, ctx) = photo()
+        #expect(try n.suggest(for: url, context: ctx).backend == "vision")
+        #expect(StubURLProtocol.captured.count == 2, "refreshed once, as before")
+        #expect(auth.currentProblem()?.kind == .antLogin)
+        _ = try n.suggest(for: url, context: ctx)
+        #expect(StubURLProtocol.captured.count == 2 && c.n == 2, "then skipped: no request, no ant run")
+    }
+
     @Test func retriesRateLimitsHonouringRetryAfter() throws {
         let sleeps = SleepLog()
         StubURLProtocol.reset([.init(status: 429, body: #"{"error":{"message":"rate limited"}}"#, headers: ["retry-after": "3"]),

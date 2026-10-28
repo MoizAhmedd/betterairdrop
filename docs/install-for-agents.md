@@ -92,7 +92,7 @@ shows a window explaining how to turn access on, and the step's `command` opens
 | `app` | `installed`, `path`, `version`, `running` |
 | `setup` | `done` (setup has run), `completed_at` |
 | `engine` | `backend` (configured), `active` (what names the next photo), `detail` |
-| `credentials.claude` | `present` (a key the app can use), `source`: `stored`, `ant` or null |
+| `credentials.claude` | `present` (a key the app can use), `source`: `stored`, `ant` or null; `problem`: why it isn't working (an expired `ant` login, a rejected key) or null. While there's a problem, photos are named without Claude and `next_steps` has the fix |
 | `credentials.license` | BetterAirdrop Pro: `state` `none`, `active`, `grace` (Polar rejected the key; Pro stays on until `grace_until`) or `invalid`; `pro` (features unlocked); `key` (masked). Activate with `betterairdrop license activate <key>` |
 | `credentials.hosted` | Hosted naming (Pro: Claude with no API key): `available` (Pro is active or in grace); `remaining` names this month, `resets_at` and `last_error`, as the app last heard from the server (null until it has used hosted naming, and after the month resets) |
 | `credentials.trial` | The free Pro naming trial: `enabled` (`pro_trial` is on), `remaining` trial names as the server last said (null before the first), `used_up` |

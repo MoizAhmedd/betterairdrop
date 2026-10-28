@@ -122,6 +122,18 @@ struct PanelView: View {
             AlertBar(text: holder?.banner(folderName: model.folderName) ?? "Another copy of BetterAirdrop is watching \(model.folderName).",
                      button: "Retry", tint: Color.primary.opacity(0.06), fg: .primary,
                      secondary: holder.flatMap { h in h.canStop ? ("Stop It", { actions.stopOtherWatcher(h) }) : nil }) { model.recheck() }
+        } else if let p = model.claudeProblem {
+            // Claude comes back by itself once the login works again: no restart, no button needed for that.
+            AlertBar(text: "⚠︎ \(p.message) \(model.engine.untilClaudeWorks)",
+                     button: p.kind == .antLogin ? "Copy Command" : "Settings…",
+                     tint: Color(nsColor: NSColor(hex: 0xfff1d6)), fg: Color(nsColor: NSColor(hex: 0x6a4000))) {
+                if p.kind == .antLogin, let command = p.command {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(command, forType: .string)
+                } else {
+                    actions.showSettings()
+                }
+            }
         }
     }
 }

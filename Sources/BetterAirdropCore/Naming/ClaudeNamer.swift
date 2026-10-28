@@ -23,10 +23,15 @@ public struct ClaudeNamer: Namer {
         self.model = model; self.auth = auth; self.transport = transport
     }
 
+    /// Unavailable while a rejected credential is being skipped (`ClaudeAuth.blockingProblem`), so
+    /// photos go straight to the fallback without a request.
+    /// The lookup comes first: it's what finds an `ant` token that has already expired.
     public func availability() -> Availability {
-        auth.resolve() == nil
-            ? .unavailable("no Anthropic credential: set ANTHROPIC_API_KEY, run `betterairdrop auth claude`, or `betterairdrop auth login`")
-            : .ready
+        guard auth.resolve() != nil else {
+            return .unavailable("no Anthropic credential: set ANTHROPIC_API_KEY, run `betterairdrop auth claude`, or `betterairdrop auth login`")
+        }
+        if let p = auth.blockingProblem() { return .unavailable(p.message) }
+        return .ready
     }
 
     public enum Error: Swift.Error, CustomStringConvertible, Equatable {
@@ -36,6 +41,8 @@ public struct ClaudeNamer: Namer {
         case truncated
         case badOutput(String)
         case network(String)
+        /// The credential was rejected or has expired, so nothing was sent (`ClaudeAuth.Problem.message`).
+        case loginProblem(String)
 
         var isBadOutput: Bool { if case .badOutput = self { true } else { false } }
 
@@ -47,6 +54,7 @@ public struct ClaudeNamer: Namer {
             case .truncated: "Claude's answer was cut off (max_tokens)"
             case .badOutput(let why): "Claude's answer wasn't usable: \(why)"
             case .network(let why): "network error: \(why)"
+            case .loginProblem(let why): why
             }
         }
     }
@@ -115,6 +123,8 @@ public struct ClaudeNamer: Namer {
         while true {
             attempt += 1
             guard let cred = timings.time(.credential, { auth.resolve() }) else { throw Error.noCredential }
+            // The lookup found the login expired (also the fresh one after a 401): don't send it.
+            if let p = auth.blockingProblem() { throw Error.loginProblem(p.message) }
             var req = URLRequest(url: Self.endpoint, timeoutInterval: timeout)
             req.httpMethod = "POST"
             req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
@@ -131,6 +141,7 @@ public struct ClaudeNamer: Namer {
             }
             let status = response.statusCode
             if status == 200 {
+                auth.recordSuccess()
                 return try Self.readMessage(data, usage: &usage)
             }
             let message = Self.errorMessage(data)
@@ -139,6 +150,10 @@ public struct ClaudeNamer: Namer {
                 refreshedAuth = true
                 auth.invalidate()
                 continue
+            }
+            if status == 401 {
+                // Rejected for good: skip Claude for a while instead of failing every photo the same way.
+                auth.recordAuthFailure(cred, detail: "Anthropic API returned 401: \(message)")
             }
             if (status == 429 || status == 529 || status >= 500) && attempt < maxAttempts {
                 let wait = CloudUpload.backoff(attempt, retryAfter: response.value(forHTTPHeaderField: "retry-after"))
@@ -446,13 +461,32 @@ public struct URLSessionTransport: HTTPTransport {
 public struct FallbackNamer: Namer {
     public let primary: any Namer
     public let fallback: any Namer
+    /// Used instead of `fallback` while `primary` is unavailable, e.g. Claude while its login has
+    /// expired: `auto` puts hosted naming here when there's a Pro license or the trial. Nil = `fallback`.
+    public let whenUnavailable: (any Namer)?
     public var id: String { primary.id }
 
-    public init(primary: any Namer, fallback: any Namer) { self.primary = primary; self.fallback = fallback }
+    public init(primary: any Namer, fallback: any Namer, whenUnavailable: (any Namer)? = nil) {
+        self.primary = primary; self.fallback = fallback; self.whenUnavailable = whenUnavailable
+    }
 
     public func availability() -> Availability {
         if case .ready = primary.availability() { return .ready }
-        return fallback.availability()
+        return (whenUnavailable ?? fallback).availability()
+    }
+
+    /// What names the next photo: `primary` while it's ready, else `whenUnavailable` or `fallback`.
+    public var active: any Namer {
+        if case .ready = primary.availability() { return primary }
+        return whenUnavailable ?? fallback
+    }
+
+    /// The on-device namer at the end of what runs now, for the planner to re-run with Vision's labels.
+    public var onDeviceFallback: any Namer {
+        let next: any Namer
+        if case .ready = primary.availability() { next = fallback } else { next = whenUnavailable ?? fallback }
+        guard let chain = next as? FallbackNamer else { return next }
+        return Backends.isCloud(chain.primary) ? chain.onDeviceFallback : chain
     }
 
     public func suggest(for url: URL, context: PhotoContext) throws -> NameSuggestion {
@@ -464,9 +498,12 @@ public struct FallbackNamer: Namer {
         } else {
             firstError = BackendError.unavailable(primary.id, reason: "not available")
         }
-        var s = try fallback.suggest(for: url, context: context)
+        // A failure that made the primary unavailable (Claude's 401) goes to `whenUnavailable` too.
+        var next = fallback
+        if let alt = whenUnavailable, case .unavailable = primary.availability() { next = alt }
+        var s = try next.suggest(for: url, context: context)
         s.fallbackFrom = "\(primary.id): \(firstError)"
-        s.why.insert("\(primary.id) failed (\(firstError)), so \(fallback.id) named it", at: 0)
+        s.why.insert("\(primary.id) failed (\(firstError)), so \(next.id) named it", at: 0)
         return s
     }
 }

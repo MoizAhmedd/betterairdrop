@@ -45,22 +45,34 @@ public final class ClaudeAuth: @unchecked Sendable {
     let antPath: @Sendable () -> String?
     let runAnt: @Sendable (String, [String]) -> String?
     let now: @Sendable () -> Date
+    /// When `ant` last wrote its login (`antCredentialsModified`), so `ant auth login` ends a backoff at once.
+    let antStamp: @Sendable () -> Date?
 
     private let lock = NSLock()
     private var cached: (credential: ClaudeCredential?, validUntil: Date?)?
+    /// The last auth failure, until a request succeeds or the credential changes.
+    private var problem: Problem?
+    /// Claude is skipped until then (unless the credential changes first).
+    private var retryAt: Date?
+    /// `stampLocked()` at the failure.
+    private var problemStamp: Int?
 
     /// How long an `ant` token (or a failed lookup) is trusted when `ant` doesn't give an expiry.
     static let defaultTTL: TimeInterval = 300
     /// Refresh this long before the reported expiry.
     static let expiryMargin: TimeInterval = 300
+    /// After an auth failure, Claude is skipped this long before it's tried again.
+    static let retryInterval: TimeInterval = 600
 
     public init(environment: [String: String] = ProcessInfo.processInfo.environment,
                 storedKey: @escaping @Sendable () -> String? = { CredentialStore().readAPIKey() },
                 antPath: (@Sendable () -> String?)? = nil,
                 runAnt: @escaping @Sendable (String, [String]) -> String? = { ClaudeAuth.run($0, $1) },
-                now: @escaping @Sendable () -> Date = { Date() }) {
+                now: @escaping @Sendable () -> Date = { Date() },
+                antStamp: @escaping @Sendable () -> Date? = { ClaudeAuth.antCredentialsModified() }) {
         self.environment = environment
         self.now = now
+        self.antStamp = antStamp
         self.storedKey = storedKey
         let env = environment
         self.antPath = antPath ?? { ClaudeAuth.findExecutable("ant", environment: env) }
@@ -68,7 +80,7 @@ public final class ClaudeAuth: @unchecked Sendable {
     }
 
     /// A resolver that never finds anything (tests, and `backend = "vision"`).
-    public static let none = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { nil }, runAnt: { _, _ in nil })
+    public static let none = ClaudeAuth(environment: [:], storedKey: { nil }, antPath: { nil }, runAnt: { _, _ in nil }, antStamp: { nil })
 
     public func resolve() -> ClaudeCredential? {
         lock.lock(); defer { lock.unlock() }
@@ -97,8 +109,129 @@ public final class ClaudeAuth: @unchecked Sendable {
         if let k = storedKey() { return (.apiKey(k, source: .stored), nil) }
         let t = now()
         guard let (token, expiry) = antCredential() else { return (nil, t.addingTimeInterval(Self.defaultTTL)) }
+        if let expiry, expiry <= t {
+            // `ant` hands back the expired token when it couldn't refresh it (its refresh token
+            // expired too). Back off now, with no 401 round trip, and don't run `ant` again until then.
+            recordLocked(.antLogin, detail: Problem.antExpired)
+            return (.oauth(token), retryAt)
+        }
         let until = expiry.map { max($0.addingTimeInterval(-Self.expiryMargin), t.addingTimeInterval(60)) }
         return (.oauth(token), until ?? t.addingTimeInterval(Self.defaultTTL))
+    }
+
+    // MARK: - Auth failures and backoff
+
+    /// Claude's credential stopped working: an `ant` login that expired, or a key Anthropic rejected.
+    /// Written to `app-state.json` (field names are part of `status --json`'s contract).
+    public struct Problem: Codable, Equatable, Sendable {
+        public enum Kind: String, Codable, Sendable {
+            /// The `ant` login expired or was rejected.
+            case antLogin = "ant_login"
+            /// The key stored by `betterairdrop auth claude` (or the app) was rejected.
+            case storedKey = "stored_key"
+            /// `ANTHROPIC_API_KEY` was rejected.
+            case environmentKey = "environment_key"
+        }
+        public var kind: Kind
+        /// What went wrong, kept in `app-state.json` (no secrets).
+        public var detail: String
+
+        public init(kind: Kind, detail: String) { self.kind = kind; self.detail = detail }
+
+        /// `detail` when `ant` could only hand back an expired token.
+        public static let antExpired = "ant's token expired and ant couldn't refresh it"
+
+        /// The problem and its fix, in plain words.
+        public var message: String {
+            switch kind {
+            case .antLogin: "Claude login expired. Run `ant auth login` in Terminal."
+            case .storedKey: "Anthropic rejected your Claude key. Add a new one in Settings or with `betterairdrop auth claude`."
+            case .environmentKey: "Anthropic rejected ANTHROPIC_API_KEY. Set a valid key."
+            }
+        }
+
+        /// The command that fixes it, if there is one.
+        public var command: String? {
+            switch kind {
+            case .antLogin: "ant auth login"
+            case .storedKey: "betterairdrop auth claude"
+            case .environmentKey: nil
+            }
+        }
+
+        static func kind(for source: Source) -> Kind {
+            switch source {
+            case .environment: .environmentKey
+            case .stored: .storedKey
+            case .antCLI: .antLogin
+            }
+        }
+    }
+
+    /// Anthropic rejected `credential` (a 401). Claude is skipped for `retryInterval`, or until the
+    /// credential changes, so a broken login doesn't cost a request (and an `ant` run) per photo.
+    public func recordAuthFailure(_ credential: ClaudeCredential, detail: String) {
+        lock.lock(); defer { lock.unlock() }
+        recordLocked(Problem.kind(for: credential.source), detail: detail)
+        cached = (credential, retryAt)   // no `ant` run until it's tried again
+    }
+
+    /// A request went through: any problem is over.
+    public func recordSuccess() {
+        lock.lock(); defer { lock.unlock() }
+        problem = nil; retryAt = nil; problemStamp = nil
+    }
+
+    /// The current problem, until a request succeeds or the credential changes (`ant auth login`,
+    /// a new key). Shown in the app and `status`, also while Claude is being tried again.
+    public func currentProblem() -> Problem? {
+        lock.lock(); defer { lock.unlock() }
+        return checkStampLocked()
+    }
+
+    /// The problem while Claude is being skipped (`ClaudeNamer.availability`): until `retryAt`,
+    /// unless the credential changed first. Nil = try Claude.
+    public func blockingProblem() -> Problem? {
+        lock.lock(); defer { lock.unlock() }
+        guard let p = checkStampLocked(), let r = retryAt, now() < r else { return nil }
+        return p
+    }
+
+    private func recordLocked(_ kind: Problem.Kind, detail: String) {
+        let t = now()
+        problem = Problem(kind: kind, detail: detail)
+        retryAt = t.addingTimeInterval(Self.retryInterval)
+        problemStamp = stampLocked()
+    }
+
+    /// A changed credential ends the problem (and drops the cached one), so it's tried at once.
+    private func checkStampLocked() -> Problem? {
+        guard let p = problem else { return nil }
+        guard stampLocked() == problemStamp else {
+            problem = nil; retryAt = nil; problemStamp = nil; cached = nil
+            return nil
+        }
+        return p
+    }
+
+    /// A hash of what could change the credential: the env key, the stored key and `ant`'s login
+    /// date. In memory only, never stored or logged. Cheap: no `ant` run.
+    private func stampLocked() -> Int {
+        var h = Hasher()
+        h.combine(environment["ANTHROPIC_API_KEY"])
+        h.combine(storedKey())
+        h.combine(antStamp())
+        return h.finalize()
+    }
+
+    /// The newest modification date in `ant`'s credentials folder (`~/.config/anthropic/credentials`),
+    /// or of the folder itself. Reads file dates only, never the files.
+    public static func antCredentialsModified() -> Date? {
+        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/anthropic/credentials")
+        let fm = FileManager.default
+        func modified(_ path: String) -> Date? { (try? fm.attributesOfItem(atPath: path))?[.modificationDate] as? Date }
+        let children = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).map { modified(dir.appendingPathComponent($0).path) }
+        return ([modified(dir.path)] + children).compactMap { $0 }.max()
     }
 
     /// One `ant` call: `print-credentials` without the flag prints JSON with `access_token` and
@@ -126,6 +259,15 @@ public final class ClaudeAuth: @unchecked Sendable {
         return token
     }
 
+    public enum AntLogin: Equatable, Sendable { case none, loggedIn, expired }
+
+    /// The `ant` login as `status` shows it, from one `ant` run: `expired` when `ant` could only
+    /// give back a token past its expiry (it couldn't refresh it).
+    public func antLogin() -> AntLogin {
+        guard let (_, expiry) = antCredential() else { return .none }
+        return expiry.map { $0 <= now() } == true ? .expired : .loggedIn
+    }
+
     public var antInstalled: Bool { antPath() != nil }
     public var antExecutable: String? { antPath() }
 
@@ -136,7 +278,11 @@ public final class ClaudeAuth: @unchecked Sendable {
         rows.append((.environment, env ? "set" : "not set"))
         rows.append((.stored, storedKey() != nil ? "stored" : "none (run `betterairdrop auth claude`)"))
         if let ant = antPath() {
-            rows.append((.antCLI, antToken() != nil ? "logged in (\(ant))" : "installed, not logged in (run `betterairdrop auth login`)"))
+            switch antLogin() {
+            case .loggedIn: rows.append((.antCLI, "logged in (\(ant))"))
+            case .expired: rows.append((.antCLI, "login expired (run `ant auth login`)"))
+            case .none: rows.append((.antCLI, "installed, not logged in (run `betterairdrop auth login`)"))
+            }
         } else {
             rows.append((.antCLI, "not installed (brew install anthropics/tap/ant)"))
         }
