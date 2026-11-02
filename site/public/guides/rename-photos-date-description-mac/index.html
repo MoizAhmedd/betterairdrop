@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rename photos with the date plus a description on a Mac · BetterAirdrop</title>
+<meta name="description" content="Put a date like 260921 and a short description in your photo file names on a Mac. Free ways: Finder's Rename for a batch, a Shortcuts quick action per photo, or BetterAirdrop naming each photo from its own date and contents.">
+<link rel="canonical" href="https://betterairdrop.com/guides/rename-photos-date-description-mac/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="BetterAirdrop">
+<meta property="og:title" content="Rename photos with the date plus a description on a Mac">
+<meta property="og:description" content="IMG_4821.HEIC to 260921_walnut-lamp: free ways to do it in Finder, Shortcuts or BetterAirdrop.">
+<meta property="og:url" content="https://betterairdrop.com/guides/rename-photos-date-description-mac/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%233f7fbf'/%3E%3Cpath d='M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='14' y='38' width='36' height='11' rx='3.5' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../guide.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Can Finder add a date and a description to photo names?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Yes, as text you type once for a batch. Select the photos, Control-click, choose Rename, then use Replace Text (for example, find IMG_ and replace it with 260921_walnut-lamp_) or Add Text before the current name. Every selected file gets the same text."}},
+    {"@type": "Question", "name": "How do I write a date as YYMMDD in Shortcuts on a Mac?",
+     "acceptedAnswer": {"@type": "Answer", "text": "In the Format Date action, choose Custom, then enter a format string in the Format String field. yyMMdd gives a two-digit year, month and day, such as 260921."}},
+    {"@type": "Question", "name": "Is there a free app that names photos with the date and a description on a Mac?",
+     "acceptedAnswer": {"@type": "Answer", "text": "BetterAirdrop is free and open source. Its default name is the photo's date, city and a description from Apple Vision on your Mac, such as 2026-09-21_toronto_walnut-lamp-on-oak-sideboard.jpg. The template {date}_{subject} leaves out the city, and date_format = yyyymmdd writes the date as 20260921."}}
+  ]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+<nav class="top">
+  <a class="brand" href="../../">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="var(--accent)"/><path d="M20 26a17 17 0 0 1 24 0M25 31a10 10 0 0 1 14 0" fill="none" stroke="var(--paper)" stroke-width="4" stroke-linecap="round"/><rect x="14" y="38" width="36" height="11" rx="3.5" fill="var(--paper)"/></svg>
+    BetterAirdrop
+  </a>
+  <div class="links">
+    <a href="../">Guides</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/MoizAhmedd/betterairdrop">GitHub</a>
+  </div>
+</nav>
+
+<article>
+  <p class="crumb"><a href="../">Guides</a></p>
+  <h1>Rename photos with the date plus a description on a Mac</h1>
+  <p class="answer">For a batch from one day, Finder's Rename turns IMG_ into 260921_walnut-lamp_ in one go. For each photo's own date and description, use a Shortcuts quick action or BetterAirdrop, free and on your Mac.</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th></th><th>Date</th><th>Description</th><th>Many at once</th><th>Setup</th></tr></thead>
+    <tbody>
+      <tr><td>Finder Rename</td><td>You type it</td><td>You type it, same for all</td><td>Yes</td><td>None</td></tr>
+      <tr><td>Shortcuts</td><td>Format Date, e.g. yyMMdd</td><td>Use Model, per photo</td><td>What you select</td><td>Build it; Apple Intelligence Mac</td></tr>
+      <tr><td>BetterAirdrop</td><td>The photo's own</td><td>Apple Vision, per photo</td><td>Yes, as they arrive</td><td>One install</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Finder: one date and description for a batch</h2>
+  <ol>
+    <li>Select the photos from one day or one event.</li>
+    <li>Control-click one, choose <b>Rename</b>.</li>
+    <li>Choose <b>Replace Text</b>. Find: <b>IMG_</b>. Replace with: <b>260921_walnut-lamp_</b>.</li>
+    <li>Click <b>Rename</b>.</li>
+  </ol>
+  <div class="rename"><span class="from">IMG_4821.HEIC</span> → 260921_walnut-lamp_4821.HEIC</div>
+  <p>The number stays, so names don't clash. <b>Add Text</b> puts text before or after the current name instead.</p>
+  <p>Every selected photo gets the same words. Mixed days need one pass per day.</p>
+  <p class="src">Source: <a href="https://support.apple.com/guide/mac-help/mchlp1144/mac">Rename files, folders, and disks on Mac</a></p>
+
+  <h2>Shortcuts: a description per photo</h2>
+  <p>Yes, if you build it. Needs macOS 26 or later with Apple Intelligence (a Mac with M1 or later).</p>
+  <ol>
+    <li>New shortcut → Details → <b>Use as Quick Action</b>.</li>
+    <li>Add <b>Format Date</b>, choose <b>Custom</b>, Format String <b>yyMMdd</b>.</li>
+    <li>Add <b>Use Model</b>, choose <b>On-Device</b>. Prompt: <em>“Describe this photo in 3 to 5 words for a filename.”</em></li>
+    <li>Add an action that renames the file to the date, an underscore and the reply.</li>
+    <li>Turn it on: <span class="path">System Settings → Privacy &amp; Security → Extensions → Finder</span>.</li>
+    <li>Control-click photos → Quick Actions → your shortcut.</li>
+  </ol>
+  <p>Format Date writes whichever date you give it. Picking the right one, and name clashes, are yours to handle.</p>
+  <p class="src">Sources: <a href="https://support.apple.com/guide/shortcuts-mac/apd8d9b19184/mac">Custom date formats in Shortcuts on Mac</a> · <a href="https://support.apple.com/guide/shortcuts-mac/mchl91750563/mac">Use Apple Intelligence in Shortcuts on Mac</a> · <a href="https://support.apple.com/guide/shortcuts-mac/apd163eb9f95/mac">Run a shortcut while working on your Mac</a> · <a href="https://support.apple.com/en-us/121115">How to get Apple Intelligence</a></p>
+
+  <h2>Or BetterAirdrop</h2>
+  <ul>
+    <li>Date and city from the photo itself</li>
+    <li>Description from Apple Vision, on your Mac</li>
+    <li>Runs on every AirDrop, or on photos you pick</li>
+    <li>Undo anything</li>
+  </ul>
+  <div class="rename"><span class="from">IMG_4821.HEIC</span> → 2026-09-21_toronto_walnut-lamp-on-oak-sideboard.jpg</div>
+  <p>Just date and description: set <span class="path">Settings → Naming → Name format</span> to <code>{date}_{subject}</code>.</p>
+  <p>Compact date: <code>date_format = "yyyymmdd"</code> in <code>~/.config/betterairdrop/config.toml</code> gives 20260921. There's no two-digit year.</p>
+  <div class="code"><span class="line"><span class="p">$ </span>betterairdrop rename --dry-run --template "{date}_{subject}" ~/Pictures/IMG_*.HEIC</span></div>
+  <p>Vision's descriptions are short, like tags. For fuller ones, add your own Claude API key.</p>
+  <p>Pro's name builder sets the parts, order, separator and date format with clicks.</p>
+
+  <section class="cta" id="install">
+    <h2>Install</h2>
+    <p>Free and open source. macOS 13 or later.</p>
+    <div class="code"><span class="line"><span class="p">$ </span><span id="cmd">brew install moizahmedd/tap/betterairdrop</span></span><button class="copy" type="button" id="copy">Copy</button></div>
+    <p class="alt">No Homebrew? <code>curl -fsSL https://betterairdrop.com/install | sh</code></p>
+    <a class="gh" href="https://github.com/MoizAhmedd/betterairdrop">View on GitHub →</a>
+  </section>
+
+  <div class="more">
+    <h3>More guides</h3>
+    <ul>
+      <li><a href="../rename-photos-by-content-mac/">Rename photos by what's in them on a Mac</a></li>
+      <li><a href="../airdrop-photos-as-jpg/">How to AirDrop photos as JPG, not HEIC</a></li>
+    </ul>
+  </div>
+</article>
+
+<footer>
+  <span>BetterAirdrop · MIT licensed · by <a href="https://github.com/MoizAhmedd">Moiz Ahmed</a></span>
+  <span><a href="../">Guides</a></span>
+  <span class="pnote" id="pnote"></span>
+</footer>
+</div>
+<script src="../guide.js"></script>
+<script src="../../analytics.js"></script>
+</body>
+</html>
