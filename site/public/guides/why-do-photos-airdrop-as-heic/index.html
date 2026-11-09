@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Why do photos AirDrop as HEIC? · BetterAirdrop</title>
-<meta name="description" content="Your iPhone shoots HEIC, and AirDrop converts only when the receiving device can't read it. Macs can, so the HEIC arrives as is. What HEIC is and how to get JPG.">
+<title>Why AirDrop sends HEIC to your Mac, and how to stop it · BetterAirdrop</title>
+<meta name="description" content="Stop AirDrop sending HEIC to your Mac: Settings → Camera → Formats → Most Compatible for every photo, or Options → Most Compatible for one share. Why it happens, and the free fixes.">
 <link rel="canonical" href="https://betterairdrop.com/guides/why-do-photos-airdrop-as-heic/">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="BetterAirdrop">
-<meta property="og:title" content="Why do photos AirDrop as HEIC?">
-<meta property="og:description" content="AirDrop converts only when the receiving device can't read HEIC. Macs can.">
+<meta property="og:title" content="Why AirDrop sends HEIC to your Mac, and how to stop it">
+<meta property="og:description" content="Settings → Camera → Formats → Most Compatible, or Options → Most Compatible for one AirDrop.">
 <meta property="og:url" content="https://betterairdrop.com/guides/why-do-photos-airdrop-as-heic/">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)">
@@ -24,14 +24,14 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    {"@type": "Question", "name": "Why do photos AirDrop as HEIC?",
-     "acceptedAnswer": {"@type": "Answer", "text": "iPhones shoot HEIC unless the camera is set to Most Compatible, and AirDrop only converts to a more compatible format such as JPEG when the receiving device doesn't support HEIC. Macs on macOS High Sierra or later support it, so the photo arrives as HEIC."}},
-    {"@type": "Question", "name": "What is HEIC?",
-     "acceptedAnswer": {"@type": "Answer", "text": "A photo in HEIF, the High Efficiency Image File Format. Apple says it compresses better than JPEG, so it uses less storage at the same visual quality."}},
-    {"@type": "Question", "name": "Is HEIC worse than JPG?",
-     "acceptedAnswer": {"@type": "Answer", "text": "Not in quality. JPEG is more broadly compatible with other devices and operating systems, which is why some apps and sites still want it."}},
-    {"@type": "Question", "name": "How do I get JPG instead?",
-     "acceptedAnswer": {"@type": "Answer", "text": "Tap Options in the iPhone share sheet and choose Most Compatible before you AirDrop, or set Settings > Camera > Formats > Most Compatible to shoot JPEG."}}
+    {"@type": "Question", "name": "How do I stop AirDrop sending HEIC to my Mac?",
+     "acceptedAnswer": {"@type": "Answer", "text": "On the iPhone, open Settings, tap Camera, tap Formats, then tap Most Compatible. New photos are then JPEG. For a single share, tap Options in the share sheet and choose Most Compatible before you AirDrop; Apple says files may convert to JPEG."}},
+    {"@type": "Question", "name": "Why does AirDrop send HEIC to my Mac?",
+     "acceptedAnswer": {"@type": "Answer", "text": "iPhones shoot HEIC unless the camera is set to Most Compatible, and AirDrop only converts to a more compatible format such as JPEG when the receiving device doesn't support HEIC. Macs on macOS High Sierra 10.13 or later support it, so the photo arrives as HEIC."}},
+    {"@type": "Question", "name": "Does the Keep Originals setting in Photos stop HEIC over AirDrop?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Apple describes Keep Originals (Settings > Apps > Photos) for importing from an iPhone attached to a Mac or PC by USB, into Photos or Image Capture. For AirDrop, use the Camera format setting or the share sheet's Options."}},
+    {"@type": "Question", "name": "Can my Mac turn AirDropped HEIC photos into JPEG automatically?",
+     "acceptedAnswer": {"@type": "Answer", "text": "BetterAirdrop, a free and open-source menu-bar app, converts each AirDropped HEIC to JPEG as it lands in Downloads and names it for what's in it. Originals go to the Trash, or you can keep them, and every change can be undone."}}
   ]
 }
 </script>
@@ -52,33 +52,51 @@
 
 <article>
   <p class="crumb"><a href="../">Guides</a></p>
-  <h1>Why do my photos AirDrop as HEIC?</h1>
-  <p class="answer">Your iPhone shoots HEIC unless its camera is set to Most Compatible, and AirDrop only converts when the receiving device can't read HEIC. Every Mac on macOS High Sierra or later can, so the file arrives as is.</p>
+  <h1>Why AirDrop sends HEIC to your Mac, and how to stop it</h1>
+  <p class="answer">To stop it for good, set your iPhone to <span class="path">Settings → Camera → Formats → Most Compatible</span>. For one share, tap <b>Options → Most Compatible</b> before you AirDrop.</p>
+  <p>Why it happens: AirDrop only converts when the receiving device can't read HEIC. Every Mac on macOS High Sierra or later can, so the file arrives as is.</p>
+
+  <h2>Stop it for every photo</h2>
+  <ol>
+    <li>Open Settings, tap <b>Camera</b>.</li>
+    <li>Tap <b>Formats</b>, then <b>Most Compatible</b>.</li>
+  </ol>
+  <ul>
+    <li>New photos are JPEG, new videos H.264.</li>
+    <li>Old photos stay HEIC.</li>
+    <li>The cost: HEIC takes less space at the same quality.</li>
+  </ul>
+  <p class="src">Source: <a href="https://support.apple.com/en-us/116944">Using HEIF or HEVC media on Apple devices</a></p>
+
+  <h2>Stop it for one AirDrop</h2>
+  <p>In the share sheet, tap <b>Options</b>, then pick a file format:</p>
+  <ul>
+    <li><b>Most Compatible:</b> files may convert to JPEG. Pick this.</li>
+    <li><b>Automatic:</b> the best format for the destination. A Mac reads HEIC, so it usually stays HEIC.</li>
+    <li><b>Current:</b> no conversion.</li>
+  </ul>
+  <p>Leave <b>All Photos Data</b> off. It sends the original file, with edit history and metadata.</p>
+  <p class="src">Source: <a href="https://support.apple.com/guide/iphone/iphf28f17237/ios">Share photos and videos on iPhone</a> · <a href="../airdrop-photos-as-jpg/">Step by step, plus the Mac fixes</a></p>
+
+  <h2>Not the setting you want</h2>
+  <p><span class="path">Settings → Apps → Photos → Keep Originals</span> is for importing from an iPhone plugged into your Mac, into Photos or Image Capture. Apple doesn't describe it for AirDrop.</p>
+  <p class="src">Source: <a href="https://support.apple.com/en-us/116944">Using HEIF or HEVC media on Apple devices</a></p>
 
   <h2>What is HEIC?</h2>
   <ul>
     <li>A photo in HEIF, the High Efficiency Image File Format.</li>
-    <li>Better compression than JPEG.</li>
-    <li>Less storage, same visual quality.</li>
+    <li>Not worse than JPEG in quality.</li>
+    <li>JPEG works with more apps and sites.</li>
   </ul>
-
-  <h2>Is it worse than JPG?</h2>
-  <p>Not in quality. JPEG is more broadly compatible, so some apps and sites still want it.</p>
-
-  <h2>When does AirDrop convert?</h2>
-  <p>Only when the other device doesn't support HEIC. Then it <em>might</em> send JPEG instead.</p>
   <p class="src">Source: <a href="https://support.apple.com/en-us/116944">Using HEIF or HEVC media on Apple devices</a></p>
 
-  <h2>How do I get JPG?</h2>
-  <ul>
-    <li>One share: <span class="path">Options → Most Compatible</span></li>
-    <li>Every photo: <span class="path">Settings → Camera → Formats → Most Compatible</span></li>
-  </ul>
-  <p><a href="../airdrop-photos-as-jpg/">Step by step, plus the Mac fixes</a>.</p>
+  <h2>Already on your Mac?</h2>
+  <p>Open it in Preview or Photos: <span class="path">File → Export → JPEG</span>.</p>
+  <p class="src">Source: <a href="https://support.apple.com/en-us/116944">Using HEIF or HEVC media on Apple devices</a></p>
 
   <section class="cta" id="install">
-    <h2>Or have it done automatically</h2>
-    <p>BetterAirdrop turns each AirDropped HEIC into a JPEG as it lands in Downloads, and names it for what's in it. Undo anything.</p>
+    <h2>Or keep HEIC on your iPhone, get JPEG on your Mac</h2>
+    <p>BetterAirdrop turns each AirDropped HEIC into a JPEG as it lands in Downloads, and names it for what's in it. Free. Originals go to the Trash, or keep them. Undo anything.</p>
     <div class="rename"><span class="from">IMG_4821.HEIC</span> → 2026-09-21_toronto_walnut-lamp-on-oak-sideboard.jpg</div>
     <div class="code"><span class="line"><span class="p">$ </span><span id="cmd">brew install moizahmedd/tap/betterairdrop</span></span><button class="copy" type="button" id="copy">Copy</button></div>
     <p class="alt">No Homebrew? <code>curl -fsSL https://betterairdrop.com/install | sh</code></p>
@@ -88,8 +106,8 @@
   <div class="more">
     <h3>More guides</h3>
     <ul>
+      <li><a href="../airdrop-photos-as-jpg/">How to AirDrop photos as JPG, not HEIC</a></li>
       <li><a href="../where-do-airdropped-photos-go-mac/">Where do AirDropped photos go on a Mac?</a></li>
-      <li><a href="../rename-photos-by-content-mac/">Rename photos by what's in them on a Mac</a></li>
     </ul>
   </div>
 </article>
