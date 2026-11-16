@@ -92,6 +92,15 @@ Free does everything above. Pro, $19 once for 3 Macs, adds:
 
 [Details](docs/cli.md#betterairdrop-pro).
 
+## Guides
+
+- [How to AirDrop photos as JPG, not HEIC](https://betterairdrop.com/guides/airdrop-photos-as-jpg/)
+- [Why AirDrop sends HEIC to your Mac, and how to stop it](https://betterairdrop.com/guides/why-do-photos-airdrop-as-heic/)
+- [Where do AirDropped photos go on a Mac?](https://betterairdrop.com/guides/where-do-airdropped-photos-go-mac/)
+- [Rename photos by what's in them on a Mac](https://betterairdrop.com/guides/rename-photos-by-content-mac/)
+- [Rename photos with the date plus a description on a Mac](https://betterairdrop.com/guides/rename-photos-date-description-mac/)
+- [Rename screenshots automatically on a Mac](https://betterairdrop.com/guides/rename-screenshots-mac/)
+
 ## License
 
 MIT. City data © [GeoNames](https://www.geonames.org), CC BY 4.0.
